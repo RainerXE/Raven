@@ -9,3 +9,5 @@ CMakeUserPresets.json
 /.vscode/
 /.idea/
 *.swp
+
+/dev/
