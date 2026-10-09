@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  HUI example - editor.xml
+  Raven example - editor.xml
 
   A window is a tree of widgets. Tags are widget types and attributes set
   their properties. "Slot.*" attributes tell the parent panel how to place a
   child (Slate slots): Slot.Fill, Slot.Padding, Slot.HAlign, Slot.VAlign...
-  The names given to On...="" are actions, bound from C with HUI_BindAction.
+  The names given to On...="" are actions, bound from C with Raction_bind.
   docs/XML.md lists every tag and attribute.
 -->
-<Window Title="HUI - editor example" Width="1180" Height="720" MinWidth="640" MinHeight="420">
+<Window Title="Raven - editor example" Width="1180" Height="720" MinWidth="640" MinHeight="420">
 	<Shortcut Keys="F5" Action="scene.play"/>
 	<Shortcut Keys="Delete" Action="scene.delete"/>
 
@@ -23,6 +23,8 @@
 			<Menu Text="View">
 				<MenuItem Name="menu.dark" Text="Dark theme" Checkable="true" Checked="true" OnClicked="view.dark"/>
 				<MenuItem Name="menu.light" Text="Light theme" Checkable="true" OnClicked="view.light"/>
+				<MenuItem Name="menu.glass_dark" Text="Dark glass" Checkable="true" OnClicked="view.glass_dark"/>
+				<MenuItem Name="menu.glass_light" Text="Light glass" Checkable="true" OnClicked="view.glass_light"/>
 				<Separator/>
 				<Menu Text="Scale">
 					<MenuItem Text="Compact" OnClicked="view.compact"/>
@@ -51,7 +53,7 @@
 				</VBox>
 
 				<TabView Slot.Fill="3">
-					<!-- Mode 1 of hui_viewport.h: the application renders into a texture -->
+					<!-- Mode 1 of raven_viewport.h: the application renders into a texture -->
 					<Viewport Name="scene" Slot.Title="Scene" Realtime="true" Cursor="Crosshair"
 						Tooltip="Software-rendered on the job system. Drag to move the selected object."/>
 					<VBox Slot.Title="Profiler" Slot.Padding="12" Spacing="8">

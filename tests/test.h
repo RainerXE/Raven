@@ -1,11 +1,11 @@
 /**
- * HUI tests - minimal test harness: no dependency, one executable per file.
+ * Raven tests - minimal test harness: no dependency, one executable per file.
  */
 
-#ifndef HUI_TEST_H
-#define HUI_TEST_H
+#ifndef RVN_TEST_H
+#define RVN_TEST_H
 
-#include <hui/hui.h>
+#include <Raven.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -46,7 +46,7 @@ static int g_test_expect_errors = 0;
 /* Bounds of a widget in its window. */
 #define CHECK_RECT(widget, ex, ey, ew, eh) do { \
 	float test_x_, test_y_, test_w_, test_h_; \
-	HUI_GetWidgetRect((widget), &test_x_, &test_y_, &test_w_, &test_h_); \
+	Rwidget_get_rect((widget), &test_x_, &test_y_, &test_w_, &test_h_); \
 	g_test_checks++; \
 	if (fabs(test_x_ - (ex)) > 0.51 || fabs(test_y_ - (ey)) > 0.51 || fabs(test_w_ - (ew)) > 0.51 || fabs(test_h_ - (eh)) > 0.51) { \
 		g_test_failures++; \
@@ -56,11 +56,11 @@ static int g_test_expect_errors = 0;
 } while (0)
 
 /* Errors raised by the library fail the test, unless the test announced them. */
-static inline void test_error_callback(HUI_EError code, HUI_ESeverity severity, const char* detail) {
+static inline void test_error_callback(RError code, RSeverity severity, const char* detail) {
 	g_test_errors++;
 	if (!g_test_expect_errors) {
 		g_test_failures++;
-		printf("  UNEXPECTED ERROR %s (%s): %s\n", HUI_ErrorEnumToString(code), HUI_SeverityEnumToString(severity), detail);
+		printf("  UNEXPECTED ERROR %s (%s): %s\n", Rerror_to_string(code), Rseverity_to_string(severity), detail);
 	}
 }
 
@@ -69,13 +69,13 @@ static inline void test_error_callback(HUI_EError code, HUI_ESeverity severity, 
 
 /* Starts the library without a window system and without a GPU. */
 static inline int test_init(int worker_threads) {
-	HUI_InitDesc desc;
+	RInitDesc desc;
 	memset(&desc, 0, sizeof(desc));
-	desc.backend = HUI_BACKEND_NULL;
-	desc.headless = HUI_TRUE;
+	desc.backend = R_BACKEND_NULL;
+	desc.headless = R_TRUE;
 	desc.worker_threads = worker_threads;
-	HUI_RegisterErrorCallback(test_error_callback);
-	return HUI_InitEx(&desc);
+	Rerror_set_callback(test_error_callback);
+	return Rinit_ex(&desc);
 }
 
 #define RUN(function) do { printf("%s\n", #function); function(); } while (0)
@@ -86,23 +86,23 @@ static inline int test_report(const char* name) {
 }
 
 /* Moves the cursor to the middle of a widget and clicks. */
-static inline void test_click(HUI_id window, HUI_id widget) {
+static inline void test_click(Rid window, Rid widget) {
 	float x, y, w, h;
-	HUI_GetWidgetRect(widget, &x, &y, &w, &h);
-	HUI_InjectMouseMove(window, x + w * 0.5f, y + h * 0.5f);
-	HUI_InjectMouseButton(window, HUI_MOUSE_LEFT, HUI_TRUE);
-	HUI_InjectMouseButton(window, HUI_MOUSE_LEFT, HUI_FALSE);
+	Rwidget_get_rect(widget, &x, &y, &w, &h);
+	Rwindow_inject_mouse_move(window, x + w * 0.5f, y + h * 0.5f);
+	Rwindow_inject_mouse_button(window, R_MOUSE_LEFT, R_TRUE);
+	Rwindow_inject_mouse_button(window, R_MOUSE_LEFT, R_FALSE);
 }
 
-static inline void test_click_at(HUI_id window, float x, float y) {
-	HUI_InjectMouseMove(window, x, y);
-	HUI_InjectMouseButton(window, HUI_MOUSE_LEFT, HUI_TRUE);
-	HUI_InjectMouseButton(window, HUI_MOUSE_LEFT, HUI_FALSE);
+static inline void test_click_at(Rid window, float x, float y) {
+	Rwindow_inject_mouse_move(window, x, y);
+	Rwindow_inject_mouse_button(window, R_MOUSE_LEFT, R_TRUE);
+	Rwindow_inject_mouse_button(window, R_MOUSE_LEFT, R_FALSE);
 }
 
-static inline void test_key(HUI_id window, HUI_EKey key, HUI_uint modifiers) {
-	HUI_InjectKey(window, key, HUI_TRUE, modifiers);
-	HUI_InjectKey(window, key, HUI_FALSE, modifiers);
+static inline void test_key(Rid window, RKey key, Ruint modifiers) {
+	Rwindow_inject_key(window, key, R_TRUE, modifiers);
+	Rwindow_inject_key(window, key, R_FALSE, modifiers);
 }
 
-#endif /* HUI_TEST_H */
+#endif /* RVN_TEST_H */

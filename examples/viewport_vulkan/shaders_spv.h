@@ -1,5 +1,5 @@
 /**
- * HUI example - SPIR-V of shaders/triangle.vert and shaders/triangle.frag.
+ * Raven example - SPIR-V of shaders/triangle.vert and shaders/triangle.frag.
  * Generated with:  glslangValidator -V <shader> -o <shader>.spv
  */
 

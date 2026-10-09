@@ -1,0 +1,297 @@
+/**
+ * Raven
+ * raven_window.h : OS windows, input enums and events.
+ *
+ * Raven creates and owns its windows (Win32, X11). Sizes and positions are in
+ * logical units; multiply by Rwindow_get_scale to get pixels.
+ */
+
+#ifndef RAVEN_WINDOW_H
+#define RAVEN_WINDOW_H
+
+#include "raven_core.h"
+
+
+typedef enum RWindowFlags{
+	R_WINDOW_DEFAULT    = 0,
+	R_WINDOW_NO_RESIZE  = (1 << 0),
+	R_WINDOW_HIDDEN     = (1 << 1),
+	R_WINDOW_BORDERLESS = (1 << 2),
+	R_WINDOW_MAXIMIZED  = (1 << 3)
+}RWindowFlags;
+
+typedef enum RWindowSystem{
+	R_WINDOW_SYSTEM_NONE = 0x0090,
+	R_WINDOW_SYSTEM_WIN32,
+	R_WINDOW_SYSTEM_X11,
+	R_WINDOW_SYSTEM_WAYLAND,
+	R_WINDOW_SYSTEM_COCOA
+}RWindowSystem;
+
+/**
+ * Native handles of a window or of a native viewport.
+ *   Win32 : display = HINSTANCE, window = HWND
+ *   X11   : display = Display*,  window = Window (XID), visual = VisualID
+ */
+typedef struct RNativeWindow {
+	RWindowSystem system;
+	void* display;
+	uintptr_t window;
+	uintptr_t visual;
+} RNativeWindow;
+
+typedef enum RMouseButton{
+	R_MOUSE_LEFT = 0,
+	R_MOUSE_RIGHT,
+	R_MOUSE_MIDDLE,
+	R_MOUSE_X1,
+	R_MOUSE_X2
+}RMouseButton;
+
+typedef enum RModifier{
+	R_MOD_SHIFT = (1 << 0),
+	R_MOD_CTRL  = (1 << 1),
+	R_MOD_ALT   = (1 << 2),
+	R_MOD_SUPER = (1 << 3)
+}RModifier;
+
+typedef enum RCursor{
+	R_CURSOR_ARROW = 0x00B0,
+	R_CURSOR_IBEAM,
+	R_CURSOR_HAND,
+	R_CURSOR_CROSSHAIR,
+	RAVEN_CURSOR_RESIZE_H,
+	R_CURSOR_RESIZE_V,
+	R_CURSOR_RESIZE_NWSE,
+	R_CURSOR_RESIZE_NESW,
+	R_CURSOR_MOVE,
+	R_CURSOR_NOT_ALLOWED
+}RCursor;
+
+/** Keyboard keys. Printable keys use their upper-case ASCII code. */
+typedef enum RKey{
+	R_KEY_UNKNOWN = 0,
+	R_KEY_SPACE = 32,
+	R_KEY_APOSTROPHE = 39,
+	R_KEY_COMMA = 44,
+	R_KEY_MINUS = 45,
+	R_KEY_PERIOD = 46,
+	R_KEY_SLASH = 47,
+	R_KEY_0 = 48, R_KEY_1, R_KEY_2, R_KEY_3, R_KEY_4,
+	R_KEY_5, R_KEY_6, R_KEY_7, R_KEY_8, R_KEY_9,
+	R_KEY_SEMICOLON = 59,
+	R_KEY_EQUAL = 61,
+	R_KEY_A = 65, R_KEY_B, R_KEY_C, R_KEY_D, R_KEY_E, R_KEY_F,
+	R_KEY_G, RAVEN_KEY_H, R_KEY_I, R_KEY_J, R_KEY_K, R_KEY_L,
+	R_KEY_M, R_KEY_N, R_KEY_O, R_KEY_P, R_KEY_Q, R_KEY_R,
+	R_KEY_S, R_KEY_T, R_KEY_U, R_KEY_V, R_KEY_W, R_KEY_X,
+	R_KEY_Y, R_KEY_Z,
+	R_KEY_LEFT_BRACKET = 91,
+	R_KEY_BACKSLASH = 92,
+	R_KEY_RIGHT_BRACKET = 93,
+	R_KEY_GRAVE = 96,
+
+	R_KEY_ESCAPE = 256,
+	R_KEY_ENTER,
+	R_KEY_TAB,
+	R_KEY_BACKSPACE,
+	R_KEY_INSERT,
+	R_KEY_DELETE,
+	R_KEY_RIGHT,
+	R_KEY_LEFT,
+	R_KEY_DOWN,
+	R_KEY_UP,
+	R_KEY_PAGE_UP,
+	R_KEY_PAGE_DOWN,
+	R_KEY_HOME,
+	R_KEY_END,
+	R_KEY_CAPS_LOCK,
+	R_KEY_PRINT_SCREEN,
+	R_KEY_PAUSE,
+	R_KEY_F1, R_KEY_F2, R_KEY_F3, R_KEY_F4, R_KEY_F5, R_KEY_F6,
+	R_KEY_F7, R_KEY_F8, R_KEY_F9, R_KEY_F10, R_KEY_F11, R_KEY_F12,
+	R_KEY_KP_0, R_KEY_KP_1, R_KEY_KP_2, R_KEY_KP_3, R_KEY_KP_4,
+	R_KEY_KP_5, R_KEY_KP_6, R_KEY_KP_7, R_KEY_KP_8, R_KEY_KP_9,
+	R_KEY_KP_DECIMAL,
+	R_KEY_KP_DIVIDE,
+	R_KEY_KP_MULTIPLY,
+	R_KEY_KP_SUBTRACT,
+	R_KEY_KP_ADD,
+	R_KEY_KP_ENTER,
+	R_KEY_LEFT_SHIFT,
+	R_KEY_LEFT_CTRL,
+	R_KEY_LEFT_ALT,
+	R_KEY_LEFT_SUPER,
+	R_KEY_RIGHT_SHIFT,
+	R_KEY_RIGHT_CTRL,
+	R_KEY_RIGHT_ALT,
+	R_KEY_RIGHT_SUPER,
+	R_KEY_MENU,
+	R_KEY_COUNT
+}RKey;
+
+typedef enum REventType{
+	R_EVENT_NONE = 0x00C0,
+	R_EVENT_MOUSE_MOVE,
+	R_EVENT_MOUSE_DOWN,
+	R_EVENT_MOUSE_UP,
+	R_EVENT_MOUSE_WHEEL,
+	R_EVENT_MOUSE_ENTER,
+	R_EVENT_MOUSE_LEAVE,
+	R_EVENT_KEY_DOWN,
+	R_EVENT_KEY_UP,
+	/** A character was typed. `codepoint` holds the Unicode scalar value. */
+	R_EVENT_TEXT,
+	R_EVENT_FOCUS_GAINED,
+	R_EVENT_FOCUS_LOST
+}REventType;
+
+/**
+ * Input event delivered to a widget. Mouse and key events bubble from the
+ * target widget to its parents until one of them handles the event.
+ */
+typedef struct REvent {
+	REventType type;
+	Rid window;
+	/** Widget the event was first sent to. */
+	Rid target;
+	/** Cursor position in the window, in logical units. */
+	float x, y;
+	/** Cursor position relative to the widget receiving the event. */
+	float local_x, local_y;
+	/** Mouse movement since the previous event (R_EVENT_MOUSE_MOVE). */
+	float delta_x, delta_y;
+	/** Scroll amount in lines, positive = up / left (R_EVENT_MOUSE_WHEEL). */
+	float wheel_x, wheel_y;
+	RMouseButton button;
+	/** 1 = single click, 2 = double click, ... (R_EVENT_MOUSE_DOWN). */
+	int clicks;
+	RKey key;
+	/** Bitmask of RModifier. */
+	Ruint modifiers;
+	/** R_TRUE when the key event comes from auto-repeat. */
+	int repeat;
+	Ruint codepoint;
+} REvent;
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	/* ============================================================================
+	 *  WINDOWS
+	 * ============================================================================ */
+
+	/**
+	 * @brief Opens a top-level window.
+	 * @param width,height Client size in logical units.
+	 * @param flags        Bitmask of RWindowFlags.
+	 */
+	RAVEN_API Rid Rwindow_create(const char* title, int width, int height, Ruint flags);
+
+	/** @brief Closes a window and deletes its content widgets. */
+	RAVEN_API void Rwindow_destroy(Rid window);
+	RAVEN_API int Rwindow_is_valid(Rid window);
+
+	/**
+	 * @brief Sets the root widget of the window. The window takes ownership of
+	 * the widget; the previous content is deleted.
+	 */
+	RAVEN_API void Rwindow_set_content(Rid window, Rid widget);
+	RAVEN_API Rid Rwindow_get_content(Rid window);
+
+	RAVEN_API void Rwindow_set_title(Rid window, const char* title);
+	RAVEN_API void Rwindow_set_size(Rid window, int width, int height);
+	RAVEN_API void Rwindow_get_size(Rid window, int* width, int* height);
+	RAVEN_API void Rwindow_set_min_size(Rid window, int width, int height);
+	RAVEN_API void Rwindow_set_position(Rid window, int x, int y);
+	RAVEN_API void Rwindow_get_position(Rid window, int* x, int* y);
+	/** @brief Size of the drawable area in pixels. */
+	RAVEN_API void Rwindow_get_framebuffer_size(Rid window, int* width, int* height);
+	/** @return Pixels per logical unit (monitor scale x global UI scale). */
+	RAVEN_API float Rwindow_get_scale(Rid window);
+
+	RAVEN_API void Rwindow_show(Rid window);
+	RAVEN_API void Rwindow_hide(Rid window);
+	RAVEN_API void Rwindow_maximize(Rid window);
+	RAVEN_API void Rwindow_minimize(Rid window);
+	RAVEN_API void Rwindow_restore(Rid window);
+
+	/**
+	 * @brief Color behind the content. By default it is the theme color
+	 * R_COLOR_WINDOW (and, with a glass theme, the wallpaper of the theme).
+	 */
+	RAVEN_API void Rwindow_set_clear_color(Rid window, float r, float g, float b, float a);
+	/**
+	 * @brief Image drawn behind the content, scaled to cover the window:
+	 * what the glass of a glass theme looks through. R_INVALID_ID removes it.
+	 */
+	RAVEN_API void Rwindow_set_background(Rid window, Rid texture);
+
+	/** @brief Asks for a new frame even if no widget changed. Thread-safe. */
+	RAVEN_API void Rwindow_request_redraw(Rid window);
+
+	/** @brief R_TRUE redraws the window every frame (games, live viewports). */
+	RAVEN_API void Rwindow_set_continuous_redraw(Rid window, int enabled);
+
+	/**
+	 * @brief Called when the user asks to close the window.
+	 * Return R_TRUE to let the window close, R_FALSE to keep it open.
+	 */
+	typedef int (*RWindowCloseCallback)(Rid window, void* user_data);
+	RAVEN_API void Rwindow_set_close_callback(Rid window, RWindowCloseCallback callback, void* user_data);
+
+	/** @brief Called after the window was resized. Sizes are in logical units. */
+	typedef void (*RWindowResizeCallback)(Rid window, int width, int height, void* user_data);
+	RAVEN_API void Rwindow_set_resize_callback(Rid window, RWindowResizeCallback callback, void* user_data);
+
+	RAVEN_API void Rwindow_set_user_handle(Rid window, void* handle);
+	RAVEN_API void* Rwindow_get_user_handle(Rid window);
+
+	/** @brief Fills `native` with the OS handles of the window. */
+	RAVEN_API int Rwindow_get_native_handle(Rid window, RNativeWindow* native);
+
+	/**
+	 * @brief Reads back the last rendered frame as tightly packed RGBA8 pixels.
+	 * Blocks until the frame is rendered. Free the result with Rpixels_free.
+	 * @return NULL when the backend cannot capture.
+	 */
+	RAVEN_API uint8_t* Rwindow_capture(Rid window, int* width, int* height);
+	RAVEN_API void Rpixels_free(uint8_t* pixels);
+
+
+	/* ============================================================================
+	 *  INPUT STATE & SYNTHETIC INPUT
+	 * ============================================================================ */
+
+	/** @brief Widget that has the keyboard focus in the window, or R_INVALID_ID. */
+	RAVEN_API Rid Rwindow_get_focused_widget(Rid window);
+	/** @brief Deepest widget under the cursor, or R_INVALID_ID. */
+	RAVEN_API Rid Rwindow_get_hovered_widget(Rid window);
+	RAVEN_API void Rwindow_get_mouse_position(Rid window, float* x, float* y);
+
+	/**
+	 * Inject input as if it came from the OS. Positions are in logical units.
+	 * Useful for automated tests, replays and when Raven is driven by a host
+	 * application.
+	 */
+	RAVEN_API void Rwindow_inject_mouse_move(Rid window, float x, float y);
+	RAVEN_API void Rwindow_inject_mouse_button(Rid window, RMouseButton button, int pressed);
+	RAVEN_API void Rwindow_inject_mouse_wheel(Rid window, float wheel_x, float wheel_y);
+	RAVEN_API void Rwindow_inject_key(Rid window, RKey key, int pressed, Ruint modifiers);
+	RAVEN_API void Rwindow_inject_text(Rid window, const char* text);
+
+	/**
+	 * @brief Registers a keyboard shortcut active while the window has focus and
+	 * no widget handled the key.
+	 * @param action Name of the action to fire (see Raction_bind).
+	 */
+	RAVEN_API void Rwindow_register_shortcut(Rid window, RKey key, Ruint modifiers, const char* action);
+	RAVEN_API void Rwindow_unregister_shortcut(Rid window, RKey key, Ruint modifiers);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+
+#endif /* RAVEN_WINDOW_H */

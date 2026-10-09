@@ -1,29 +1,28 @@
 /**
- * HUI example - viewport_vulkan
- * A Vulkan scene shown inside the UI, in the two ways hui_viewport.h offers:
+ * Raven example - viewport_vulkan
+ * A Vulkan scene shown inside the UI, in the two ways raven_viewport.h offers:
  *
  *   left   TEXTURE        the application renders the scene into its own
- *                         image, and HUI samples that image like any texture
- *                         (HUI_Vulkan_CreateTextureFromImageView): no copy,
+ *                         image, and Raven samples that image like any texture
+ *                         (Rvulkan_texture_create_from_image_view): no copy,
  *                         and the image keeps its own size, format and depth.
  *
- *   right  DRAW CALLBACK  HUI calls the application while it records its
+ *   right  DRAW CALLBACK  Raven calls the application while it records its
  *                         frame; the application draws straight into the
  *                         window with the viewport and scissor of the widget.
  *
- * Here the application borrows the device of HUI (HUI_Vulkan_GetDevice). An
+ * Here the application borrows the device of Raven (Rvulkan_get_device). An
  * engine that already owns a device does the opposite: it gives its device
- * to HUI with HUI_Vulkan_SetExternalDevice before HUI_Init; everything else
+ * to Raven with Rvulkan_set_external_device before Rinit; everything else
  * in this file stays the same.
  *
- * Threads: HUI renders on its own thread, and a VkQueue must not be used by
- * two threads at once. The application and HUI therefore agree on a lock
- * (HUI_Vulkan_SetQueueLockCallbacks) taken around every use of the queue.
+ * Threads: Raven renders on its own thread, and a VkQueue must not be used by
+ * two threads at once. The application and Raven therefore agree on a lock
+ * (Rvulkan_set_queue_lock_callbacks) taken around every use of the queue.
  */
 
 #include "../common/example.h"
 
-#include <hui/hui_vulkan.h>
 #include <vulkan/vulkan.h>
 
 #include "shaders_spv.h"
@@ -52,7 +51,7 @@ typedef struct Target {
 } Target;
 
 static struct {
-	/* borrowed from HUI */
+	/* borrowed from Raven */
 	VkPhysicalDevice physical_device;
 	VkDevice device;
 	VkQueue queue;
@@ -72,13 +71,13 @@ static struct {
 	int submitted;
 	Target target;
 	int wanted_width, wanted_height;
-	HUI_id texture;
+	Rid texture;
 
-	/* callback mode: the pipeline is built for the render pass of HUI, on the render thread */
+	/* callback mode: the pipeline is built for the render pass of Raven, on the render thread */
 	VkRenderPass window_pass;
 	VkPipeline window_pipeline;
 
-	HUI_id window, texture_viewport, callback_viewport, label;
+	Rid window, texture_viewport, callback_viewport, label;
 	float angle;
 	int paused;
 } app;
@@ -107,7 +106,7 @@ static VkPipeline create_pipeline(VkRenderPass render_pass) {
 	VkPipelineDynamicStateCreateInfo dynamic;
 	VkGraphicsPipelineCreateInfo info;
 	VkPipeline pipeline = VK_NULL_HANDLE;
-	/* the viewport and the scissor are dynamic: HUI sets them to the widget before the callback */
+	/* the viewport and the scissor are dynamic: Raven sets them to the widget before the callback */
 	static const VkDynamicState dynamic_states[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
 	memset(stages, 0, sizeof(stages));
@@ -172,7 +171,7 @@ static void draw_scene(VkCommandBuffer commands, VkPipeline pipeline, float x, f
 	constants[0] = angle;
 	constants[1] = width / height;
 	if (x >= 0.0f) {
-		/* the offscreen pass sets its own viewport; in the callback HUI already did */
+		/* the offscreen pass sets its own viewport; in the callback Raven already did */
 		VkViewport viewport;
 		VkRect2D scissor;
 		viewport.x = x;
@@ -212,7 +211,7 @@ static void create_offscreen_pass(void) {
 	attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	/* HUI requires the image to be in this layout whenever it renders */
+	/* Raven requires the image to be in this layout whenever it renders */
 	attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	reference.attachment = 0;
 	reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -221,7 +220,7 @@ static void create_offscreen_pass(void) {
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &reference;
 
-	/* wait for the previous frame of HUI to finish sampling the image, and make HUI wait for us */
+	/* wait for the previous frame of Raven to finish sampling the image, and make Raven wait for us */
 	memset(dependencies, 0, sizeof(dependencies));
 	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependencies[0].dstSubpass = 0;
@@ -263,7 +262,7 @@ static void target_create(Target* target, int width, int height) {
 	memset(&image, 0, sizeof(image));
 	image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	image.imageType = VK_IMAGE_TYPE_2D;
-	/* UNORM: HUI shows the values of the image as they are */
+	/* UNORM: Raven shows the values of the image as they are */
 	image.format = VK_FORMAT_R8G8B8A8_UNORM;
 	image.extent.width = (uint32_t)width;
 	image.extent.height = (uint32_t)height;
@@ -337,17 +336,17 @@ static void offscreen_render(void) {
 	offscreen_wait();
 
 	if (app.target.width != app.wanted_width || app.target.height != app.wanted_height) {
-		/* the viewport was resized: render into a new image and hand it to HUI */
+		/* the viewport was resized: render into a new image and hand it to Raven */
 		Target previous = app.target;
 		target_create(&app.target, app.wanted_width, app.wanted_height);
-		if (app.texture == HUI_INVALID_ID) {
-			/* sampler 0 = the linear sampler of HUI */
-			app.texture = HUI_Vulkan_CreateTextureFromImageView((uint64_t)(uintptr_t)app.target.view, 0,
+		if (app.texture == R_INVALID_ID) {
+			/* sampler 0 = the linear sampler of Raven */
+			app.texture = Rvulkan_texture_create_from_image_view((uint64_t)(uintptr_t)app.target.view, 0,
 				app.target.width, app.target.height);
-			HUI_SetViewportTexture(app.texture_viewport, app.texture);
+			Rviewport_set_texture(app.texture_viewport, app.texture);
 		} else {
-			/* returns once HUI no longer uses the previous view, which can then be destroyed */
-			HUI_Vulkan_SetTextureImageView(app.texture, (uint64_t)(uintptr_t)app.target.view, 0,
+			/* returns once Raven no longer uses the previous view, which can then be destroyed */
+			Rvulkan_texture_set_image_view(app.texture, (uint64_t)(uintptr_t)app.target.view, 0,
 				app.target.width, app.target.height);
 		}
 		target_destroy(&previous);
@@ -379,14 +378,14 @@ static void offscreen_render(void) {
 	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submit.commandBufferCount = 1;
 	submit.pCommandBuffers = &app.commands;
-	/* submitted before HUI submits the frame that samples the image: the queue keeps that order */
+	/* submitted before Raven submits the frame that samples the image: the queue keeps that order */
 	mutex_lock(&app.lock);
 	CHECK_VK(vkQueueSubmit(app.queue, 1, &submit, app.fence));
 	mutex_unlock(&app.lock);
 	app.submitted = 1;
 }
 
-static void on_texture_viewport_resized(HUI_id viewport, int width, int height, void* user_data) {
+static void on_texture_viewport_resized(Rid viewport, int width, int height, void* user_data) {
 	(void)viewport;
 	(void)user_data;
 	app.wanted_width = width;
@@ -394,10 +393,10 @@ static void on_texture_viewport_resized(HUI_id viewport, int width, int height, 
 }
 
 /* ---------------------------------------------------------------------------
- *  Mode 2: draw callback (render thread, inside the render pass of HUI)
+ *  Mode 2: draw callback (render thread, inside the render pass of Raven)
  * ------------------------------------------------------------------------- */
 
-static void on_draw(const HUI_ViewportDrawInfo* info, void* user_data) {
+static void on_draw(const RViewportDrawInfo* info, void* user_data) {
 	VkCommandBuffer commands = (VkCommandBuffer)info->command_buffer;
 	VkRenderPass render_pass = (VkRenderPass)(uintptr_t)info->render_pass;
 	float angle;
@@ -414,7 +413,7 @@ static void on_draw(const HUI_ViewportDrawInfo* info, void* user_data) {
 	angle = app.angle;
 	mutex_unlock(&app.lock);
 
-	/* x < 0: keep the viewport and scissor HUI set to the widget (and to its visible part) */
+	/* x < 0: keep the viewport and scissor Raven set to the widget (and to its visible part) */
 	draw_scene(commands, app.window_pipeline, -1.0f, 0.0f, (float)info->width, (float)info->height, -angle);
 }
 
@@ -424,7 +423,7 @@ static void on_draw(const HUI_ViewportDrawInfo* info, void* user_data) {
 
 static void on_frame(double delta_seconds, void* user_data) {
 	(void)user_data;
-	if (!HUI_IsValidWindow(app.window)) return;
+	if (!Rwindow_is_valid(app.window)) return;
 	if (!app.paused) {
 		mutex_lock(&app.lock);
 		app.angle += (float)delta_seconds;
@@ -433,17 +432,17 @@ static void on_frame(double delta_seconds, void* user_data) {
 	offscreen_render();
 }
 
-static void on_pause(HUI_id checkbox, int checked, void* user_data) {
+static void on_pause(Rid checkbox, int checked, void* user_data) {
 	(void)checkbox;
 	(void)user_data;
 	app.paused = checked;
-	/* realtime viewports redraw the window every frame; otherwise HUI only draws when needed */
-	HUI_SetViewportRealtime(app.texture_viewport, !checked);
-	HUI_SetViewportRealtime(app.callback_viewport, !checked);
+	/* realtime viewports redraw the window every frame; otherwise Raven only draws when needed */
+	Rviewport_set_realtime(app.texture_viewport, !checked);
+	Rviewport_set_realtime(app.callback_viewport, !checked);
 }
 
 static const char g_layout[] =
-	"<Window Title=\"HUI - Vulkan viewports\" Width=\"960\" Height=\"540\">"
+	"<Window Title=\"Raven - Vulkan viewports\" Width=\"960\" Height=\"540\">"
 	"  <VBox Spacing=\"8\" Slot.Padding=\"10\">"
 	"    <HBox Spacing=\"12\">"
 	"      <Checkbox Name=\"pause\" Text=\"Pause\" Style=\"Switch\"/>"
@@ -476,16 +475,16 @@ int main(void) {
 	VkCommandBufferAllocateInfo allocation;
 	VkFenceCreateInfo fence;
 
-	/* the lock must be known before HUI starts its render thread */
+	/* the lock must be known before Raven starts its render thread */
 	mutex_init(&app.lock);
-	HUI_Vulkan_SetQueueLockCallbacks(queue_lock, queue_unlock, &app.lock);
+	Rvulkan_set_queue_lock_callbacks(queue_lock, queue_unlock, &app.lock);
 	if (!example_init("viewport_vulkan")) return 1;
 
-	app.texture = HUI_INVALID_ID;
-	app.physical_device = (VkPhysicalDevice)HUI_Vulkan_GetPhysicalDevice();
-	app.device = (VkDevice)HUI_Vulkan_GetDevice();
-	app.queue = (VkQueue)HUI_Vulkan_GetGraphicsQueue();
-	app.queue_family = HUI_Vulkan_GetGraphicsQueueFamily();
+	app.texture = R_INVALID_ID;
+	app.physical_device = (VkPhysicalDevice)Rvulkan_get_physical_device();
+	app.device = (VkDevice)Rvulkan_get_device();
+	app.queue = (VkQueue)Rvulkan_get_graphics_queue();
+	app.queue_family = Rvulkan_get_graphics_queue_family();
 
 	/* ---- Vulkan objects of the application ---- */
 	memset(&shader, 0, sizeof(shader));
@@ -525,23 +524,23 @@ int main(void) {
 	CHECK_VK(vkCreateFence(app.device, &fence, NULL, &app.fence));
 
 	/* ---- user interface ---- */
-	app.window = HUI_CreateWindowFromXml(g_layout, sizeof(g_layout) - 1);
-	app.texture_viewport = HUI_FindWidget(app.window, "texture");
-	app.callback_viewport = HUI_FindWidget(app.window, "callback");
-	app.label = HUI_FindWidget(app.window, "info");
-	HUI_SetLabelText(app.label, "Both viewports are clipped, resized and covered by widgets like any other widget.");
-	HUI_SetCheckboxChangedCallback(HUI_FindWidget(app.window, "pause"), on_pause, NULL);
-	HUI_SetViewportResizeCallback(app.texture_viewport, on_texture_viewport_resized, NULL);
-	HUI_SetViewportDrawCallback(app.callback_viewport, on_draw, NULL);
-	HUI_SetFrameCallback(on_frame, NULL);
+	app.window = Rwindow_create_from_xml(g_layout, sizeof(g_layout) - 1);
+	app.texture_viewport = Rwidget_find(app.window, "texture");
+	app.callback_viewport = Rwidget_find(app.window, "callback");
+	app.label = Rwidget_find(app.window, "info");
+	Rlabel_set_text(app.label, "Both viewports are clipped, resized and covered by widgets like any other widget.");
+	Rcheckbox_set_changed_callback(Rwidget_find(app.window, "pause"), on_pause, NULL);
+	Rviewport_set_resize_callback(app.texture_viewport, on_texture_viewport_resized, NULL);
+	Rviewport_set_draw_callback(app.callback_viewport, on_draw, NULL);
+	Rset_frame_callback(on_frame, NULL);
 
 	example_run(app.window);
 
-	/* ---- shutdown: the device belongs to HUI, so our objects go first ---- */
-	HUI_SetFrameCallback(NULL, NULL);
+	/* ---- shutdown: the device belongs to Raven, so our objects go first ---- */
+	Rset_frame_callback(NULL, NULL);
 	/* deleting the window waits for its last frames: the draw callback will not run again */
-	if (HUI_IsValidWindow(app.window)) HUI_DeleteWindow(app.window);
-	if (app.texture != HUI_INVALID_ID) HUI_DeleteTexture(app.texture);
+	if (Rwindow_is_valid(app.window)) Rwindow_destroy(app.window);
+	if (app.texture != R_INVALID_ID) Rtexture_destroy(app.texture);
 	offscreen_wait();
 	mutex_lock(&app.lock);
 	vkDeviceWaitIdle(app.device);
@@ -557,6 +556,6 @@ int main(void) {
 	vkDestroyShaderModule(app.device, app.vertex_shader, NULL);
 	vkDestroyShaderModule(app.device, app.fragment_shader, NULL);
 
-	HUI_Shutdown();
+	Rshutdown();
 	return 0;
 }

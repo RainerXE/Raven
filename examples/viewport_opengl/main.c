@@ -1,19 +1,19 @@
 /**
- * HUI example - viewport_opengl
- * An OpenGL scene inside a HUI window, using the native child window of a
- * viewport (mode 3 of hui_viewport.h).
+ * Raven example - viewport_opengl
+ * An OpenGL scene inside a Raven window, using the native child window of a
+ * viewport (mode 3 of raven_viewport.h).
  *
- * HUI itself renders with Vulkan. For any other graphics API, a viewport can
- * own a real OS window (HWND / X11 Window) that HUI keeps exactly on the
+ * Raven itself renders with Vulkan. For any other graphics API, a viewport can
+ * own a real OS window (HWND / X11 Window) that Raven keeps exactly on the
  * widget. The application creates its context or swapchain on that window
  * and draws whenever it wants: OpenGL here, but Direct3D or a second Vulkan
  * swapchain work the same way.
  *
  * What this mode cannot do: the OS draws the child window above the UI, so
  * widgets cannot overlap the scene and the scene is not clipped by scroll
- * boxes (HUI hides the child when the widget is hidden). To get OpenGL
- * *under* the UI, render to a texture instead and give the pixels to HUI
- * (HUI_UpdateTexture, or zero-copy with HUI_Vulkan_CreateSharedTexture and
+ * boxes (Raven hides the child when the widget is hidden). To get OpenGL
+ * *under* the UI, render to a texture instead and give the pixels to Raven
+ * (Rtexture_update, or zero-copy with Rvulkan_texture_create_shared and
  * GL_EXT_memory_object).
  *
  * The scene uses OpenGL 1.1 calls only, so that the example needs no loader.
@@ -35,7 +35,7 @@
 static HDC g_dc;
 static HGLRC g_context;
 
-static int gl_create(const HUI_NativeWindow* native) {
+static int gl_create(const RNativeWindow* native) {
 	PIXELFORMATDESCRIPTOR descriptor;
 	int format;
 
@@ -47,7 +47,7 @@ static int gl_create(const HUI_NativeWindow* native) {
 	descriptor.cColorBits = 32;
 	descriptor.cDepthBits = 24;
 
-	/* the child windows of HUI have their own device context (CS_OWNDC) */
+	/* the child windows of Raven have their own device context (CS_OWNDC) */
 	g_dc = GetDC((HWND)native->window);
 	format = ChoosePixelFormat(g_dc, &descriptor);
 	if (!format || !SetPixelFormat(g_dc, format, &descriptor)) return 0;
@@ -76,7 +76,7 @@ static Display* g_display;
 static Window g_drawable;
 static GLXContext g_context;
 
-static int gl_create(const HUI_NativeWindow* native) {
+static int gl_create(const RNativeWindow* native) {
 	XWindowAttributes attributes;
 	XVisualInfo wanted;
 	XVisualInfo* visual;
@@ -113,7 +113,7 @@ static void gl_destroy(void) {
  * ------------------------------------------------------------------------- */
 
 static struct {
-	HUI_id window, viewport, speed, wireframe, info;
+	Rid window, viewport, speed, wireframe, info;
 	int context_ready;
 	float angle;
 } app;
@@ -135,7 +135,7 @@ static void scene_draw(int width, int height) {
 	glClearColor(0.05f, 0.06f, 0.10f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
-	glPolygonMode(GL_FRONT_AND_BACK, HUI_IsCheckboxChecked(app.wireframe) ? GL_LINE : GL_FILL);
+	glPolygonMode(GL_FRONT_AND_BACK, Rcheckbox_is_checked(app.wireframe) ? GL_LINE : GL_FILL);
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
@@ -153,26 +153,26 @@ static void scene_draw(int width, int height) {
 	glEnd();
 }
 
-/* Called once per HUI_Update. */
+/* Called once per Rupdate. */
 static void on_frame(double delta_seconds, void* user_data) {
 	int width = 0, height = 0;
 	(void)user_data;
-	if (!app.context_ready || !HUI_IsValidWindow(app.window)) return;
+	if (!app.context_ready || !Rwindow_is_valid(app.window)) return;
 
-	app.angle += (float)delta_seconds * HUI_GetSliderValue(app.speed);
+	app.angle += (float)delta_seconds * Rslider_get_value(app.speed);
 	/* the child window has exactly the size of the widget, in pixels */
-	HUI_GetViewportPixelSize(app.viewport, &width, &height);
+	Rviewport_get_pixel_size(app.viewport, &width, &height);
 	if (width <= 0 || height <= 0) return;
 	scene_draw(width, height);
 	gl_swap();
 }
 
 static const char g_layout[] =
-	"<Window Title=\"HUI - OpenGL viewport\" Width=\"900\" Height=\"540\">"
+	"<Window Title=\"Raven - OpenGL viewport\" Width=\"900\" Height=\"540\">"
 	"  <HBox>"
 	"    <VBox Width=\"240\" Spacing=\"10\" Slot.Padding=\"12\">"
 	"      <Label TextSize=\"16\">OpenGL in a native viewport</Label>"
-	"      <Label Wrap=\"true\" Opacity=\"0.7\">The cube is drawn by an OpenGL context created on a child window that HUI keeps on the viewport widget.</Label>"
+	"      <Label Wrap=\"true\" Opacity=\"0.7\">The cube is drawn by an OpenGL context created on a child window that Raven keeps on the viewport widget.</Label>"
 	"      <Label>Speed</Label>"
 	"      <Slider Name=\"speed\" Min=\"0\" Max=\"4\" Value=\"1\"/>"
 	"      <Checkbox Name=\"wireframe\" Text=\"Wireframe\"/>"
@@ -184,31 +184,31 @@ static const char g_layout[] =
 	"</Window>";
 
 int main(void) {
-	HUI_NativeWindow native;
+	RNativeWindow native;
 
 	if (!example_init("viewport_opengl")) return 1;
 
-	app.window = HUI_CreateWindowFromXml(g_layout, sizeof(g_layout) - 1);
-	app.viewport = HUI_FindWidget(app.window, "scene");
-	app.speed = HUI_FindWidget(app.window, "speed");
-	app.wireframe = HUI_FindWidget(app.window, "wireframe");
-	app.info = HUI_FindWidget(app.window, "info");
+	app.window = Rwindow_create_from_xml(g_layout, sizeof(g_layout) - 1);
+	app.viewport = Rwidget_find(app.window, "scene");
+	app.speed = Rwidget_find(app.window, "speed");
+	app.wireframe = Rwidget_find(app.window, "wireframe");
+	app.info = Rwidget_find(app.window, "info");
 
-	/* asks HUI for a child window on the viewport, then puts an OpenGL context on it */
+	/* asks Raven for a child window on the viewport, then puts an OpenGL context on it */
 	memset(&native, 0, sizeof(native));
-	if (HUI_SetViewportNative(app.viewport, HUI_TRUE) && HUI_GetViewportNativeHandle(app.viewport, &native) && gl_create(&native)) {
+	if (Rviewport_set_native(app.viewport, R_TRUE) && Rviewport_get_native_handle(app.viewport, &native) && gl_create(&native)) {
 		app.context_ready = 1;
-		HUI_SetLabelText(app.info, (const char*)glGetString(GL_RENDERER));
+		Rlabel_set_text(app.info, (const char*)glGetString(GL_RENDERER));
 	} else {
-		HUI_SetLabelText(app.info, "Cannot create an OpenGL context on the viewport.");
+		Rlabel_set_text(app.info, "Cannot create an OpenGL context on the viewport.");
 	}
 
-	HUI_SetFrameCallback(on_frame, NULL);
+	Rset_frame_callback(on_frame, NULL);
 	example_run(app.window);
 
 	/* the context goes before the window it was created on */
-	HUI_SetFrameCallback(NULL, NULL);
+	Rset_frame_callback(NULL, NULL);
 	if (app.context_ready) gl_destroy();
-	HUI_Shutdown();
+	Rshutdown();
 	return 0;
 }

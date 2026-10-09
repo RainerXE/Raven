@@ -1,16 +1,16 @@
-# HUI XML reference
+# Raven XML reference
 
 A window, or any part of one, can be described in XML and loaded with
 
 ```c
-HUI_id window = HUI_CreateWindowFromXmlFile("editor.xml");   /* <Window> root  */
-HUI_id panel  = HUI_CreateWidgetFromXml(text, strlen(text)); /* any widget root */
+Rid window = Rwindow_create_from_xml_file("editor.xml");   /* <Window> root  */
+Rid panel  = Rwidget_create_from_xml(text, strlen(text)); /* any widget root */
 ```
 
 The XML is only a way to *build* the tree: once loaded, the widgets are
-ordinary handles. Find them with `HUI_FindWidget(window, "name")` and use the
+ordinary handles. Find them with `Rwidget_find(window, "name")` and use the
 C API on them. Anything the XML can express can also be done from C, and one
-attribute can be set at run time with `HUI_SetWidgetAttribute(widget, "Text", "Hello")`.
+attribute can be set at run time with `Rwidget_set_attribute(widget, "Text", "Hello")`.
 
 ```xml
 <Window Title="Tool" Width="800" Height="500">
@@ -39,7 +39,7 @@ attribute can be set at run time with `HUI_SetWidgetAttribute(widget, "Text", "H
 - An unknown tag or attribute, or an invalid value, raises a warning through
   the error callback (with line and column) and loading continues.
 - Paths (`Source`, `Font`) are relative to the XML file, or to
-  `HUI_SetXmlBasePath` when loading from memory. A file is loaded once and
+  `Rxml_set_base_path` when loading from memory. A file is loaded once and
   shared by every widget that names it.
 
 ## Value types
@@ -56,7 +56,7 @@ Lengths are in logical units: they are multiplied by the scale of the monitor.
 
 ## `<Window>`
 
-Only as the root, with `HUI_CreateWindowFromXml[File]`. It has one child
+Only as the root, with `Rwindow_create_from_xml[File]`. It has one child
 widget, the content, and any number of `<Shortcut>`.
 
 | Attribute | Value |
@@ -67,6 +67,7 @@ widget, the content, and any number of `<Shortcut>`.
 | `Resizable` | boolean (default true) |
 | `Borderless`, `Maximized`, `Hidden` | boolean |
 | `ClearColor` | color behind the content (default: the theme color `Window`) |
+| `Background` | path of an image drawn behind the content, scaled to cover the window. With a glass theme it replaces the wallpaper of the theme |
 
 `<Shortcut Keys="Ctrl+S" Action="file.save"/>` fires an action when the keys
 are pressed anywhere in the window.
@@ -75,7 +76,7 @@ are pressed anywhere in the window.
 
 | Attribute | Value |
 |---|---|
-| `Name` (or `Id`) | name for `HUI_FindWidget` |
+| `Name` (or `Id`) | name for `Rwidget_find` |
 | `Width`, `Height` | fixed size, overrides the size the widget asks for |
 | `MinWidth`, `MinHeight`, `MaxWidth`, `MaxHeight` | limits of the size the widget asks for |
 | `Visibility` | `Visible`, `Hidden` (keeps its place), `Collapsed` (takes no place) |
@@ -94,10 +95,17 @@ Color roles: `Window Panel Border Text TextDisabled TextPlaceholder Accent
 AccentHovered AccentPressed AccentText Control ControlHovered ControlPressed
 ControlBorder Input Focus Selection RowHovered Track Handle HandleHovered
 Separator Header HeaderHovered TabActive Popup PopupBorder Shadow Tooltip
-TooltipText`. `Color.Text` is inherited by the children.
+TooltipText Switch`. `Color.Text` is inherited by the children.
 
 Metrics: `FontSize CornerRadius BorderWidth ControlHeight PaddingX PaddingY
-Spacing ScrollbarSize RowHeight Indent SplitterSize CheckSize SliderHandleSize`.
+Spacing ScrollbarSize RowHeight Indent SplitterSize CheckSize SliderHandleSize
+PopupRadius`.
+
+With a glass theme (`Rtheme_apply(R_THEME_GLASS_DARK)` or
+`R_THEME_GLASS_LIGHT`, see the README) the same tags and attributes describe
+glass controls. The alpha of a color is then the strength of the tint of the
+glass: `Color.Control="#FF375F60"` is a pink glass button, `#FF375F` an opaque
+one.
 
 ### Actions
 
@@ -112,16 +120,16 @@ for readability. The action fires on the main event of the widget:
 | ListView, TreeView | a row is activated (double click or Enter) |
 
 ```c
-static void on_save(HUI_id sender, const char* action, void* user_data) { ... }
-HUI_BindAction("file.save", on_save, NULL);
+static void on_save(Rid sender, const char* action, void* user_data) { ... }
+Raction_bind("file.save", on_save, NULL);
 /* or one function for everything that has no binding of its own */
-HUI_SetDefaultActionHandler(on_any_action, NULL);
+Raction_set_default_handler(on_any_action, NULL);
 ```
 
 Callbacks set from C work alongside actions and cover the other events:
-every keystroke of a text input (`HUI_SetTextInputChangedCallback`), the
-selection of a list or tree (`HUI_SetListSelectionChangedCallback`,
-`HUI_SetTreeSelectionChangedCallback`), raw input (`HUI_SetWidgetEventCallback`).
+every keystroke of a text input (`Rtext_input_set_changed_callback`), the
+selection of a list or tree (`Rlist_view_set_selection_changed_callback`,
+`Rtree_view_set_selection_changed_callback`), raw input (`Rwidget_set_event_callback`).
 
 ## Slot attributes
 
@@ -151,9 +159,9 @@ panel uses the attributes that make sense for it.
 | `VBox` (`VerticalBox`) | stacked top to bottom | `Spacing` |
 | `HBox` (`HorizontalBox`) | left to right | `Spacing` |
 | `Grid` (`GridPanel`) | placed by `Slot.Column` / `Slot.Row` | `Spacing`; `Columns`, `Rows`: one entry per track, `auto` or a fill share, e.g. `Columns="auto,1,2"` |
-| `UniformGrid` (`UniformGridPanel`) | cells of equal size, filled row by row | `Columns` (0 = as many as fit), `MinCellSize` (`size` or `width,height`), `Spacing` |
+| `UniformGrid` (`UniformGridPanel`) | cells of equal size, filled row by row | `Columns` (children fill rows of this many cells; 0 = each child goes to its `Slot.Column` / `Slot.Row`), `MinCellSize` (`size` or `width,height`), `Spacing` |
 | `Overlay` | stacked on top of each other, last on top | |
-| `Border` | one child, with a background | `Padding`, `Background`, `BorderColor`, `BorderWidth`, `CornerRadius` (`r` or `topLeft,topRight,bottomRight,bottomLeft`), `Shadow` (`blur` or `blur,offsetX,offsetY`) |
+| `Border` | one child, with a background | `Padding`, `Background`, `BorderColor`, `BorderWidth`, `CornerRadius` (`r` or `topLeft,topRight,bottomRight,bottomLeft`), `Shadow` (`blur` or `blur,offsetX,offsetY`), `Material` (`Solid`, or `Glass`: a panel that blurs and refracts what is behind it, tinted by `Background` when given) |
 | `SizeBox` (`Box`) | one child with a forced size (`Width`, `Height`...) | `AspectRatio` (width / height) |
 | `Spacer` | none: empty space | `Width`, `Height`, or `Slot.Fill` |
 | `ScrollBox` | scrolled content | `Orientation` (`Vertical` default), `ScrollBoth`, `Spacing` |
@@ -176,7 +184,7 @@ panel uses the attributes that make sense for it.
 | `SpinBox` | `Min`, `Max`, `Value`, `Step`, `Decimals` |
 | `TextInput` (`TextBox`, `EditableText`) | `Text`, `Placeholder`, `Password`, `ReadOnly`, `MaxLength` |
 | `ComboBox` | `Selected` (index), items as children `<Item Text="..."/>` or `Items="A|B|C"` |
-| `ListView` | `Selected`, items as children `<Item>` or `Items="A|B|C"` (large lists: `HUI_SetListVirtualItems`) |
+| `ListView` | `Selected`, items as children `<Item>` or `Items="A|B|C"` (large lists: `Rlist_view_set_virtual_items`) |
 | `TreeView` | nested `<Item Text="..." Expanded="true">` children |
 | `Image` | `Source` (path of an image), `Tint`, `Stretch` (`Fill Fit Cover None`), `Region` (`u0,v0,u1,v1`), `CornerRadius` |
 | `Separator` | `Orientation` (`Horizontal` line by default) |
@@ -184,7 +192,7 @@ panel uses the attributes that make sense for it.
 | `Menu` | `Text`; children `<MenuItem>`, `<Separator/>` and nested `<Menu>` |
 | `MenuItem` | `Text`, `Shortcut`, `Checkable`, `Checked` |
 | `Viewport` | `Source` (image shown until the application sets a texture), `Stretch`, `FlipY`, `Realtime` |
-| `Custom` | drawn by the application: `HUI_SetCustomPaintCallback` |
+| `Custom` | drawn by the application: `Rcustom_set_paint_callback` |
 
 A `MenuItem` shortcut works without any `<Shortcut>` element: the window
 looks for it in its menus when the keys are pressed.

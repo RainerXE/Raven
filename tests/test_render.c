@@ -1,7 +1,7 @@
 /**
- * HUI tests - rendering with the Vulkan backend.
+ * Raven tests - rendering with the Vulkan backend.
  *
- * Frames are rendered for real and read back with HUI_CaptureWindow, then a
+ * Frames are rendered for real and read back with Rwindow_capture, then a
  * few well-chosen pixels are compared with the expected colors. The test
  * first tries to run without a window system (VK_EXT_headless_surface), then
  * with a real window. Without a usable Vulkan driver it is skipped (exit
@@ -9,8 +9,6 @@
  */
 
 #include "test.h"
-
-#include <hui/hui_vulkan.h>
 
 #include <stdlib.h>
 
@@ -25,11 +23,11 @@ static int g_width, g_height;
 static float g_scale = 1.0f;
 
 /* Renders the window and keeps its pixels for the CHECK_PIXEL that follow. */
-static void capture(HUI_id window) {
-	HUI_FreePixels(g_pixels);
-	HUI_Update();
-	g_pixels = HUI_CaptureWindow(window, &g_width, &g_height);
-	g_scale = HUI_GetWindowScale(window);
+static void capture(Rid window) {
+	Rpixels_free(g_pixels);
+	Rupdate();
+	g_pixels = Rwindow_capture(window, &g_width, &g_height);
+	g_scale = Rwindow_get_scale(window);
 	CHECK(g_pixels != NULL);
 }
 
@@ -51,9 +49,9 @@ static const uint8_t* pixel_at(float x, float y) {
 	} \
 } while (0)
 
-static HUI_id window_from(const char* xml) {
-	HUI_id window = HUI_CreateWindowFromXml(xml, strlen(xml));
-	CHECK(HUI_IsValidWindow(window));
+static Rid window_from(const char* xml) {
+	Rid window = Rwindow_create_from_xml(xml, strlen(xml));
+	CHECK(Rwindow_is_valid(window));
 	return window;
 }
 
@@ -62,7 +60,7 @@ static HUI_id window_from(const char* xml) {
  * ------------------------------------------------------------------------- */
 
 static void test_shapes(void) {
-	HUI_id window = window_from(
+	Rid window = window_from(
 		"<Window Width=\"400\" Height=\"300\" ClearColor=\"#336699\">"
 		"  <Canvas>"
 		/* plain rectangle */
@@ -103,12 +101,12 @@ static void test_shapes(void) {
 	/* opacity */
 	CHECK_PIXEL(200, 200, 128, 128, 128);
 
-	HUI_DeleteWindow(window);
+	Rwindow_destroy(window);
 }
 
 static void test_clipping(void) {
 	/* the red child is larger than its clipping parent: only the part inside is drawn */
-	HUI_id window = window_from(
+	Rid window = window_from(
 		"<Window Width=\"300\" Height=\"200\" ClearColor=\"#000000\">"
 		"  <Canvas>"
 		"    <Canvas Slot.Position=\"50,50\" Slot.Size=\"100,100\" Clip=\"true\">"
@@ -125,7 +123,7 @@ static void test_clipping(void) {
 	CHECK_PIXEL(100, 49, 0, 0, 0);
 	CHECK_PIXEL(100, 151, 0, 0, 0);
 	CHECK_PIXEL(20, 20, 0, 0, 0);
-	HUI_DeleteWindow(window);
+	Rwindow_destroy(window);
 }
 
 static void test_textures(void) {
@@ -137,21 +135,21 @@ static void test_textures(void) {
 	static const uint8_t yellow[16] = {
 		255, 255, 0, 255,  255, 255, 0, 255,  255, 255, 0, 255,  255, 255, 0, 255
 	};
-	HUI_id window = window_from(
+	Rid window = window_from(
 		"<Window Width=\"300\" Height=\"200\" ClearColor=\"#000000\">"
 		"  <Canvas><Image Name=\"image\" Slot.Position=\"20,20\" Slot.Size=\"100,100\"/></Canvas>"
 		"</Window>");
-	HUI_id image = HUI_FindWidget(window, "image");
-	HUI_id texture = HUI_CreateTextureFromPixels(texels, 2, 2);
+	Rid image = Rwidget_find(window, "image");
+	Rid texture = Rtexture_create_from_pixels(texels, 2, 2);
 	int width = 0, height = 0;
 
-	CHECK(HUI_IsValidTexture(texture) && HUI_IsTextureReady(texture));
-	HUI_GetTextureSize(texture, &width, &height);
+	CHECK(Rtexture_is_valid(texture) && Rtexture_is_ready(texture));
+	Rtexture_get_size(texture, &width, &height);
 	CHECK(width == 2 && height == 2);
 	/* no smoothing: each texel is a flat quarter of the image */
-	HUI_SetTextureFilter(texture, HUI_FILTER_NEAREST);
-	HUI_SetImageTexture(image, texture);
-	HUI_SetImageStretch(image, HUI_STRETCH_FILL);
+	Rtexture_set_filter(texture, R_FILTER_NEAREST);
+	Rimage_set_texture(image, texture);
+	Rimage_set_stretch(image, R_STRETCH_FILL);
 	capture(window);
 	CHECK_PIXEL(45, 45, 255, 0, 0);
 	CHECK_PIXEL(95, 45, 0, 255, 0);
@@ -161,37 +159,37 @@ static void test_textures(void) {
 	CHECK_PIXEL(130, 60, 0, 0, 0);
 
 	/* the tint multiplies the texture */
-	HUI_SetImageTintColor(image, 1.0f, 0.0f, 0.0f, 1.0f);
+	Rimage_set_tint_color(image, 1.0f, 0.0f, 0.0f, 1.0f);
 	capture(window);
 	CHECK_PIXEL(45, 45, 255, 0, 0);
 	CHECK_PIXEL(95, 45, 0, 0, 0);
-	HUI_SetImageTintColor(image, 1.0f, 1.0f, 1.0f, 1.0f);
+	Rimage_set_tint_color(image, 1.0f, 1.0f, 1.0f, 1.0f);
 
 	/* new pixels, same size */
-	HUI_UpdateTexture(texture, yellow, 2, 2);
+	Rtexture_update(texture, yellow, 2, 2);
 	capture(window);
 	CHECK_PIXEL(45, 45, 255, 255, 0);
 	CHECK_PIXEL(95, 95, 255, 255, 0);
 
 	/* a deleted texture is simply not drawn */
-	HUI_DeleteTexture(texture);
-	CHECK(!HUI_IsValidTexture(texture));
+	Rtexture_destroy(texture);
+	CHECK(!Rtexture_is_valid(texture));
 	capture(window);
 	CHECK_PIXEL(45, 45, 0, 0, 0);
 
-	HUI_DeleteWindow(window);
+	Rwindow_destroy(window);
 }
 
 static void test_text(void) {
-	HUI_id window = window_from(
+	Rid window = window_from(
 		"<Window Width=\"300\" Height=\"120\" ClearColor=\"#000000\">"
-		"  <Canvas><Label Name=\"label\" Slot.Position=\"20,20\" TextSize=\"40\" Color=\"#FFFFFF\">HUI</Label></Canvas>"
+		"  <Canvas><Label Name=\"label\" Slot.Position=\"20,20\" TextSize=\"40\" Color=\"#FFFFFF\">Raven</Label></Canvas>"
 		"</Window>");
 	float x, y, w, h;
 	int lit_inside = 0, lit_outside = 0, px, py;
 
 	capture(window);
-	HUI_GetWidgetRect(HUI_FindWidget(window, "label"), &x, &y, &w, &h);
+	Rwidget_get_rect(Rwidget_find(window, "label"), &x, &y, &w, &h);
 	CHECK(w > 40 && h > 30);
 	for (py = 0; py < g_height; py++) {
 		for (px = 0; px < g_width; px++) {
@@ -207,27 +205,27 @@ static void test_text(void) {
 	/* three capital letters of 40 units cover a few hundred pixels, all inside the label */
 	CHECK(lit_inside > 300);
 	CHECK(lit_outside == 0);
-	HUI_DeleteWindow(window);
+	Rwindow_destroy(window);
 }
 
-static void paint_custom(HUI_id widget, HUI_Painter* painter, float width, float height, void* user_data) {
+static void paint_custom(Rid widget, RPainter* painter, float width, float height, void* user_data) {
 	(void)widget;
 	(void)width;
 	(void)height;
 	(void)user_data;
-	HUI_DrawTriangle(painter, 10, 10, 90, 10, 50, 90, 1, 0, 0, 1);
-	HUI_DrawLine(painter, 110, 50, 190, 50, 10, 0, 1, 0, 1);
-	HUI_DrawCircle(painter, 250, 50, 40, 0, 0, 1, 1);
-	HUI_DrawRectOutline(painter, 10, 110, 80, 60, 0, 4, 1, 1, 1, 1);
-	HUI_PushClipRect(painter, 110, 110, 40, 60);
-	HUI_DrawRect(painter, 110, 110, 80, 60, 0, 1, 1, 0, 1);
-	HUI_PopClipRect(painter);
+	Rdraw_triangle(painter, 10, 10, 90, 10, 50, 90, 1, 0, 0, 1);
+	Rdraw_line(painter, 110, 50, 190, 50, 10, 0, 1, 0, 1);
+	Rdraw_circle(painter, 250, 50, 40, 0, 0, 1, 1);
+	Rdraw_rect_outline(painter, 10, 110, 80, 60, 0, 4, 1, 1, 1, 1);
+	Rdraw_push_clip_rect(painter, 110, 110, 40, 60);
+	Rdraw_rect(painter, 110, 110, 80, 60, 0, 1, 1, 0, 1);
+	Rdraw_pop_clip_rect(painter);
 }
 
 static void test_custom_drawing(void) {
-	HUI_id window = window_from(
+	Rid window = window_from(
 		"<Window Width=\"300\" Height=\"200\" ClearColor=\"#000000\"><Custom Name=\"custom\"/></Window>");
-	HUI_SetCustomPaintCallback(HUI_FindWidget(window, "custom"), paint_custom, NULL);
+	Rcustom_set_paint_callback(Rwidget_find(window, "custom"), paint_custom, NULL);
 	capture(window);
 	/* triangle */
 	CHECK_PIXEL(50, 30, 255, 0, 0);
@@ -248,14 +246,140 @@ static void test_custom_drawing(void) {
 	/* clip rectangle: only the left half of the yellow rectangle */
 	CHECK_PIXEL(130, 140, 255, 255, 0);
 	CHECK_PIXEL(170, 140, 0, 0, 0);
-	HUI_DeleteWindow(window);
+	Rwindow_destroy(window);
+}
+
+static void paint_glass(Rid widget, RPainter* painter, float width, float height, void* user_data) {
+	(void)widget;
+	(void)width;
+	(void)height;
+	(void)user_data;
+	/* clear glass: no tint */
+	Rdraw_glass(painter, 100, 50, 200, 100, 20, 0, 0, 0, 0);
+}
+
+static void test_glass(void) {
+	/* a slab of glass lies across the border between a red and a blue half */
+	Rid window = window_from(
+		"<Window Width=\"400\" Height=\"200\" ClearColor=\"#000000\">"
+		"  <Overlay>"
+		"    <Canvas>"
+		"      <Border Slot.Position=\"0,0\" Slot.Size=\"200,200\" Background=\"#FF0000\" CornerRadius=\"0\" BorderWidth=\"0\"/>"
+		"      <Border Slot.Position=\"200,0\" Slot.Size=\"200,200\" Background=\"#0000FF\" CornerRadius=\"0\" BorderWidth=\"0\"/>"
+		"    </Canvas>"
+		"    <Custom Name=\"glass\"/>"
+		"  </Overlay>"
+		"</Window>");
+	Rid custom = Rwidget_find(window, "glass");
+	const uint8_t* p;
+
+	Rcustom_set_paint_callback(custom, paint_glass, NULL);
+	capture(window);
+
+	/* what is not under the glass is untouched, and the border stays sharp there */
+	CHECK_PIXEL(20, 100, 255, 0, 0);
+	CHECK_PIXEL(380, 100, 0, 0, 255);
+	CHECK_PIXEL(198, 20, 255, 0, 0);
+	CHECK_PIXEL(202, 20, 0, 0, 255);
+	CHECK_PIXEL(198, 180, 255, 0, 0);
+	CHECK_PIXEL(202, 180, 0, 0, 255);
+	CHECK_PIXEL(130, 47, 255, 0, 0);
+
+	/* under the glass the border is frosted: both colors on both sides of it */
+	p = pixel_at(197, 100);
+	CHECK(p[0] > 50 && p[2] > 50 && p[1] < 40);
+	p = pixel_at(203, 100);
+	CHECK(p[0] > 50 && p[2] > 50 && p[1] < 40);
+	/* red wins on the left, blue on the right */
+	p = pixel_at(185, 100);
+	CHECK(p[0] > p[2]);
+	p = pixel_at(215, 100);
+	CHECK(p[2] > p[0]);
+	/* far from the border, the flat middle of the slab shows the color behind it */
+	p = pixel_at(130, 100);
+	CHECK(p[0] > 235 && p[1] < 25 && p[2] < 25);
+	p = pixel_at(270, 100);
+	CHECK(p[2] > 235 && p[0] < 25 && p[1] < 25);
+	/* the rim catches the light: a bright line on the upper edge */
+	p = pixel_at(130, 50.5f);
+	CHECK(p[1] > 40);
+
+	/* without the glass, the frame is drawn straight to the window again */
+	Rwidget_set_visibility(custom, R_HIDDEN);
+	capture(window);
+	CHECK_PIXEL(198, 100, 255, 0, 0);
+	CHECK_PIXEL(202, 100, 0, 0, 255);
+	CHECK_PIXEL(130, 50.5, 255, 0, 0);
+
+	/* ... and with it again */
+	Rwidget_set_visibility(custom, R_VISIBLE);
+	capture(window);
+	p = pixel_at(200, 100);
+	CHECK(p[0] > 50 && p[2] > 50);
+
+	Rwindow_destroy(window);
+}
+
+static void test_glass_theme(void) {
+	Rid window;
+	const uint8_t* p;
+	int x, y, colors = 0;
+	uint8_t first[3];
+
+	/* every control is glass, and the window gets a wallpaper for it to show */
+	Rtheme_apply(R_THEME_GLASS_DARK);
+	window = window_from(
+		"<Window Width=\"420\" Height=\"320\">"
+		"  <Overlay>"
+		"    <VBox Spacing=\"10\" Slot.Padding=\"20\">"
+		"      <HBox Spacing=\"8\"><Button Text=\"Glass\"/><Button Text=\"Tinted\" Style=\"Primary\"/>"
+		"        <Checkbox Text=\"Switch\" Style=\"Switch\" Checked=\"true\"/></HBox>"
+		"      <Slider Value=\"0.5\"/>"
+		"      <TextInput Placeholder=\"Text\"/>"
+		"      <ComboBox Selected=\"0\"><Item Text=\"One\"/><Item Text=\"Two\"/></ComboBox>"
+		"      <TabView Slot.Fill=\"1\"><Label Slot.Title=\"First\">Page</Label><Label Slot.Title=\"Second\">Other</Label></TabView>"
+		"    </VBox>"
+		"    <Border Name=\"panel\" Material=\"Glass\" Width=\"160\" Height=\"90\" Slot.HAlign=\"Right\" Slot.VAlign=\"Bottom\" Slot.Padding=\"12\"/>"
+		"  </Overlay>"
+		"</Window>");
+	capture(window);
+	CHECK(g_width == (int)(420 * g_scale) && g_height == (int)(320 * g_scale));
+
+	/* the wallpaper is not a flat color */
+	p = pixel_at(4, 4);
+	first[0] = p[0];
+	first[1] = p[1];
+	first[2] = p[2];
+	for (y = 4; y < 320; y += 39) {
+		for (x = 4; x < 420; x += 51) {
+			p = pixel_at((float)x, (float)y);
+			if (abs((int)p[0] - first[0]) + abs((int)p[1] - first[1]) + abs((int)p[2] - first[2]) > 24) colors++;
+		}
+	}
+	CHECK(colors > 8);
+
+	/* a second frame of the same window: the offscreen images are reused */
+	Rwidget_invalidate(Rwidget_find(window, "panel"));
+	capture(window);
+	CHECK(g_pixels != NULL);
+
+	/* the same window with a flat theme, then with the light glass */
+	Rtheme_apply(R_THEME_DARK);
+	capture(window);
+	CHECK(g_pixels != NULL);
+	Rtheme_apply(R_THEME_GLASS_LIGHT);
+	capture(window);
+	CHECK(g_pixels != NULL);
+
+	Rwindow_destroy(window);
+	Rtheme_apply(R_THEME_DARK);
 }
 
 static int g_callback_calls;
-static HUI_ViewportDrawInfo g_callback_info;
+static RViewportDrawInfo g_callback_info;
 
 /* Render thread. */
-static void on_viewport_draw(const HUI_ViewportDrawInfo* info, void* user_data) {
+static void on_viewport_draw(const RViewportDrawInfo* info, void* user_data) {
 	(void)user_data;
 	g_callback_info = *info;
 	g_callback_calls++;
@@ -263,15 +387,15 @@ static void on_viewport_draw(const HUI_ViewportDrawInfo* info, void* user_data) 
 
 static void test_viewport(void) {
 	static uint8_t pixels[8 * 8 * 4];
-	HUI_id window = window_from(
+	Rid window = window_from(
 		"<Window Width=\"300\" Height=\"200\" ClearColor=\"#000000\">"
 		"  <Canvas>"
 		"    <Viewport Name=\"texture\" Slot.Position=\"10,10\" Slot.Size=\"100,100\"/>"
 		"    <Viewport Name=\"callback\" Slot.Position=\"150,20\" Slot.Size=\"120,80\"/>"
 		"  </Canvas>"
 		"</Window>");
-	HUI_id texture_viewport = HUI_FindWidget(window, "texture");
-	HUI_id texture;
+	Rid texture_viewport = Rwidget_find(window, "texture");
+	Rid texture;
 	int width = 0, height = 0, i;
 
 	/* texture mode */
@@ -281,33 +405,33 @@ static void test_viewport(void) {
 		pixels[i * 4 + 2] = 100;
 		pixels[i * 4 + 3] = 255;
 	}
-	texture = HUI_CreateTextureFromPixels(pixels, 8, 8);
-	HUI_SetViewportTexture(texture_viewport, texture);
+	texture = Rtexture_create_from_pixels(pixels, 8, 8);
+	Rviewport_set_texture(texture_viewport, texture);
 	/* callback mode */
-	HUI_SetViewportDrawCallback(HUI_FindWidget(window, "callback"), on_viewport_draw, NULL);
+	Rviewport_set_draw_callback(Rwidget_find(window, "callback"), on_viewport_draw, NULL);
 
 	capture(window);
 	CHECK_PIXEL(60, 60, 0, 200, 100);
 	CHECK_PIXEL(120, 60, 0, 0, 0);
-	HUI_GetViewportPixelSize(texture_viewport, &width, &height);
+	Rviewport_get_pixel_size(texture_viewport, &width, &height);
 	CHECK(width == (int)(100 * g_scale) && height == (int)(100 * g_scale));
 
 	/* the capture waited for the frame, so the callback already ran on the render thread */
 	CHECK(g_callback_calls > 0);
-	CHECK(g_callback_info.backend == HUI_BACKEND_VULKAN);
+	CHECK(g_callback_info.backend == R_BACKEND_VULKAN);
 	CHECK(g_callback_info.window == window);
 	CHECK(g_callback_info.command_buffer != NULL && g_callback_info.render_pass != NULL);
 	CHECK(g_callback_info.x == (int)(150 * g_scale) && g_callback_info.y == (int)(20 * g_scale));
 	CHECK(g_callback_info.width == (int)(120 * g_scale) && g_callback_info.height == (int)(80 * g_scale));
 	CHECK(g_callback_info.clip_width == g_callback_info.width);
 
-	HUI_DeleteTexture(texture);
-	HUI_DeleteWindow(window);
+	Rtexture_destroy(texture);
+	Rwindow_destroy(window);
 }
 
 static void test_windows(void) {
-	HUI_id first = window_from("<Window Width=\"200\" Height=\"100\" ClearColor=\"#FF0000\"/>");
-	HUI_id second = window_from("<Window Width=\"120\" Height=\"160\" ClearColor=\"#0000FF\"/>");
+	Rid first = window_from("<Window Width=\"200\" Height=\"100\" ClearColor=\"#FF0000\"/>");
+	Rid second = window_from("<Window Width=\"120\" Height=\"160\" ClearColor=\"#0000FF\"/>");
 	int i;
 
 	/* each window has its own swapchain */
@@ -318,12 +442,12 @@ static void test_windows(void) {
 	CHECK_PIXEL(100, 50, 255, 0, 0);
 
 	/* resizing recreates the swapchain; a real window system confirms the size with an event */
-	HUI_SetWindowSize(first, 260, 140);
+	Rwindow_set_size(first, 260, 140);
 	for (i = 0; i < 50; i++) {
 		int width = 0, height = 0;
-		HUI_PollEvents();
-		HUI_Update();
-		HUI_GetWindowSize(first, &width, &height);
+		Rpoll_events();
+		Rupdate();
+		Rwindow_get_size(first, &width, &height);
 		if (width == 260 && height == 140) break;
 #if !defined(_WIN32)
 		usleep(10000);
@@ -333,45 +457,45 @@ static void test_windows(void) {
 	CHECK(g_width == (int)(260 * g_scale) && g_height == (int)(140 * g_scale));
 	CHECK_PIXEL(250, 130, 255, 0, 0);
 
-	HUI_SetWindowClearColor(first, 0.0f, 1.0f, 0.0f, 1.0f);
+	Rwindow_set_clear_color(first, 0.0f, 1.0f, 0.0f, 1.0f);
 	capture(first);
 	CHECK_PIXEL(10, 10, 0, 255, 0);
 
-	HUI_DeleteWindow(second);
+	Rwindow_destroy(second);
 	capture(first);
 	CHECK_PIXEL(10, 10, 0, 255, 0);
-	HUI_DeleteWindow(first);
+	Rwindow_destroy(first);
 }
 
 static void test_vulkan_api(void) {
-	HUI_uint count = 0;
+	Ruint count = 0;
 	const char* const* names;
-	HUI_id shared;
+	Rid shared;
 
-	CHECK(HUI_Vulkan_GetInstance() != NULL);
-	CHECK(HUI_Vulkan_GetPhysicalDevice() != NULL);
-	CHECK(HUI_Vulkan_GetDevice() != NULL);
-	CHECK(HUI_Vulkan_GetGraphicsQueue() != NULL);
-	names = HUI_Vulkan_GetRequiredInstanceExtensions(&count);
+	CHECK(Rvulkan_get_instance() != NULL);
+	CHECK(Rvulkan_get_physical_device() != NULL);
+	CHECK(Rvulkan_get_device() != NULL);
+	CHECK(Rvulkan_get_graphics_queue() != NULL);
+	names = Rvulkan_get_required_instance_extensions(&count);
 	CHECK(names != NULL && count >= 2 && strcmp(names[0], "VK_KHR_surface") == 0);
-	names = HUI_Vulkan_GetRequiredDeviceExtensions(&count);
+	names = Rvulkan_get_required_device_extensions(&count);
 	CHECK(names != NULL && count == 1 && strcmp(names[0], "VK_KHR_swapchain") == 0);
 
 	/* optional feature: not every device can export memory */
 	EXPECT_ERRORS_BEGIN();
-	shared = HUI_Vulkan_CreateSharedTexture(64, 32);
+	shared = Rvulkan_texture_create_shared(64, 32);
 	EXPECT_ERRORS_END(0);
-	if (shared != HUI_INVALID_ID) {
-		HUI_SharedTextureInfo info;
+	if (shared != R_INVALID_ID) {
+		RSharedTextureInfo info;
 		memset(&info, 0, sizeof(info));
-		CHECK(HUI_Vulkan_GetSharedTextureInfo(shared, &info));
+		CHECK(Rvulkan_texture_get_shared_info(shared, &info));
 		CHECK(info.width == 64 && info.height == 32);
 		CHECK(info.allocation_size >= 64 * 32 * 4);
 #if !defined(_WIN32)
 		CHECK(info.handle >= 0);
 		if (info.handle >= 0) close((int)info.handle);
 #endif
-		HUI_DeleteTexture(shared);
+		Rtexture_destroy(shared);
 		printf("  shared textures: supported\n");
 	} else {
 		printf("  shared textures: not supported by this device\n");
@@ -384,23 +508,23 @@ static void test_vulkan_api(void) {
 
 /* Starts the Vulkan backend and checks that a window can really be rendered. */
 static int start(int headless) {
-	HUI_InitDesc desc;
-	HUI_id probe;
+	RInitDesc desc;
+	Rid probe;
 	uint8_t* pixels;
 	int width = 0, height = 0;
 
 	memset(&desc, 0, sizeof(desc));
-	desc.backend = HUI_BACKEND_VULKAN;
+	desc.backend = R_BACKEND_VULKAN;
 	desc.headless = headless;
 	desc.app_name = "test_render";
-	HUI_RegisterErrorCallback(test_error_callback);
-	if (!HUI_InitEx(&desc)) return 0;
-	probe = HUI_CreateWindow("probe", 64, 64, HUI_WINDOW_DEFAULT);
-	pixels = probe != HUI_INVALID_ID ? HUI_CaptureWindow(probe, &width, &height) : NULL;
-	HUI_FreePixels(pixels);
-	if (probe != HUI_INVALID_ID) HUI_DeleteWindow(probe);
+	Rerror_set_callback(test_error_callback);
+	if (!Rinit_ex(&desc)) return 0;
+	probe = Rwindow_create("probe", 64, 64, R_WINDOW_DEFAULT);
+	pixels = probe != R_INVALID_ID ? Rwindow_capture(probe, &width, &height) : NULL;
+	Rpixels_free(pixels);
+	if (probe != R_INVALID_ID) Rwindow_destroy(probe);
 	if (!pixels) {
-		HUI_Shutdown();
+		Rshutdown();
 		return 0;
 	}
 	return 1;
@@ -408,12 +532,12 @@ static int start(int headless) {
 
 int main(void) {
 	/* failures to start are expected on machines without Vulkan: stay quiet */
-	/* HUI_TEST_WINDOWED=1 forces a real window, to test the window system path too */
-	int windowed = getenv("HUI_TEST_WINDOWED") != NULL;
+	/* RAVEN_TEST_WINDOWED=1 forces a real window, to test the window system path too */
+	int windowed = getenv("RAVEN_TEST_WINDOWED") != NULL;
 	EXPECT_ERRORS_BEGIN();
-	if (!windowed && start(HUI_TRUE)) {
+	if (!windowed && start(R_TRUE)) {
 		printf("test_render: Vulkan without a window system (headless surface)\n");
-	} else if (start(HUI_FALSE)) {
+	} else if (start(R_FALSE)) {
 		printf("test_render: Vulkan with a real window\n");
 	} else {
 		printf("test_render: SKIPPED, no usable Vulkan driver or display\n");
@@ -428,11 +552,13 @@ int main(void) {
 	RUN(test_textures);
 	RUN(test_text);
 	RUN(test_custom_drawing);
+	RUN(test_glass);
+	RUN(test_glass_theme);
 	RUN(test_viewport);
 	RUN(test_windows);
 	RUN(test_vulkan_api);
 
-	HUI_FreePixels(g_pixels);
-	HUI_Shutdown();
+	Rpixels_free(g_pixels);
+	Rshutdown();
 	return test_report("test_render");
 }

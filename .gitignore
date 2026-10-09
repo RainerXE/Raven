@@ -1,13 +1,7 @@
-# build trees
-/build*/
-/out/
-/cmake-build-*/
+build/
+build-*/
+out/
+.vs/
+.vscode/
+CMakeSettings.json
 CMakeUserPresets.json
-
-# editors
-/.vs/
-/.vscode/
-/.idea/
-*.swp
-
-/dev/

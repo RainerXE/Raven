@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Builds the font embedded in HUI from a full TrueType file.
+"""Builds the font embedded in Raven from a full TrueType file.
 
     python3 tools/subset_font.py Roboto-Regular.ttf third_party/roboto/Roboto-Regular-subset.ttf
 
 Keeps Basic Latin, Latin-1 Supplement, Latin Extended-A and common punctuation,
-and drops hinting and layout tables, which the HUI rasterizer does not use.
+and drops hinting and layout tables, which the Raven rasterizer does not use.
 Requires fontTools (pip install fonttools).
 """
 import sys

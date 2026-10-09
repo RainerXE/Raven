@@ -1,6 +1,6 @@
 #version 450
 
-/* HUI example - a rotating triangle without any vertex buffer. */
+/* Raven example - a rotating triangle without any vertex buffer. */
 
 layout(push_constant) uniform PushConstants {
 	float angle;

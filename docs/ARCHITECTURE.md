@@ -1,4 +1,4 @@
-# HUI architecture
+# Raven architecture
 
 This document explains how the library is organized and why, for someone who
 wants to read, debug or extend it.
@@ -7,7 +7,7 @@ wants to read, debug or extend it.
 
 ```
             application
-                │  hui.h (handles, callbacks)
+                │  Raven.h (handles, callbacks)
 ┌───────────────┴────────────────────────────────────────────┐
 │ xml/        parser, attributes, loader                     │
 │ widgets/    one file per widget type                       │
@@ -25,32 +25,35 @@ wants to read, debug or extend it.
 
 A layer only uses the layers below it. `platform/` and `render/` do not know
 each other: the core passes the native window handle from one to the other.
-Both are tables of functions (`hui_platform_t`, `HUI_BackendVTable`), chosen
-at `HUI_Init`.
+Both are tables of functions (`rvn_platform_t`, `RBackendVTable`), chosen
+at `Rinit`.
 
-Naming: `HUI_` is the public API, `hui_` is internal. One global, `g_hui`
-(`core/context.h`), holds the state of the library.
+Naming: the public API is `R<object>_<action>` for functions
+(`Rwindow_get_size`), `R<Name>` for types (`REvent`), `R_<NAME>` for constants
+and `RAVEN_<NAME>` for build macros; everything internal is `rvn_` / `RVN_`
+and is not exported. One global, `g_rvn` (`core/context.h`), holds the state
+of the library. `include/Raven.h` includes every public header.
 
 ## Handles
 
 `core/handle.h`. A handle is 32 bits: `[ type : 4 | generation : 8 | index : 20 ]`.
 Each object type has a pool mapping the index to a pointer. Deleting an
 object increments the generation of its slot, so a stale handle no longer
-matches and the call reports `HUI_ERROR_INVALID_ID`. `0` and `HUI_INVALID_ID`
+matches and the call reports `R_ERROR_INVALID_ID`. `0` and `R_INVALID_ID`
 are never valid. Every public function starts by resolving its handles
-(`HUI_WIDGET(widget, id, type)` in `widget/widget.h`), which also checks the
+(`RVN_WIDGET(widget, id, type)` in `widget/widget.h`), which also checks the
 widget type.
 
 ## Threads
 
 ```
  UI thread                         worker threads              render thread
- (the one that called HUI_Init)    (job system)
+ (the one that called Rinit)    (job system)
  ─────────────────────────────     ───────────────────────     ─────────────────────
  events, callbacks                 paint jobs of large trees   every backend call:
- widget tree, layout               HUI_RunAsync                surfaces, textures,
+ widget tree, layout               Rtask_run_async                surfaces, textures,
  paint -> frame packet ──────────────────────────────────────▶ frames, present
- HUI_PostTask tasks                HUI_ParallelFor             viewport draw callbacks
+ Rtask_post tasks                Rparallel_for             viewport draw callbacks
                                    texture decoding
 ```
 
@@ -60,10 +63,10 @@ for them.
 
 **Render thread** (`render/renderer.c`). Every backend call becomes a command
 in one ordered queue: create a surface, upload a texture, render a frame. A
-frame is a packet (`hui_frame_t`) holding its own copy of the instances, so
+frame is a packet (`rvn_frame_t`) holding its own copy of the instances, so
 the UI thread goes on while the frame is rendered. The UI thread only blocks
 when two frames of a window are already queued; that back-pressure is what
-paces a UI that redraws continuously. `HUI_InitDesc::disable_render_thread`
+paces a UI that redraws continuously. `RInitDesc::disable_render_thread`
 runs the commands inline instead.
 
 **Job system** (`core/jobs.c`). A fixed pool of workers and one queue. A
@@ -84,12 +87,12 @@ lock-free for readers (`core/lfmap.c`); only a miss takes a mutex.
 
 **Deferred destruction.** Deleting a widget or a window from inside one of
 its own callbacks is allowed: while an event is being dispatched
-(`g_hui.dispatch_depth > 0`), deleted objects are marked dead and freed when
+(`g_rvn.dispatch_depth > 0`), deleted objects are marked dead and freed when
 the dispatch ends.
 
 ## A frame
 
-`HUI_Update` runs, for each window that needs it:
+`Rupdate` runs, for each window that needs it:
 
 1. **Tasks and timers**, then the frame callback of the application.
 2. **Layout** (`widget/layout.c`, only if something changed):
@@ -106,16 +109,16 @@ the dispatch ends.
 4. **Submit**: the frame packet goes to the render thread.
 
 A window is only laid out or painted when something asked for it (a property
-changed, an event, a realtime viewport). `HUI_Run` sleeps in the window
-system until an event, a timer, a posted task or `HUI_WakeUp`.
+changed, an event, a realtime viewport). `Rrun` sleeps in the window
+system until an event, a timer, a posted task or `Rwake_up`.
 
 ## Rendering model
 
-`include/hui/hui_backend.h`. The whole UI is a flat array of
-`HUI_DrawInstance` (80 bytes) and a short list of commands.
+`include/raven/raven_backend.h`. The whole UI is a flat array of
+`RDrawInstance` (80 bytes) and a short list of commands.
 
 - One instance is one primitive: rounded rectangle with optional outline and
-  texture, glyph, soft shadow, line, triangle.
+  texture, glyph, soft shadow, line, triangle, glass.
 - The vertex shader expands each instance into a quad (`gl_VertexIndex`,
   no vertex or index buffer). The fragment shader evaluates the exact shape
   as a signed distance in pixels, so edges are anti-aliased at any size and
@@ -135,29 +138,89 @@ single-channel atlas pages shared by all fonts. Pages changed during a paint
 are uploaded before the frame that uses them. Missing glyphs follow a chain
 of fallback fonts.
 
+## Glass
+
+The glass themes (`R_THEME_GLASS_DARK`, `R_THEME_GLASS_LIGHT`) are the same
+widgets painted with another primitive, `R_PRIM_GLASS`: a rounded slab that
+shows the frame *behind* it.
+
+**In the draw list** (`render/draw.c`). `rvn_paint_glass` first asks for a
+copy of what has been drawn so far, with a `R_DRAW_BACKDROP` command, then
+emits the slab. Asking is cheap and every piece of glass does it; most
+requests are useless, because nothing was drawn under that piece since the
+place was last copied. After the paint, `rvn_drawlist_resolve_backdrops`
+walks the list with a short list of rectangles: where the frame differs from
+its copy. Every primitive adds its bounds to it. A request that overlaps
+none of these rectangles is removed; one that does becomes a capture of
+those rectangles, which leave the list. The first capture of a frame is the
+whole window, the next ones are small: in the `glass` example, the card
+under each chip, then each bar. A tool bar of ten glass buttons costs one
+capture of the bar for the ten buttons. The batches that removed commands
+were separating are merged again. A frame makes at most 24 captures; glass
+beyond that sees a copy that may be out of date.
+
+**In the backend** (`render/vulkan/vk_glass.c`). A frame that contains glass
+is rendered into an offscreen image, the *scene*, instead of the swapchain.
+At each backdrop command the render pass is interrupted and the scene is
+reduced three times (1/2, 1/4, 1/8) and enlarged twice with a dual-filter
+blur, whose radius follows the scale of the window. The 1/2 image is the
+sharp backdrop, the result of the blur is the frosted one; both are bound as
+a second descriptor set. A capture of an area runs the same five passes with
+a scissor: the area plus the reach of the blur, the rest of the images
+keeping what the earlier captures put there. The scene pass then continues,
+and at the end the scene is copied to the swapchain.
+Frames without glass skip all of this and render straight to the swapchain.
+
+**In the shader** (`shaders/ui.frag`, `glass()`). From the signed distance
+and its direction, the shader derives how far the pixel is into the rounded
+rim of the slab (`bend`, 0 in the flat middle, 1 on the edge), then:
+
+- reads the backdrop shifted toward the inside by `bend x refraction`, the
+  sharp copy with red and blue slightly apart (dispersion), and mixes it with
+  the frosted copy;
+- raises the saturation, so that colors survive the blur, and applies the tint;
+- adds a thin highlight on the rim, strongest where the rim faces a light at
+  the top left, with a weaker echo on the opposite side;
+- adds a reflection: the frosted backdrop read *outside* the slab, along the
+  normal, so that the rim takes the colors of what surrounds it.
+
+The parameters of a slab travel in the fields of its instance that glass
+does not need otherwise (`uv`, `border_width`, `border_color`); they are
+listed in `raven_backend.h`. A backend that does not implement glass can draw
+`R_PRIM_GLASS` as a rounded rectangle and ignore `R_DRAW_BACKDROP`.
+
+**In the widgets** (`widgets/common.c`). `rvn_paint_surface` draws the body
+of a control: a flat box with a flat theme, a slab with a glass theme
+(`rvn_glass_style` turns a role such as *control*, *input*, *bar* or *popup*
+into frost, refraction, tint and shadow). Controls keep two eased values,
+hover and press (`rvn_paint_animate`); while one of them is moving, the
+window keeps producing frames, then goes back to sleep.
+
 ## The Vulkan backend
 
-`src/render/vulkan/`, about 2 800 lines.
+`src/render/vulkan/`, about 3 400 lines.
 
 - `vk_loader.c` opens the Vulkan library at run time and fills a table of
-  function pointers (`hui_vk.CreateImage(...)`). HUI never links to Vulkan.
+  function pointers (`rvn_vk.CreateImage(...)`). Raven never links to Vulkan.
 - `vk_device.c` creates the instance and device, or adopts the ones of the
-  application (`HUI_Vulkan_SetExternalDevice`). Vulkan 1.0 is enough; 1.1 is
+  application (`Rvulkan_set_external_device`). Vulkan 1.0 is enough; 1.1 is
   only used for shared textures.
 - `vk_surface.c` holds one surface and swapchain per window. The window
   system headers are not included: the create-info structures of the surface
   extensions are declared locally. X11 windows work with either
   `VK_KHR_xlib_surface` or `VK_KHR_xcb_surface`; `VK_EXT_headless_surface`
   renders without a window (tests).
-- `vk_pipeline.c`: one pipeline per swapchain format, one descriptor set per
-  texture.
+- `vk_pipeline.c`: per swapchain format, the render passes and the two
+  pipelines (UI, blur); one descriptor set per texture.
+- `vk_glass.c`: the offscreen images of a window that shows glass, and the
+  blur between them. They are created with the first frame that needs them.
 - `vk_texture.c`: uploads are batched into one command buffer per frame.
   Textures can wrap an image view of the application or export their memory.
 - `vk_frame.c`: two frames in flight per window, each with a persistently
   mapped instance buffer; viewport callbacks; capture.
 
 Objects are destroyed after waiting for the frames that may use them
-(`hui_vk_wait_frames`); this only happens on rare events (a texture is
+(`rvn_vk_wait_frames`); this only happens on rare events (a texture is
 deleted, a swapchain is resized), never in a steady frame.
 
 ## Platforms
@@ -165,17 +228,17 @@ deleted, a swapchain is resized), never in a steady frame.
 `platform/platform.h` is the whole contract: create a window, change it,
 pump events into one handler, clipboard, child windows, wake-up.
 
-**Win32.** Messages are dispatched by `hui_win32_pump`. Two things are
+**Win32.** Messages are dispatched by `rvn_win32_pump`. Two things are
 specific to Windows:
 
 - While the user moves or resizes a window, Windows runs its own message
-  loop and `HUI_Update` is not called. A timer emits `HUI_PEVENT_MODAL_TICK`,
+  loop and `Rupdate` is not called. A timer emits `RVN_PEVENT_MODAL_TICK`,
   on which the core produces a frame, so the content follows the resize.
 - Graphics drivers send messages to the window from the thread that creates
   or resizes a swapchain. If the UI thread were blocked on the render thread
   at that moment, both would wait forever. Whenever the UI thread waits for
   the render thread, it therefore keeps answering *sent* messages
-  (`hui_platform_t::wait_service`, `hui_renderer_wait`), without dispatching
+  (`rvn_platform_t::wait_service`, `rvn_renderer_wait`), without dispatching
   anything to the core.
 
 **X11.** Xlib only. Text input goes through an X input context (dead keys,
@@ -185,21 +248,22 @@ event loop from other threads.
 ## Adding things
 
 **A widget.** Copy a small one (`widgets/progress_bar.c`): a structure that
-starts with `hui_widget_t`, a `hui_widget_class_t` with the callbacks it
+starts with `rvn_widget_t`, a `rvn_widget_class_t` with the callbacks it
 needs (`measure`, `arrange`, `paint`, `event`, `set_attribute`), and its
-public functions. Then add the type to `HUI_EWidgetType`, the class to the
+public functions. Then add the type to `RWidgetType`, the class to the
 table in `widget/registry.c` and the file to `CMakeLists.txt`. The XML tag
 is the class name.
 
-**A window system.** Implement `hui_platform_t` in `platform/<name>/`, return
-it from `hui_platform_select` (`platform/platform.c`), and add the matching
+**A window system.** Implement `rvn_platform_t` in `platform/<name>/`, return
+it from `rvn_platform_select` (`platform/platform.c`), and add the matching
 surface creation in `vk_surface.c`. `platform/null/null_platform.c` is the
 smallest implementation.
 
-**A backend.** Implement the ten functions of `HUI_BackendVTable`; an
-application can do it without touching HUI (`HUI_RegisterBackend`, then
-`HUI_Init(HUI_BACKEND_CUSTOM)`). The shaders to port are
-`render/vulkan/shaders/ui.vert` and `ui.frag`.
+**A backend.** Implement the ten functions of `RBackendVTable`; an
+application can do it without touching Raven (`Rbackend_register`, then
+`Rinit(R_BACKEND_CUSTOM)`). The shaders to port are
+`render/vulkan/shaders/ui.vert` and `ui.frag`, and `blur.vert` / `blur.frag`
+for the glass themes.
 
 ## Tests
 
@@ -209,8 +273,8 @@ application can do it without touching HUI (`HUI_RegisterBackend`, then
 | `test_widgets` | controls driven by injected mouse and keyboard events |
 | `test_xml` | parser, loader, attributes, error reporting |
 | `test_threads` | jobs, posted tasks, asynchronous textures, parallel paint equal to serial paint |
-| `test_render` | real frames through Vulkan, pixels compared; skipped without a Vulkan driver |
+| `test_render` | real frames through Vulkan, pixels compared (shapes, clipping, textures, text, glass); skipped without a Vulkan driver |
 
 The first four run with the null platform and the null backend: no display,
-no GPU. Input is injected with `HUI_InjectMouseMove`, `HUI_InjectKey`...,
+no GPU. Input is injected with `Rwindow_inject_mouse_move`, `Rwindow_inject_key`...,
 which follow the same path as real events.

@@ -1,16 +1,16 @@
 /**
- * HUI - benchmark: cost of a large widget tree.
+ * Raven - benchmark: cost of a large widget tree.
  *
- *   hui_benchmark [columns] [worker threads] [vulkan]
+ *   raven_benchmark [columns] [worker threads] [vulkan]
  *
  * Builds `columns` x 60 rows (5 widgets per row), then measures the first
  * layout, a full repaint (serial or split between the worker threads), and
  * the layout after changing a single label. By default nothing is rendered
- * (null backend): the numbers are the CPU cost of HUI itself. With "vulkan",
+ * (null backend): the numbers are the CPU cost of Raven itself. With "vulkan",
  * frames are also sent to the GPU and the time of the render thread is shown.
  */
 
-#include <hui/hui.h>
+#include <Raven.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,19 +18,19 @@
 
 #define ROWS 60
 
-static HUI_id build_tree(int columns) {
-	HUI_id scroll = HUI_CreateWidget(HUI_WIDGET_SCROLL_BOX);
-	HUI_id row_of_columns = HUI_AddChild(scroll, HUI_CreateWidget(HUI_WIDGET_HBOX));
+static Rid build_tree(int columns) {
+	Rid scroll = Rwidget_create(R_WIDGET_SCROLL_BOX);
+	Rid row_of_columns = Rwidget_add_child(scroll, Rwidget_create(R_WIDGET_HBOX));
 	int column, row;
 	for (column = 0; column < columns; column++) {
-		HUI_id box = HUI_AddChild(row_of_columns, HUI_CreateWidget(HUI_WIDGET_VBOX));
+		Rid box = Rwidget_add_child(row_of_columns, Rwidget_create(R_WIDGET_VBOX));
 		for (row = 0; row < ROWS; row++) {
 			char text[32];
-			HUI_id border = HUI_AddChild(box, HUI_CreateWidget(HUI_WIDGET_BORDER));
-			HUI_id line = HUI_AddChild(border, HUI_CreateWidget(HUI_WIDGET_HBOX));
+			Rid border = Rwidget_add_child(box, Rwidget_create(R_WIDGET_BORDER));
+			Rid line = Rwidget_add_child(border, Rwidget_create(R_WIDGET_HBOX));
 			snprintf(text, sizeof(text), "Item %d.%d", column, row);
-			HUI_AddChild(line, HUI_CreateLabel(text));
-			HUI_AddChild(line, HUI_CreateButton("x"));
+			Rwidget_add_child(line, Rlabel_create(text));
+			Rwidget_add_child(line, Rbutton_create("x"));
 		}
 	}
 	return scroll;
@@ -41,40 +41,40 @@ int main(int argc, char** argv) {
 	int workers = argc > 2 ? atoi(argv[2]) : 0;
 	int vulkan = argc > 3 && strcmp(argv[3], "vulkan") == 0;
 	const int frames = 30;
-	HUI_InitDesc desc;
-	HUI_FrameStats stats;
-	HUI_id window, label;
+	RInitDesc desc;
+	RFrameStats stats;
+	Rid window, label;
 	double start, build_ms, best = 1e9, sum = 0.0, render = 0.0;
 	int i;
 
 	if (columns < 4) columns = 4;
 	memset(&desc, 0, sizeof(desc));
-	desc.backend = vulkan ? HUI_BACKEND_VULKAN : HUI_BACKEND_NULL;
+	desc.backend = vulkan ? R_BACKEND_VULKAN : R_BACKEND_NULL;
 	desc.headless = !vulkan;
 	desc.worker_threads = workers;
-	desc.disable_vsync = HUI_TRUE;
-	if (!HUI_InitEx(&desc)) {
-		fprintf(stderr, "hui_benchmark: cannot start HUI\n");
+	desc.disable_vsync = R_TRUE;
+	if (!Rinit_ex(&desc)) {
+		fprintf(stderr, "raven_benchmark: cannot start Raven\n");
 		return 1;
 	}
 
 	/* large enough for every widget to be visible: nothing is culled */
-	window = HUI_CreateWindow("HUI benchmark", vulkan ? 1600 : 150 * columns, vulkan ? 900 : 2000, HUI_WINDOW_DEFAULT);
-	start = HUI_GetTime();
-	HUI_SetWindowContent(window, build_tree(columns));
-	build_ms = (HUI_GetTime() - start) * 1000.0;
+	window = Rwindow_create("Raven benchmark", vulkan ? 1600 : 150 * columns, vulkan ? 900 : 2000, R_WINDOW_DEFAULT);
+	start = Rget_time();
+	Rwindow_set_content(window, build_tree(columns));
+	build_ms = (Rget_time() - start) * 1000.0;
 
-	HUI_Update();
-	HUI_GetFrameStats(window, &stats);
-	printf("%u widgets, %d worker thread(s)\n", stats.widget_count, HUI_GetWorkerThreadCount());
+	Rupdate();
+	Rwindow_get_frame_stats(window, &stats);
+	printf("%u widgets, %d worker thread(s)\n", stats.widget_count, Rget_worker_thread_count());
 	printf("  build         %8.2f ms\n", build_ms);
 	printf("  first layout  %8.2f ms\n", stats.layout_ms);
 	printf("  first paint   %8.2f ms   (rasterizes the glyphs)\n", stats.paint_ms);
 
 	for (i = 0; i < frames; i++) {
-		HUI_RequestWindowRedraw(window);
-		HUI_Update();
-		HUI_GetFrameStats(window, &stats);
+		Rwindow_request_redraw(window);
+		Rupdate();
+		Rwindow_get_frame_stats(window, &stats);
 		if (stats.paint_ms < best) best = stats.paint_ms;
 		sum += stats.paint_ms;
 		render += stats.render_ms;
@@ -84,12 +84,12 @@ int main(int argc, char** argv) {
 	if (vulkan) printf("  render thread %8.2f ms   average per frame (upload, record, submit, present)\n", render / frames);
 
 	/* one label changes: only its ancestors are measured and arranged again */
-	label = HUI_GetChild(HUI_GetChild(HUI_GetChild(HUI_GetChild(HUI_GetChild(HUI_GetWindowContent(window), 0), 3), 7), 0), 0);
-	HUI_SetLabelText(label, "a longer text than before");
-	HUI_Update();
-	HUI_GetFrameStats(window, &stats);
+	label = Rwidget_get_child(Rwidget_get_child(Rwidget_get_child(Rwidget_get_child(Rwidget_get_child(Rwindow_get_content(window), 0), 3), 7), 0), 0);
+	Rlabel_set_text(label, "a longer text than before");
+	Rupdate();
+	Rwindow_get_frame_stats(window, &stats);
 	printf("  relayout      %8.3f ms   after changing one label\n", stats.layout_ms);
 
-	HUI_Shutdown();
+	Rshutdown();
 	return 0;
 }
