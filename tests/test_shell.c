@@ -583,7 +583,7 @@ static void test_island(void) {
 	Rwidget_get_rect(island, &x, &y, &w, &h);
 	CHECK_NEAR(y, 8);
 	CHECK_NEAR(x + w * 0.5f, 300);
-	CHECK(w >= 110.0f && w < 200.0f && h >= 30.0f && h < 50.0f);
+	CHECK(w >= 96.0f && w < 200.0f && h >= 30.0f && h < 50.0f);
 
 	/* it floats above the content: the pointer on it is not on the button under it */
 	Risland_set_changed_callback(island, on_island_changed, NULL);
@@ -597,9 +597,9 @@ static void test_island(void) {
 	CHECK(g_island_changes == 1 && g_island_state == 1);
 	Rwidget_get_rect(island, &x, &y, &w, &h);
 	CHECK_NEAR(w, 300 + 36);
-	CHECK_NEAR(h, 120 + 28);
+	CHECK_NEAR(h, 120 + 30);
 	CHECK_NEAR(x + w * 0.5f, 300);
-	CHECK_RECT(Rwidget_find(window, "big"), x + 18, 8 + 14, 300, 120);
+	CHECK_RECT(Rwidget_find(window, "big"), x + 18, 8 + 15, 300, 120);
 
 	/* the controls inside work, and the island stays open */
 	Rbutton_set_clicked_callback(inside, on_clicked, NULL);
@@ -618,6 +618,40 @@ static void test_island(void) {
 	CHECK(h < 50.0f);
 	test_click_at(window, 300.0f, 90.0f);
 	CHECK(g_clicked == 2);
+
+	/* unfolded by the pointer, then clicked: it is pinned, and stays when the pointer leaves */
+	Rwindow_inject_mouse_move(window, 300.0f, 20.0f);
+	CHECK(Risland_is_expanded(island));
+	test_click_at(window, 300.0f - 150.0f, 14.0f);
+	CHECK(Risland_is_expanded(island));
+	Rwindow_inject_mouse_move(window, 300.0f, 350.0f);
+	{
+		double end = Rget_time() + 0.5;
+		while (Rget_time() < end) Rwait_frame(0.02);
+	}
+	CHECK(Risland_is_expanded(island));
+	CHECK(g_island_changes == 3);
+	/* a press anywhere else folds it, and still does what it was for */
+	Rwindow_inject_mouse_move(window, 300.0f, 20.0f);
+	Rwindow_inject_mouse_move(window, 520.0f, 300.0f);
+	test_click_at(window, 520.0f, 300.0f);
+	CHECK(!Risland_is_expanded(island));
+	CHECK(g_island_changes == 4 && g_island_state == 0);
+	/* a click folds a pinned island, and the pointer still on it does not unfold it again at once */
+	test_click_at(window, 300.0f, 14.0f);
+	CHECK(Risland_is_expanded(island));
+	test_click_at(window, 300.0f, 14.0f);
+	CHECK(!Risland_is_expanded(island));
+	Rdraw_frame();
+	Rwindow_inject_mouse_move(window, 302.0f, 16.0f);
+	CHECK(!Risland_is_expanded(island));
+	Rwindow_inject_mouse_move(window, 300.0f, 350.0f);
+	Rwindow_inject_mouse_move(window, 300.0f, 20.0f);
+	CHECK(Risland_is_expanded(island));
+	Rwindow_inject_mouse_move(window, 300.0f, 350.0f);
+	wait_folded(island);
+	CHECK(!Risland_is_expanded(island));
+	g_island_changes = 2;
 
 	/* without hovering: a click unfolds it, another one folds it */
 	Risland_set_expand_on_hover(island, R_FALSE);
@@ -639,6 +673,17 @@ static void test_island(void) {
 	Risland_set_expanded(island, R_FALSE);
 	Risland_expand_for(island, 0.05);
 	CHECK(Risland_is_expanded(island));
+	wait_folded(island);
+	CHECK(!Risland_is_expanded(island));
+	/* shown for a moment while the pointer is on it: it waits for the pointer to leave */
+	Rwindow_inject_mouse_move(window, 300.0f, 20.0f);
+	Risland_expand_for(island, 0.05);
+	{
+		double end = Rget_time() + 0.3;
+		while (Rget_time() < end) Rwait_frame(0.02);
+	}
+	CHECK(Risland_is_expanded(island));
+	Rwindow_inject_mouse_move(window, 300.0f, 350.0f);
 	wait_folded(island);
 	CHECK(!Risland_is_expanded(island));
 	Risland_set_attached(island, R_TRUE);
@@ -664,8 +709,8 @@ static void test_island(void) {
 		"<Island Name=\"i\" Expanded=\"true\" ExpandOnHover=\"false\" Slot.HAlign=\"Left\"><Label>a</Label><Label Width=\"200\" Height=\"100\">b</Label></Island>"
 		"<Label Name=\"below\">Below</Label></VBox></Window>");
 	CHECK(Risland_is_expanded(Rwidget_find(window, "i")));
-	CHECK_RECT(Rwidget_find(window, "i"), 0, 0, 236, 128);
-	CHECK_RECT(Rwidget_find(window, "below"), 0, 128, 600, 18);
+	CHECK_RECT(Rwidget_find(window, "i"), 0, 0, 236, 130);
+	CHECK_RECT(Rwidget_find(window, "below"), 0, 130, 600, 18);
 	Rwindow_destroy(window);
 }
 

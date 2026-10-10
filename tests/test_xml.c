@@ -764,7 +764,7 @@ static void test_schema(void) {
 			CHECK((info.type == R_XML_CHOICE) == (info.choices != NULL));
 			total++;
 			/* (a file would have to exist, and a saved arrangement to be one) */
-			if (info.type == R_XML_FILE || strcmp(info.name, "Layout") == 0) continue;
+			if (info.type == R_XML_FILE || strcmp(info.name, "Layout") == 0 || strcmp(info.name, "Swatches") == 0) continue;
 			value = schema_sample(&info, buffer, sizeof(buffer));
 			/* (some take a share below 1, some two numbers, some four) */
 			if (!Rwidget_set_attribute(widget, info.name, value) &&

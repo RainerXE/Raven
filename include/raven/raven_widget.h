@@ -94,6 +94,18 @@ typedef enum RWidgetType{
 	/** Explorer of the files of the computer. */
 	R_WIDGET_FILE_BROWSER,
 
+	/* ---- raven_layout.h ---- */
+	/** One child over a blurred view of what is behind it. */
+	R_WIDGET_BACKGROUND_BLUR,
+
+	/* ---- raven_tools.h ---- */
+	/** Chooses a color: hue, saturation, value, opacity, by hand or by numbers. */
+	R_WIDGET_COLOR_PICKER,
+	/** Tracks of clips and keys along a time ruler. */
+	R_WIDGET_TIMELINE,
+	/** Nodes linked by wires, on a canvas that pans and zooms. */
+	R_WIDGET_NODE_GRAPH,
+
 	R_WIDGET_LAST_
 }RWidgetType;
 
@@ -314,6 +326,16 @@ extern "C" {
 	RAVEN_API void* Rwidget_get_user_handle(Rid widget);
 
 	/**
+	 * @brief Called once when the widget is gone: deleted by the application,
+	 * with its parent or its window, or by Rshutdown. The place to release
+	 * what belonged to it (a texture, a connection). The handle it receives
+	 * names nothing any more: it is only there to tell widgets apart.
+	 * Called on the UI thread, shortly after the deletion.
+	 */
+	typedef void (*RWidgetDestroyCallback)(Rid widget, void* user_data);
+	RAVEN_API void Rwidget_set_destroy_callback(Rid widget, RWidgetDestroyCallback callback, void* user_data);
+
+	/**
 	 * @brief Receives the input events of a widget before the widget itself.
 	 * Return R_TRUE to consume the event (the widget and its parents will
 	 * not see it), R_FALSE to let it continue.
@@ -369,6 +391,12 @@ extern "C" {
 	 */
 	RAVEN_API void Rwidget_set_color(Rid widget, RColorRole role, float r, float g, float b, float a);
 	RAVEN_API void Rwidget_clear_color(Rid widget, RColorRole role);
+	/**
+	 * @brief The color the widget is drawn with for a role: its own, else
+	 * the one of the styles of its theme that apply to it, else the one of
+	 * its theme. What a custom widget should draw itself with.
+	 */
+	RAVEN_API void Rwidget_get_color(Rid widget, RColorRole role, float* r, float* g, float* b, float* a);
 
 	/**
 	 * @brief Gives one widget a material of its own, whatever the theme:
@@ -385,6 +413,33 @@ extern "C" {
 	/** @brief Overrides a theme metric for one widget. */
 	RAVEN_API void Rwidget_set_metric(Rid widget, RMetric metric, float value);
 	RAVEN_API void Rwidget_clear_metric(Rid widget, RMetric metric);
+	/** @return The metric the widget uses: its own, else the one of a style, else the one of its theme. */
+	RAVEN_API float Rwidget_get_metric(Rid widget, RMetric metric);
+
+	/**
+	 * @brief Classes of the widget, separated by spaces ("danger large"):
+	 * the styles of the theme made for these classes apply to it
+	 * (Rtheme_set_style_color, <Style Class="danger" .../> in a theme file).
+	 * In XML: Class="...". NULL or "" removes them.
+	 */
+	RAVEN_API void Rwidget_set_class(Rid widget, const char* classes);
+	/** @return The classes, "" when it has none. Valid until they change. */
+	RAVEN_API const char* Rwidget_get_class(Rid widget);
+	RAVEN_API void Rwidget_add_class(Rid widget, const char* style_class);
+	RAVEN_API void Rwidget_remove_class(Rid widget, const char* style_class);
+	RAVEN_API int Rwidget_has_class(Rid widget, const char* style_class);
+
+	/**
+	 * @brief Gives the widget and everything inside it a theme of their own,
+	 * by name ("Dark", "GlassLight", or a theme of Rtheme_load): a dark side
+	 * bar in a light window, a preview of another theme. Menus and lists
+	 * opened from inside follow. In XML: Theme="...".
+	 * @param name NULL or "" follows the parent (the application theme) again.
+	 * @return R_FALSE, after reporting an error, when no theme has that name.
+	 */
+	RAVEN_API int Rwidget_set_theme(Rid widget, const char* name);
+	/** @return Name of the theme the widget is drawn with. */
+	RAVEN_API const char* Rwidget_get_theme(Rid widget);
 
 #ifdef __cplusplus
 } /* extern "C" */

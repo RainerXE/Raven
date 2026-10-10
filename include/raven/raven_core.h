@@ -425,6 +425,15 @@ extern "C" {
 	 *  CLIPBOARD
 	 * ============================================================================ */
 
+	/**
+	 * @brief Opens an address with the program the user has for it: a web
+	 * page in the browser, a mailto: in the mail program, a file in its
+	 * application. Returns at once.
+	 * @return R_FALSE when the OS could not be asked (nothing tells whether
+	 * a program then really opened it).
+	 */
+	RAVEN_API int Ropen_url(const char* url);
+
 	RAVEN_API void Rclipboard_set_text(const char* text);
 
 	/** @return The clipboard text, or "" when empty. Valid until the next call. */

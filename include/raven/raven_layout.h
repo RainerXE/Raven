@@ -28,6 +28,35 @@
 
 #include "raven_widget.h"
 
+/**
+ * The looks of a R_WIDGET_BACKGROUND_BLUR. The first three are drawn by
+ * Raven from what the window shows behind the widget; the last one is the
+ * blur of the OS, which sees what is behind the window itself.
+ */
+typedef enum RBlurStyle{
+	/** What is behind, out of focus, and nothing else (a Gaussian blur). */
+	R_BLUR_PLAIN = 0x0440,
+	/**
+	 * Frosted: blurred, its colors a little stronger, under a veil of the
+	 * panel color of the theme, a fine grain and a hairline. The default.
+	 */
+	R_BLUR_FROSTED,
+	/**
+	 * Glass: a slab that bends what is behind at its rim and catches the
+	 * light, as the glass materials do (RMaterial); the radius says how
+	 * frosted it is.
+	 */
+	R_BLUR_GLASS,
+	/**
+	 * Native: the widget opens the window there, and what shows is what the
+	 * OS puts behind the window (Rwindow_set_backdrop: the blurred desktop,
+	 * acrylic, mica), under a light veil. It needs a window created with
+	 * R_WINDOW_TRANSPARENT that the OS could make see-through; anywhere
+	 * else it is drawn as R_BLUR_FROSTED. The radius is the one of the OS.
+	 */
+	R_BLUR_NATIVE
+}RBlurStyle;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +65,7 @@ extern "C" {
 
 	/** @brief Gap inserted between neighbouring children. */
 	RAVEN_API void Rpanel_set_spacing(Rid panel, float spacing);
+	RAVEN_API float Rpanel_get_spacing(Rid panel);
 
 	/* GRID */
 
@@ -103,6 +133,49 @@ extern "C" {
 	/** @brief R_HORIZONTAL puts the panes side by side (default), R_VERTICAL stacks them. */
 	RAVEN_API void Rsplitter_set_orientation(Rid splitter, ROrientation orientation);
 	RAVEN_API void Rsplitter_set_min_pane_size(Rid splitter, float size);
+
+	/* BACKGROUND_BLUR */
+
+	/**
+	 * @brief Creates a panel that shows what is behind it out of focus,
+	 * with one child over it. In XML:
+	 *
+	 *   <BackgroundBlur Style="Frosted" Radius="24" CornerRadius="18" Padding="16">
+	 *       <Label>Over a blurred view of the window</Label>
+	 *   </BackgroundBlur>
+	 *
+	 * It works in any theme and with any material: it is not the glass of
+	 * the glass themes (which bends and reflects), but the looks of
+	 * RBlurStyle. Unlike the opacity of a widget, it does not let what is
+	 * behind show sharp.
+	 */
+	RAVEN_API Rid Rbackground_blur_create(void);
+	RAVEN_API void Rbackground_blur_set_style(Rid blur, RBlurStyle style);
+	RAVEN_API RBlurStyle Rbackground_blur_get_style(Rid blur);
+	/**
+	 * @brief How far what is behind goes out of focus, in logical units:
+	 * 4 softens, 20 hides the details, 60 leaves only colors. A negative
+	 * value (the default) uses R_METRIC_BLUR_RADIUS of the theme.
+	 */
+	RAVEN_API void Rbackground_blur_set_radius(Rid blur, float radius);
+	RAVEN_API float Rbackground_blur_get_radius(Rid blur);
+	/**
+	 * @brief Color laid over the blur; its alpha is how much of it. Without
+	 * one, R_BLUR_PLAIN has none and the other styles take theirs from the
+	 * theme (R_COLOR_PANEL).
+	 */
+	RAVEN_API void Rbackground_blur_set_tint(Rid blur, float r, float g, float b, float a);
+	/** @brief Removes the tint given with Rbackground_blur_set_tint. */
+	RAVEN_API void Rbackground_blur_clear_tint(Rid blur);
+	/** @brief Saturation of what is seen through: 1 = as it is, 0 = gray, 1.5 = vivid. Negative = the one of the style. */
+	RAVEN_API void Rbackground_blur_set_saturation(Rid blur, float saturation);
+	/** @brief Fine grain over the blur, 0 = none .. 1. Negative = the one of the style. */
+	RAVEN_API void Rbackground_blur_set_grain(Rid blur, float grain);
+	RAVEN_API void Rbackground_blur_set_corner_radius(Rid blur, float top_left, float top_right, float bottom_right, float bottom_left);
+	/** @brief Space between the edge and the child. */
+	RAVEN_API void Rbackground_blur_set_padding(Rid blur, float left, float top, float right, float bottom);
+	/** @brief Soft shadow under the panel; blur 0 = none (default). */
+	RAVEN_API void Rbackground_blur_set_shadow(Rid blur, float shadow_blur);
 
 	/* SWITCHER */
 

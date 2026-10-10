@@ -1,10 +1,24 @@
 /**
  * Raven
- * raven_style.h : theme (colors, metrics, default font).
+ * raven_style.h : themes (colors, metrics, materials, styles, theme files).
  *
- * Every widget reads its colors and sizes from the global theme. Any value can
- * be overridden for a single widget with Rwidget_set_color and
- * Rwidget_set_metric (raven_widget.h).
+ * Every widget reads its colors and sizes from a theme. A value is looked for
+ * in this order:
+ *
+ *   1. the widget itself   Rwidget_set_color, Rwidget_set_metric, Color.Accent="#f00"
+ *   2. the styles          rules of the theme for a type of widget ("Button"),
+ *                          for a class (Class="danger"), or for both
+ *   3. the theme           the theme of the application, or the one given to
+ *                          an ancestor of the widget (Rwidget_set_theme,
+ *                          Theme="Night"): a part of a window can have its own
+ *
+ * A theme is one of the four built-in ones, or a file (see docs/THEMES.md):
+ *
+ *   <Theme Name="Night" Base="GlassDark" Accent="#FF9F0A">
+ *       <Colors Panel="#101018B0" Text="#FFF4E0"/>
+ *       <Metrics CornerRadius="14" ControlHeight="34"/>
+ *       <Style Widget="Button" Class="danger" Accent="#FF453A"/>
+ *   </Theme>
  */
 
 #ifndef RAVEN_STYLE_H
@@ -102,6 +116,14 @@ typedef enum RColorRole{
 	R_COLOR_TOOLTIP_TEXT,
 	/** Track of a switch that is on. */
 	R_COLOR_SWITCH,
+	/** What went well, what needs attention, what is wrong or destroys something (markers, badges, classes). */
+	R_COLOR_SUCCESS,
+	R_COLOR_WARNING,
+	R_COLOR_DANGER,
+	/** Links of formatted text. */
+	R_COLOR_LINK,
+	/** Background of code in formatted text. */
+	R_COLOR_CODE,
 	R_COLOR_LAST_
 }RColorRole;
 
@@ -129,6 +151,19 @@ typedef enum RMetric{
 	R_METRIC_SLIDER_HANDLE_SIZE,
 	/** Corner radius of menus, drop-down lists and tooltips. */
 	R_METRIC_POPUP_RADIUS,
+	/**
+	 * The glass of the theme: each one multiplies what the material gives,
+	 * 1 = unchanged. Frost (how much is blurred), refraction (how far the rim
+	 * bends what is behind), saturation (of what is seen through), rim (the
+	 * light it catches) and shadow (the one it drops).
+	 */
+	R_METRIC_GLASS_FROST,
+	R_METRIC_GLASS_REFRACTION,
+	R_METRIC_GLASS_SATURATION,
+	R_METRIC_GLASS_RIM,
+	R_METRIC_GLASS_SHADOW,
+	/** Radius of the blur of a BackgroundBlur that was not given one. */
+	R_METRIC_BLUR_RADIUS,
 	R_METRIC_LAST_
 }RMetric;
 
@@ -163,6 +198,89 @@ extern "C" {
 	/** @brief Font used by widgets that have no font of their own. */
 	RAVEN_API void Rtheme_set_font(Rid font);
 	RAVEN_API Rid Rtheme_get_font(void);
+
+	/**
+	 * @brief Sets the accent color and everything that follows from it: its
+	 * hovered and pressed shades, the focus outline, the selection, the links.
+	 */
+	RAVEN_API void Rtheme_set_accent(float r, float g, float b);
+
+	/**
+	 * @brief Tells whether the theme is a dark one. It decides the tint of
+	 * the glass, the colors of the code and which wallpaper the glass themes
+	 * use. Rtheme_apply and the theme files set it.
+	 */
+	RAVEN_API void Rtheme_set_dark(int dark);
+	RAVEN_API int Rtheme_is_dark(void);
+
+	/**
+	 * @brief Image drawn behind the content of the windows that have no
+	 * background of their own, or R_INVALID_ID for none (the window color).
+	 */
+	RAVEN_API void Rtheme_set_wallpaper(Rid texture);
+	RAVEN_API Rid Rtheme_get_wallpaper(void);
+
+	/* -----------------------------------------------------------------------
+	 *  Styles: values for a type of widget, for a class, or for both
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * @brief Gives a color to the widgets of a type and / or of a class,
+	 * instead of the color of the theme.
+	 * @param widget      Tag of a type of widget ("Button"), or NULL for every type.
+	 * @param style_class A class (Rwidget_set_class, Class="..."), or NULL
+	 *                    for the widgets of the type whatever their classes.
+	 *
+	 * When several styles give the same value to a widget, the one with a
+	 * type and a class wins over the one with a class, which wins over the
+	 * one with a type; between equals, the last one set wins.
+	 */
+	RAVEN_API void Rtheme_set_style_color(const char* widget, const char* style_class, RColorRole role, float r, float g, float b, float a);
+	RAVEN_API void Rtheme_set_style_metric(const char* widget, const char* style_class, RMetric metric, float value);
+	/** @brief R_MATERIAL_DEFAULT removes the material of the style. */
+	RAVEN_API void Rtheme_set_style_material(const char* widget, const char* style_class, RMaterial material);
+	/** @brief Removes every style of the theme. Rtheme_apply and Rtheme_use do it too. */
+	RAVEN_API void Rtheme_clear_styles(void);
+
+	/* -----------------------------------------------------------------------
+	 *  Named themes and theme files
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * @brief Reads a theme file and keeps the theme under its name (the Name
+	 * attribute, else the name of the file). It does not change the theme in
+	 * use unless a theme of that name is the one in use.
+	 *
+	 * The file is watched like the interface files (Rxml_set_live_reload):
+	 * saving it updates every widget that uses the theme.
+	 * @return The name of the theme, valid until Rshutdown, or NULL after
+	 * reporting an error.
+	 */
+	RAVEN_API const char* Rtheme_load(const char* path);
+	/** @brief Same, from a text. `size` may be 0 for a null-terminated text. */
+	RAVEN_API const char* Rtheme_load_from_memory(const char* xml, size_t size);
+
+	/**
+	 * @brief Makes a named theme the theme of the application: "Dark",
+	 * "Light", "GlassDark", "GlassLight", or a theme given by Rtheme_load.
+	 * Values changed with Rtheme_set_... are lost.
+	 * @return R_FALSE, after reporting an error, when no theme has that name.
+	 */
+	RAVEN_API int Rtheme_use(const char* name);
+	/** @brief Name of the theme in use ("Dark" at start). */
+	RAVEN_API const char* Rtheme_get_name(void);
+
+	/** @brief Number of named themes, the four built-in ones included. */
+	RAVEN_API int Rtheme_get_count(void);
+	/** @brief Name of the index-th one, or NULL. */
+	RAVEN_API const char* Rtheme_get_name_at(int index);
+
+	/**
+	 * @brief Writes the theme in use, with every change made since it was
+	 * applied, as a theme file.
+	 * @param name Name given to the theme in the file; NULL keeps the current one.
+	 */
+	RAVEN_API int Rtheme_save(const char* path, const char* name);
 
 #ifdef __cplusplus
 } /* extern "C" */

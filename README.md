@@ -4,7 +4,7 @@ A lightweight, multithreaded GUI library in C for editors and tools.
 
 - **C11, no dependency.** Raven opens its own windows (Win32, X11), loads
   Vulkan at run time and has its own memory allocator. A stripped shared
-  library is about 1 MB, two fonts included.
+  library is about 1.3 MB, two fonts included.
 - **Slate-style layout.** Boxes, grid, overlay, border, canvas, scroll box,
   splitter, wrap box, switcher, tabs, expander. Each child carries a *slot*
   (padding, alignment, auto or fill size) read by its parent.
@@ -19,7 +19,17 @@ A lightweight, multithreaded GUI library in C for editors and tools.
   file browser widget, **drag and drop** from other applications.
 - **Materials.** Solid, or three kinds of **glass** (clear, frosted, tinted)
   that blur and bend what is behind them, for one widget or for everything;
-  an **island** that unfolds at the top of the window.
+  panels that only **blur** what is behind; windows that are **seen through**,
+  with the blur of the system behind them; an **island** that unfolds at the
+  top of the window.
+- **Tools of the trade.** A **graph of nodes** whose wires hang and swing, a
+  **timeline** (tracks, clips, keys, markers), a complete **color picker**.
+- **Themes you write.** Theme files, styles for a type of widget or for a
+  class, a theme for a part of a window. **Markdown** in labels and in the
+  text editor. Interface and theme files are **loaded again while the
+  application runs** when they are saved.
+- **Web pages**, in a separate and optional library (`raven_web`) that drives
+  a browser already installed.
 - **Viewports** for content rendered by the application: a texture (zero-copy
   Vulkan image, shared memory for OpenGL, or CPU pixels), a draw callback
   inside the render pass of Raven, or a native child window for any API.
@@ -32,6 +42,10 @@ A lightweight, multithreaded GUI library in C for editors and tools.
 - **A designer** (`raven_designer`) that edits the XML visually, and
   **bindings** for C++, Python, Rust, Go, C#, Zig and LuaJIT.
 - **One header**: `#include <Raven.h>`.
+
+![The studio example](docs/images/studio_glass.png)
+
+*`examples/studio`: a graph of nodes with widgets inside them, a color picker and a timeline, with the dark glass theme.*
 
 ![The designer](docs/images/designer.png)
 
@@ -88,8 +102,10 @@ has been verified there, and what has not been verified anywhere:
 
 | | State |
 |---|---|
-| Layout, widgets, XML, text editor, dialogs, docking, memory, animations | 9 headless test programs (about 16 000 checks); no report from AddressSanitizer, UBSan or ThreadSanitizer in Raven code |
-| Vulkan renderer, glass | pixel tests (`test_render`) and the examples, on a **software** Vulkan driver (SwiftShader). No real GPU, no validation layers: run the examples in a Debug build (it enables the validation layers) before trusting it |
+| Layout, widgets, XML, text editor, dialogs, docking, memory, animations, themes and theme files, live reload, Markdown, color picker, timeline, node graph | 12 headless test programs (about 20 800 checks, the mouse and the keyboard injected as real events); no report from AddressSanitizer, UBSan or ThreadSanitizer in Raven code |
+| Vulkan renderer, glass, blur, curves | pixel tests (`test_render`) and the examples, on a **software** Vulkan driver (SwiftShader). No real GPU, no validation layers: run the examples in a Debug build (it enables the validation layers) before trusting it |
+| Windows that are seen through | **never seen composed on a screen**: the test machine has no compositor. On X11 the path was forced (`RAVEN_X11_COMPOSITED=1`) and the alpha of the rendered frame checked: empty where nothing is drawn, a hole under a `Native` blur. The blur of KWin and everything on Windows (DWM blur, acrylic, mica, opacity) was written from the documentation and never run |
+| `raven_web` | on Linux with Chromium 141: `test_web` (pages, scripts, messages, clicks and typed text, history, two views; 30 runs in a row, clean under the sanitizers) and the `browser` example with the Vulkan renderer. **Its Windows part was never run**, and Edge and Chrome were not tried |
 | Linux / X11 | run under Xvfb with real pointer and keyboard events: clipboard, resize, custom header (move, maximize, resize by the edges, without a window manager), files dropped by a test program speaking XDND, native child window, OpenGL (llvmpipe) |
 | File dialogs on Linux | Raven starts `zenity` or `kdialog`; neither was installed, so that path was run with a script standing in for them. Without them Raven shows its own dialog (tested) |
 | Windows / Win32 | every file passes clang's syntax and type checking against the mingw-w64 headers without a warning, but nothing was **linked or run** on Windows. This includes the custom header (`WM_NCHITTEST`), dropped files and the file dialogs. Expect to fix details on the first run; the code to look at is `src/platform/win32/win32_platform.c` and the Win32 parts of `src/widgets/dialogs.c` and `src/core/fs.c` |
@@ -140,6 +156,7 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 | `RAVEN_BUILD_EXAMPLES` | `ON` when top level | |
 | `RAVEN_BUILD_TESTS` | `ON` when top level | tests, tests of the bindings, `raven_benchmark` |
 | `RAVEN_BUILD_TOOLS` | `ON` when top level | `raven_designer` |
+| `RAVEN_BUILD_WEB` | `ON` when top level | `raven_web`, the optional library that shows web pages ([docs/WEB.md](docs/WEB.md)); it needs nothing more to build |
 | `RAVEN_BACKEND_VULKAN` | `ON` | `OFF` builds without any GPU code (custom backend or headless) |
 | `RAVEN_PLATFORM` | `auto` | `win32`, `x11` or `null` |
 | `RAVEN_WITH_STB_IMAGE` | `ON` | PNG / JPEG / BMP / TGA decoding |
@@ -195,6 +212,10 @@ does not need the DLLs of the compiler beside it. `cmake --build build
 | `examples/workspace` | panels that dock, a file browser that opens files in new panels, the three kinds of glass for everything or for one panel, saving and restoring the arrangement |
 | `examples/components` | tags declared with `<Widget>`, `<Repeat>`, `<ForEach>`, `<Include>`, and a piece of interface built from C as a document |
 | `examples/memory` | an allocator given by the application, the statistics of the library, the heap check |
+| `examples/studio` | a graph of nodes (widgets inside the nodes, links the application can refuse, nodes added from code), a timeline that plays, a color picker that colors the selected nodes; its XML is loaded again when saved |
+| `examples/themes` | two theme files, styles and classes, a card that keeps its own theme, Markdown in a label and in an editor; every file of the example is watched |
+| `examples/overlay` | a window that is seen through, the backdrops of the system, and the four ways to blur what is behind a panel |
+| `examples/browser` | web pages with `raven_web`: an address bar, the history, a color picker of Raven that drives the CSS of the page, messages from the page |
 | `examples/glass` | the glass themes and the three glass materials. `raven_glass light` starts with the light glass |
 | `examples/viewport_vulkan` | a Vulkan scene in the UI, twice: offscreen image wrapped as a texture, and drawn in the render pass of Raven. Needs the Vulkan library |
 | `examples/viewport_opengl` | an OpenGL scene in a native child window (WGL / GLX) |
@@ -237,7 +258,8 @@ meant to be read.
 C++ (classes and lambdas), Python (`ctypes`), Rust (a crate), Go (cgo), C#
 (P/Invoke), Zig and LuaJIT. C++, Python, Rust and Go are tested by the build;
 **C#, Zig and LuaJIT were never compiled**. See
-[bindings/README.md](bindings/README.md).
+[bindings/README.md](bindings/README.md). They cover everything in
+`Raven.h`; the optional `raven_web` is C only.
 
 ```python
 import raven as r
@@ -486,6 +508,123 @@ over glass works. A frame without glass is drawn straight to the window: the
 solid themes cost nothing more. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 has the details.
 
+### Blur, and windows that are seen through
+
+`BackgroundBlur` is a panel that shows what is behind it out of focus,
+without the bending and the rim of glass. Four styles:
+
+| | |
+|---|---|
+| `Plain` | only blurred |
+| `Frosted` | blurred, a little veiled, with a fine grain (the default) |
+| `Glass` | blurred and bent at its rim, like the glass material |
+| `Native` | opens the window: the *system* blurs the desktop behind it |
+
+```xml
+<Window Transparent="true" Backdrop="Blur" Borderless="true">
+    <BackgroundBlur Style="Native" CornerRadius="24" Padding="22" Tint="#10141C99">
+        ...
+    </BackgroundBlur>
+</Window>
+```
+
+A window created with `Transparent="true"` (`R_WINDOW_TRANSPARENT`) is not
+filled: where no widget draws, what is behind it on the screen shows.
+`Backdrop` (`Rwindow_set_backdrop`) asks the system for what it puts there:
+nothing, a blur, or the acrylic and mica materials of Windows 11;
+`Rwindow_set_opacity` fades the whole window. All of it depends on the
+window system (Windows 10 and 11; X11 with a compositor, and KWin for the
+blur): `Rwindow_get_backdrop` tells what was obtained, and where nothing is
+available the same interface shows on a plain background.
+
+![The overlay example](docs/images/overlay.png)
+
+*`examples/overlay` as the window system receives it, shown here over a
+checkerboard (the machine it was captured on has no compositor): the panel is
+translucent, its corners are empty, and the `Native` panel is a hole through
+the stripes.*
+
+### Color picker, timeline, node graph
+
+`raven_tools.h`. Each holds a small model that the application fills and
+reads, or writes in XML ([docs/XML.md](docs/XML.md#tools)).
+
+```c
+Rid picker = Rcolor_picker_create();                 /* square, hues, opacity, code, numbers, swatches */
+Rcolor_picker_set_changed_callback(picker, on_color, NULL);
+Rcolor_picker_set_popup(picker, R_TRUE);             /* a swatch that opens it */
+
+Rid timeline = Rtimeline_create();
+int track = Rtimeline_add_track(timeline, "Camera");
+int clip  = Rtimeline_add_clip(timeline, track, 0.0, 3.5, "Wide shot");
+Rtimeline_add_key(timeline, track, 6.0);
+Rtimeline_set_time_callback(timeline, on_time, NULL);       /* scrubbed, or playing */
+Rtimeline_set_changed_callback(timeline, on_item, NULL);    /* moved, stretched     */
+
+Rid graph = Rnode_graph_create();
+int noise = Rnode_graph_add_node(graph, "Noise", 40, 60);
+int out   = Rnode_graph_add_output(graph, noise, "Value", "number");
+int blend = Rnode_graph_add_node(graph, "Blend", 320, 90);
+int in    = Rnode_graph_add_input(graph, blend, "A", "number");
+Rnode_graph_connect(graph, out, in);
+Rnode_graph_set_node_content(graph, noise, Rwidget_create(R_WIDGET_SLIDER));   /* any widget inside a node */
+Rnode_graph_set_connect_callback(graph, may_link, NULL);                       /* refuse loops, apply rules */
+```
+
+The **timeline** snaps to frames, to the playhead and to the other items,
+moves several items at once, stretches clips by their ends, selects with a
+rectangle, zooms with Ctrl + wheel and plays. The **graph** pans (middle
+button, or Alt + drag) and zooms around the pointer; pins have types, a
+color per type, and only link to pins they fit; a wire is pulled from a pin,
+is attracted by the pins it can go to, and can be dropped on a node; taken
+by its end, a link is plugged elsewhere or let go. Wires hang like cables and
+swing when their nodes move, nodes lift while they are carried, and pulses
+run along the links while the pointer is over the graph
+(`Rnode_graph_set_flow_visible`). Widgets inside nodes are ordinary widgets
+and work at any zoom.
+
+### Markdown
+
+```xml
+<Label Markdown="true" Wrap="true">
+    ## Notes
+    Some **strong** and *emphasized* text, `code`, a [link](https://example.org),
+    - a list
+    - [x] with a box
+</Label>
+<TextEditor Markdown="true"/>
+```
+
+On a label the text is rendered (headings, lists, quotes, code blocks, tables,
+links that open or fire actions); on the text editor it stays as typed and is
+styled where it stands.
+
+### Files that are loaded again
+
+An interface created from a file is watched while the application runs:
+save `editor.xml` and the window follows, keeping the widgets the file did
+not change (their handles, their callbacks, what was typed or scrolled).
+Theme files and the files of declared tags are watched too.
+`Rxml_set_reload_callback` tells when it happened;
+`Rxml_set_live_reload(R_FALSE)` or `RAVEN_LIVE_RELOAD=0` turns it off.
+
+### Web pages
+
+```c
+#include <raven_web.h>                      /* a separate library: target raven::web */
+Rweb_register_xml();                        /* <WebView Url="https://..."/> */
+Rid view = Rweb_view_create();
+Rweb_view_load_url(view, "https://example.org");
+Rweb_view_run_javascript(view, "document.title", on_result, NULL);
+```
+
+`raven_web` shows real web pages by driving a browser of the Chromium family
+that is already installed (Edge on Windows): the page arrives as pictures in
+a texture, the input goes back. It contains no browser and Raven does not
+depend on it. What it can and cannot do is in [docs/WEB.md](docs/WEB.md).
+
+![The browser example](docs/images/browser.png)
+
 ### Island
 
 ```xml
@@ -500,8 +639,11 @@ has the details.
 
 A pill at the top of the window that unfolds under the pointer, on a click,
 or from C (`Risland_set_expanded`, `Risland_expand_for(island, 2.0)` to say
-something and fold back). It is optional, and an `Island` can also be used as
-an ordinary widget anywhere.
+something and fold back). Its two contents cross-fade while it changes size,
+a click pins it open and a click elsewhere closes it. It is dark whatever
+the theme, as the notch of a phone is (`Theme="Default"` gives it the theme
+of the window). It is optional, and an `Island` can also be used as an
+ordinary widget anywhere.
 
 ### Memory
 
@@ -557,21 +699,44 @@ To render the UI with the device of an engine instead of a device created
 by Raven, call `Rvulkan_set_external_device` (and
 `Rvulkan_set_queue_lock_callbacks`) before `Rinit`: see `raven_vulkan.h`.
 
-### Theme
+### Themes
 
 `Rtheme_apply` chooses one of four themes: `R_THEME_DARK`, `R_THEME_LIGHT`,
-`R_THEME_GLASS_DARK`, `R_THEME_GLASS_LIGHT`. Then any color or metric
-can be changed globally (`Rtheme_set_color`, `Rtheme_set_metric`) or for
-one widget (`Rwidget_set_color`, `Rwidget_set_metric`, or `Color.Accent="..."`
-in XML). Fonts are TrueType files (`Rfont_create_from_file`,
-`Rtheme_set_font`, `Rfont_set_fallback`); subsets of Roboto and of Roboto
-Mono covering Latin-1 and Latin Extended-A are embedded.
+`R_THEME_GLASS_DARK`, `R_THEME_GLASS_LIGHT`. From there:
+
+```c
+Rtheme_set_accent(0.13f, 0.83f, 0.93f);                                 /* one color, and the shades that follow */
+Rtheme_set_color(R_COLOR_PANEL, 0.07f, 0.10f, 0.17f, 1.0f);             /* any color or metric of the theme      */
+Rtheme_set_style_metric("Button", NULL, R_METRIC_CORNER_RADIUS, 16);    /* a style for a type of widget          */
+Rtheme_set_style_color(NULL, "danger", R_COLOR_ACCENT, 1, 0.3f, 0.4f, 1); /* ... or for a class: Class="danger" */
+Rtheme_load("themes/ocean.xml");  Rtheme_use("Ocean");                  /* a theme file                          */
+```
+
+```xml
+<Theme Name="Ocean" Base="Dark" Accent="#22D3EE" CornerRadius="10">
+    <Colors Panel="#111A2C" Text="#DCE7F5"/>
+    <Style Widget="Button" CornerRadius="16"/>
+    <Style Class="danger" Accent="#FB7185"/>
+</Theme>
+```
+
+`Theme="Ocean"` (or `Theme="themes/ocean.xml"`) on a widget or on a window
+gives a theme to that part of the interface only. Colors and metrics can
+still be set on one widget (`Rwidget_set_color`, `Color.Accent="..."`).
+[docs/THEMES.md](docs/THEMES.md) is the guide.
+
+Fonts are TrueType files (`Rfont_create_from_file`, `Rtheme_set_font`,
+`Rfont_set_fallback`, `Rfont_set_variant` for real bold and italic faces);
+subsets of Roboto and of Roboto Mono covering Latin-1 and Latin Extended-A
+are embedded.
 
 ### Custom widgets and custom backends
 
 A `R_WIDGET_CUSTOM` widget is measured and painted by two callbacks using
 the `Rdraw_...` functions (`raven_draw.h`), and receives its events through
-`Rwidget_set_event_callback`. A rendering backend is a `RBackendVTable`
+`Rwidget_set_event_callback`. `Rxml_register_tag` gives it a tag of its own
+in XML, with its attributes, and `Rwidget_set_destroy_callback` tells when
+it is gone. A rendering backend is a `RBackendVTable`
 (`raven_backend.h`) given to `Rbackend_register`;
 `src/render/null/null_backend.c` is a template.
 
@@ -605,10 +770,11 @@ src/core/            allocator, handles, threads, job system, files, main loop
 src/platform/        window systems behind one interface: win32/, x11/, null/
 src/render/          draw lists, fonts and glyph atlas, textures, render thread
 src/render/vulkan/   the Vulkan backend and its shaders (vk_glass.c: backdrop blur)
-src/widget/          widget base: tree, layout, events, painting, animation, windows, style
-src/widgets/         one file per widget type (text_editor.c, syntax.c, dock_area.c, dialogs.c...)
-src/xml/             parser, loader, declared widgets, documents, the list of tags and attributes
-examples/            ten programs
+src/widget/          widget base: tree, layout, events, painting, animation, windows, style, themes
+src/widgets/         one file per widget type (text_editor.c, markdown.c, node_graph.c, timeline.c, dialogs.c...)
+src/xml/             parser, loader, declared widgets, documents, watched files, the list of tags and attributes
+web/                 raven_web: the optional library that shows web pages
+examples/            fourteen programs
 tools/designer/      raven_designer
 tools/bindgen/       writes bindings/ from the headers
 bindings/            C++, Python, Rust, Go, C#, Zig, LuaJIT
@@ -630,7 +796,14 @@ texture has its own allocation); a depth buffer in the draw-callback viewport
 (render to a texture when you need one); presenting several windows in one
 call; recovery from a lost Vulkan device; glass over a native child window
 (it is another window of the OS: use a texture or a draw-callback viewport
-under glass).
+under glass). In the node graph: knots on links, groups and comments, a
+minimap, undo (the application holds the model: it can keep the history). In
+the timeline: tracks inside tracks, curves between keys. In Markdown: images
+from the network, HTML inside the text, footnotes. `raven_web` shows pages
+through an installed browser and has the limits listed in
+[docs/WEB.md](docs/WEB.md); embedding the web view of the system itself
+(WebView2, WebKitGTK) is not done. Watching files is a comparison of dates
+five times a second, not a notification of the system.
 
 ## Third-party code
 

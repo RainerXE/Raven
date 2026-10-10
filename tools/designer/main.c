@@ -244,6 +244,11 @@ static const struct { const char* tag; const char* xml; } TEMPLATES[] = {
 	{ "FileBrowser", "<FileBrowser Height=\"300\"/>" },
 	{ "DockArea", "<DockArea Height=\"220\"><Label Text=\"Center\" Slot.Title=\"Main\"/><Label Text=\"Side\" Slot.Title=\"Side\" Slot.Dock=\"Left\" Slot.DockSize=\"0.3\"/></DockArea>" },
 	{ "Island", "<Island ExpandOnHover=\"true\"><Label Text=\"Island\"/><VBox Spacing=\"6\" Slot.Padding=\"8\"><Label Text=\"Unfolded\"/><Button Text=\"Action\"/></VBox></Island>" },
+	{ "BackgroundBlur", "<BackgroundBlur Style=\"Frosted\" Padding=\"12\"><Label Text=\"Blur\"/></BackgroundBlur>" },
+	{ "ColorPicker", "<ColorPicker Color=\"#3B82F6\"/>" },
+	{ "Timeline", "<Timeline Duration=\"10\" Height=\"150\"><Track Name=\"Track\"><Clip Start=\"1\" Length=\"3\" Label=\"Clip\"/><Key Time=\"6\"/></Track><Marker Time=\"5\" Label=\"Mark\"/></Timeline>" },
+	{ "NodeGraph", "<NodeGraph Height=\"220\"><Node Name=\"a\" Title=\"Source\" X=\"30\" Y=\"40\"><Output Name=\"out\" Label=\"Value\"/></Node>"
+		"<Node Name=\"b\" Title=\"Result\" X=\"260\" Y=\"70\"><Input Name=\"in\" Label=\"Value\"/></Node><Link From=\"a.out\" To=\"b.in\"/></NodeGraph>" },
 	{ "Item", "<Item Text=\"Item\"/>" },
 	{ "Shortcut", "<Shortcut Keys=\"Ctrl+S\" Action=\"file.save\"/>" }
 };
@@ -252,6 +257,15 @@ static const struct { const char* tag; const char* xml; } TEMPLATES[] = {
 static const struct { const char* tag; const char* attributes; const char* about; } SPECIAL_TAGS[] = {
 	{ "Item", "Text", "A row of the list, tree or combo box it is in." },
 	{ "Shortcut", "Keys|Action", "Keys that fire an action anywhere in the window." },
+	{ "Track", "Name|Color|Height|Locked|Muted", "A track of a Timeline: it holds Clip and Key elements." },
+	{ "Clip", "Start|Length|End|Label|Color|Selected", "Something that lasts, on a track of a Timeline." },
+	{ "Key", "Time|Label|Color", "A moment, on a track of a Timeline." },
+	{ "Marker", "Time|Label|Color", "A flag on the ruler of a Timeline." },
+	{ "Node", "Name|Title|X|Y|Color|Selected", "A node of a NodeGraph: Input and Output elements, and a widget for its inside." },
+	{ "Input", "Name|Label|Type", "A pin on the left of a Node." },
+	{ "Output", "Name|Label|Type", "A pin on the right of a Node." },
+	{ "Link", "From|To", "A wire of a NodeGraph, from \"node.output\" to \"node.input\"." },
+	{ "Type", "Name|Color", "The color of the pins of a type, in a NodeGraph." },
 	{ "Widget", "Name", "Declares a tag: its other attributes are parameters, with their default values." },
 	{ "Widgets", "", "A document of <Widget> declarations." },
 	{ "Children", "Name", "Where the elements given to a declared tag go." },

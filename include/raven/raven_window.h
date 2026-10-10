@@ -25,8 +25,41 @@ typedef enum RWindowFlags{
 	 * moved, resized, snapped and maximized by the OS, as it does for its own
 	 * title bars.
 	 */
-	R_WINDOW_CUSTOM_HEADER = (1 << 4)
+	R_WINDOW_CUSTOM_HEADER = (1 << 4),
+	/**
+	 * The window can be seen through: where the application draws nothing
+	 * opaque, what is behind the window on the screen shows (the desktop,
+	 * the other applications), not a color of the application. Glass then
+	 * looks at the screen itself. What the OS does to what shows through is
+	 * chosen with Rwindow_set_backdrop. See RBackdrop for what each window
+	 * system can do.
+	 */
+	R_WINDOW_TRANSPARENT = (1 << 5)
 }RWindowFlags;
+
+/**
+ * What is seen behind a window created with R_WINDOW_TRANSPARENT.
+ *
+ *   Windows 11          every value
+ *   Windows 10          TRANSPARENT, BLUR, ACRYLIC (MICA gives ACRYLIC)
+ *   X11                 TRANSPARENT with any compositing manager; BLUR where
+ *                       the compositor blurs on request (KWin; picom and
+ *                       others with their own settings); ACRYLIC and MICA
+ *                       give BLUR
+ *   no compositor       nothing: the window stays opaque
+ */
+typedef enum RBackdrop{
+	/** Opaque: the window color, or the wallpaper of the theme. */
+	R_BACKDROP_NONE = 0x0400,
+	/** The screen behind the window, as it is. */
+	R_BACKDROP_TRANSPARENT,
+	/** The screen behind the window, blurred by the OS. */
+	R_BACKDROP_BLUR,
+	/** Blurred, tinted and grained by the OS (the acrylic of Windows). */
+	R_BACKDROP_ACRYLIC,
+	/** A soft tint taken from the wallpaper of the desktop (the mica of Windows 11). */
+	R_BACKDROP_MICA
+}RBackdrop;
 
 typedef enum RWindowSystem{
 	R_WINDOW_SYSTEM_NONE = 0x0090,
@@ -46,6 +79,13 @@ typedef struct RNativeWindow {
 	void* display;
 	uintptr_t window;
 	uintptr_t visual;
+	/**
+	 * R_TRUE when the window was created with R_WINDOW_TRANSPARENT and the
+	 * window system gave it an alpha channel: what is presented in it must
+	 * carry alpha (premultiplied), which a rendering backend asks for when
+	 * it creates its surface.
+	 */
+	int transparent;
 } RNativeWindow;
 
 /** Edges and corners of a window, for Rwindow_begin_resize. */
@@ -307,6 +347,25 @@ extern "C" {
 	 */
 	RAVEN_API void Rwindow_set_background(Rid window, Rid texture);
 
+	/**
+	 * @brief Chooses what shows behind a window created with
+	 * R_WINDOW_TRANSPARENT (see RBackdrop). With anything but
+	 * R_BACKDROP_NONE the window is not cleared with its color and the
+	 * wallpaper of the theme is not drawn: only what the widgets draw hides
+	 * the screen. In XML: <Window Backdrop="Blur">.
+	 * @return R_TRUE when the window system does it; R_FALSE (the window
+	 * then stays as it was) without R_WINDOW_TRANSPARENT, or when it cannot.
+	 */
+	RAVEN_API int Rwindow_set_backdrop(Rid window, RBackdrop backdrop);
+	RAVEN_API RBackdrop Rwindow_get_backdrop(Rid window);
+	/**
+	 * @brief Opacity of the whole window, its frame included, from 0 to 1:
+	 * a window that fades, a tool that lets what is under it show.
+	 * @return R_FALSE when the window system cannot do it.
+	 */
+	RAVEN_API int Rwindow_set_opacity(Rid window, float opacity);
+	RAVEN_API float Rwindow_get_opacity(Rid window);
+
 	/** @brief Asks for a new frame even if no widget changed. Thread-safe. */
 	RAVEN_API void Rwindow_request_redraw(Rid window);
 
@@ -339,10 +398,12 @@ extern "C" {
 	/**
 	 * @brief Reads back the last rendered frame as tightly packed RGBA8 pixels.
 	 * Blocks until the frame is rendered. Free the result with Rpixels_free.
+	 * The alpha is 255, except for a window that is seen through
+	 * (R_WINDOW_TRANSPARENT): its pixels are then premultiplied by their
+	 * alpha, as the window system receives them.
 	 * @return NULL when the backend cannot capture.
 	 */
 	RAVEN_API uint8_t* Rwindow_capture(Rid window, int* width, int* height);
-	RAVEN_API void Rpixels_free(uint8_t* pixels);
 
 
 	/* ============================================================================

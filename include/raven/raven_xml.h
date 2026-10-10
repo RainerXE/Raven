@@ -147,6 +147,50 @@ extern "C" {
 	 */
 	RAVEN_API void Rxml_set_base_path(const char* path);
 
+	/* -----------------------------------------------------------------------
+	 *  Live reload
+	 *
+	 *  What is created from a file (Rwindow_create_from_xml_file,
+	 *  Rwidget_create_from_xml_file, the files they <Include>, the files of
+	 *  Rxml_register_widgets_from_file, the theme files) follows its file:
+	 *  save it in any editor and the window changes while the application
+	 *  runs. Nothing is rebuilt that did not change: an element that is
+	 *  still in the file keeps its widget, so the handles of the
+	 *  application, its callbacks, what was typed and where things were
+	 *  scrolled all stay; only the attributes that changed are set again.
+	 *  Elements are matched by their Name when they have one, else by tag
+	 *  and order. A file with a mistake leaves the interface as it was and
+	 *  reports the error.
+	 *
+	 *  Texts given from memory are not concerned.
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * @brief Turns live reload on or off. It is on by default; the
+	 * environment variable RAVEN_LIVE_RELOAD=0 turns it off without
+	 * rebuilding. When off, files are never looked at again.
+	 */
+	RAVEN_API void Rxml_set_live_reload(int enabled);
+	RAVEN_API int Rxml_get_live_reload(void);
+
+	/**
+	 * @brief Called each time a file was loaded again.
+	 * @param path The file given when the interface was created.
+	 * @param ok   R_FALSE when the file could not be used (the interface is unchanged).
+	 *
+	 * Widgets that had to be built again have new handles: this is the
+	 * place to look them up again (Rwidget_find).
+	 */
+	typedef void (*RXmlReloadCallback)(const char* path, int ok, void* user_data);
+	RAVEN_API void Rxml_set_reload_callback(RXmlReloadCallback callback, void* user_data);
+
+	/**
+	 * @brief Looks at the files now, without waiting for the next look
+	 * (there are five per second), even when live reload is off.
+	 * @return The number of files found changed.
+	 */
+	RAVEN_API int Rxml_check_files(void);
+
 	/**
 	 * @brief Reads the <Widget Name="..."> declarations of a document (its
 	 * root, or the children of a <Widgets> root) so that the tags they
@@ -160,6 +204,36 @@ extern "C" {
 	/** @brief The declared tags, for tools that list them. */
 	RAVEN_API int Rxml_get_registered_widget_count(void);
 	RAVEN_API const char* Rxml_get_registered_widget_name(int index);
+
+	/**
+	 * Tags made by code. A library or an application that builds a widget of
+	 * its own (a R_WIDGET_CUSTOM with its callbacks, or an assembly of
+	 * widgets) can give it a tag: documents then write <MyWidget .../> as
+	 * they write <Button/>.
+	 *
+	 * `create` makes the widget and returns it. `set_attribute` (may be
+	 * NULL) receives the attributes of the element before Raven looks at
+	 * them: it returns R_TRUE for those it understands, R_FALSE to leave
+	 * them to the widget (Name, Width, Slot..., and what its type knows).
+	 * Rwidget_set_attribute goes through it too.
+	 */
+	typedef Rid (*RXmlTagCreateCallback)(const char* tag, void* user_data);
+	typedef int (*RXmlTagAttributeCallback)(Rid widget, const char* name, const char* value, void* user_data);
+	/**
+	 * @brief Registers a tag (or replaces what it was registered with).
+	 * @return R_FALSE when the name is the one of a widget of Raven, or when too many tags are registered (64).
+	 */
+	RAVEN_API int Rxml_register_tag(const char* tag, RXmlTagCreateCallback create, RXmlTagAttributeCallback set_attribute, void* user_data);
+	RAVEN_API void Rxml_unregister_tag(const char* tag);
+	RAVEN_API int Rxml_is_tag_registered(const char* tag);
+	/**
+	 * @brief The path of a file named in a document: as the attributes
+	 * Source of Raven read it, relative to the folder of the document being
+	 * loaded (while it loads), else to the base path. For the attributes of
+	 * the tags made by code that name files.
+	 * @return The path; valid until the next call.
+	 */
+	RAVEN_API const char* Rxml_resolve_path(const char* path);
 
 	/**
 	 * @brief Sets a property from text, with the names and value syntax of the

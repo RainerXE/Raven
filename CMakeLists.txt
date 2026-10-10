@@ -17,6 +17,7 @@ option(RAVEN_BUILD_SHARED "Build Raven as a shared library (raven.dll / libraven
 option(RAVEN_BUILD_EXAMPLES "Build the example programs" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_TESTS "Build the tests and the benchmark" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_TOOLS "Build the tools (the designer)" ${RAVEN_IS_TOP_LEVEL})
+option(RAVEN_BUILD_WEB "Build raven_web: the optional library that shows web pages (it drives an installed Chromium-based browser)" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BACKEND_VULKAN "Compile the Vulkan backend" ON)
 option(RAVEN_WITH_STB_IMAGE "Decode PNG / JPEG / BMP / TGA textures with stb_image" ON)
 option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SDK is found" ON)
@@ -140,6 +141,7 @@ set(RAVEN_WIDGET_SOURCES
 	src/widget/paint.c
 	src/widget/registry.c
 	src/widget/style.c
+	src/widget/theme.c
 	src/widget/widget.c
 	src/widget/widget.h
 	src/widget/window.c
@@ -150,6 +152,7 @@ set(RAVEN_WIDGETS_SOURCES
 	src/widgets/common.h
 	src/widgets/textedit.c
 	# panels
+	src/widgets/background_blur.c
 	src/widgets/border.c
 	src/widgets/box_panel.c
 	src/widgets/canvas.c
@@ -165,9 +168,13 @@ set(RAVEN_WIDGETS_SOURCES
 	# controls
 	src/widgets/button.c
 	src/widgets/checkbox.c
+	src/widgets/color_picker.c
+	src/widgets/timeline.c
+	src/widgets/node_graph.c
 	src/widgets/combo_box.c
 	src/widgets/image.c
 	src/widgets/label.c
+	src/widgets/markdown.c
 	src/widgets/list_view.c
 	src/widgets/menu.c
 	src/widgets/progress_bar.c
@@ -192,6 +199,7 @@ set(RAVEN_XML_SOURCES
 	src/xml/xml_dom.c
 	src/xml/xml_schema.c
 	src/xml/xml_loader.c
+	src/xml/xml_watch.c
 	src/xml/xml_parser.c
 )
 
@@ -329,14 +337,20 @@ message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SELECTED} vu
 #  Examples, tools and tests
 # ---------------------------------------------------------------------------
 
-if(RAVEN_BUILD_EXAMPLES)
-	add_subdirectory(examples)
-endif()
-
 if(RAVEN_BUILD_TESTS)
 	enable_testing()
 	add_subdirectory(tests)
 	add_subdirectory(bindings)
+endif()
+
+# (before the examples: one of them shows web pages; after enable_testing: it has a test)
+include(GNUInstallDirs)
+if(RAVEN_BUILD_WEB)
+	add_subdirectory(web)
+endif()
+
+if(RAVEN_BUILD_EXAMPLES)
+	add_subdirectory(examples)
 endif()
 
 # (after enable_testing: the designer has a test of its own)

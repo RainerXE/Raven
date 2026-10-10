@@ -66,6 +66,10 @@ extern "C" {
 	RAVEN_API void Rdraw_line(RPainter* painter, float x0, float y0, float x1, float y1,
 		float thickness, float r, float g, float b, float a);
 
+	/** @brief Anti-aliased cubic Bezier curve from (x0, y0) to (x1, y1), pulled by two control points. */
+	RAVEN_API void Rdraw_curve(RPainter* painter, float x0, float y0, float cx0, float cy0, float cx1, float cy1, float x1, float y1,
+		float thickness, float r, float g, float b, float a);
+
 	RAVEN_API void Rdraw_triangle(RPainter* painter, float x0, float y0, float x1, float y1,
 		float x2, float y2, float r, float g, float b, float a);
 

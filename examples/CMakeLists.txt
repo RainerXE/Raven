@@ -10,6 +10,10 @@
 #   workspace        panels that dock, a file browser, materials
 #   components       tags declared in XML with <Widget>, documents built from C
 #   memory           an allocator given by the application, and the statistics
+#   studio           a graph of nodes, a timeline and a color picker; live reload of its XML
+#   themes           theme files, styles and classes, a theme for a part of the window, Markdown
+#   overlay          a window that is seen through, and the four ways to blur what is behind
+#   browser          web pages in the interface, with the optional library raven_web
 #   viewport_vulkan  a Vulkan scene shown in the UI (offscreen image + in-pass draw)
 #   viewport_opengl  an OpenGL scene shown in a native child window
 
@@ -34,6 +38,15 @@ raven_add_example(animations animations/main.c animations/animations.xml)
 raven_add_example(workspace workspace/main.c workspace/workspace.xml)
 raven_add_example(components components/main.c components/components.xml components/widgets.xml)
 raven_add_example(memory memory/main.c)
+raven_add_example(studio studio/main.c studio/studio.xml)
+raven_add_example(themes themes/main.c themes/themes.xml themes/ocean.xml themes/paper.xml themes/notes.md)
+raven_add_example(overlay overlay/main.c overlay/overlay.xml)
+
+# Web pages in the interface: needs the optional library (RAVEN_BUILD_WEB).
+if(TARGET raven_web)
+	raven_add_example(browser browser/main.c browser/browser.xml browser/pages/welcome.html browser/pages/second.html)
+	target_link_libraries(raven_browser PRIVATE raven::web)
+endif()
 
 # The Vulkan example calls Vulkan itself, so it needs the Vulkan library
 # (the Vulkan SDK on Windows, libvulkan-dev on Linux). Raven does not.

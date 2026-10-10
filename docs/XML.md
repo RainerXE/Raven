@@ -72,6 +72,9 @@ number of `<Shortcut>` and `<Widget>` declarations.
 | `ClearColor` | color behind the content (default: the theme color `Window`) |
 | `Background` | path of an image drawn behind the content, scaled to cover the window. With a glass theme it replaces the wallpaper of the theme |
 | `CustomHeader` | boolean: no title bar from the system; a `HeaderBar` in the content replaces it (see below). The window keeps its shadow, its resizing edges and its snapping |
+| `Transparent` | boolean: the window can be seen through. Where nothing is drawn, what is behind the window on the screen shows. Needs a window system that composes windows (Windows 10 and 11; X11 with a compositor) |
+| `Backdrop` | what the system does to what shows through a `Transparent` window: `Transparent` (nothing), `Blur`, `Acrylic`, `Mica` (Windows 11), `None`. Giving it implies `Transparent` |
+| `Theme` | the theme of the window: a name (`Dark`, `Light`, `GlassDark`, `GlassLight`, one given by `Rtheme_load`) or a theme file. See [THEMES.md](THEMES.md) |
 
 `<Shortcut Keys="Ctrl+S" Action="file.save"/>` fires an action when the keys
 are pressed anywhere in the window.
@@ -91,6 +94,8 @@ are pressed anywhere in the window.
 | `Focusable` | boolean |
 | `Tooltip` | text shown when the cursor rests on the widget |
 | `Material` | what the surface of the widget, and of what it contains, is made of: `Solid`, `Glass` (clear), `FrostedGlass`, `TintedGlass`, or `Default` (the material of the theme) |
+| `Class` | style classes, separated by spaces: the styles of the theme that name one of them apply to the widget (`Class="card danger"`) |
+| `Theme` | the theme of the widget and of what it contains: a name or a theme file; `Default` goes back to what is around |
 | `Appear` | transition played each time the widget appears: `None Fade Pop Zoom FlyUp FlyDown FlyLeft FlyRight Drop SlideLeft SlideRight` |
 | `AppearDelay` | seconds before the transition starts; growing delays make a group arrive one after the other |
 | `WindowDrag` | boolean: in a window with `CustomHeader`, dragging the widget moves the window |
@@ -185,13 +190,14 @@ panel uses the attributes that make sense for it.
 | `Expander` (`ExpandableArea`) | one child under a collapsible header | `Title`, `Expanded` |
 | `DockArea` | each child is a panel with a tab, moved by the user (see the slot attributes); the first child fills the area, the others are placed around it | `Movable` (`false`: the panels stay where they are), `Layout` (an arrangement saved with `Rdock_area_save_layout`) |
 | `HeaderBar` (`TitleBar`) | the title bar of a window with `CustomHeader`: children are packed from the left, those with `Slot.HAlign="Right"` from the right, before the window buttons | `Title` (default: the title of the window), `Buttons` (`All`, `None`, or a list: `Close,Minimize,Maximize`), `ButtonSide` (`Right` or `Left`), `TitleAlign` (`Center` or `Left`), `Background` (`false`: no surface) |
+| `BackgroundBlur` | one child, over a panel that shows what is behind it out of focus | `Style`: `Plain` (only blurred), `Frosted` (a veil and a fine grain, default), `Glass` (bent at its rim, as the glass material), `Native` (opens the window so that the system blurs the desktop behind it; in a window that is not seen through, the same as `Frosted`); `Radius` (0 = the theme), `Tint`, `Saturation`, `Grain` (0..1), `Shadow`, `Padding`, `CornerRadius` |
 | `Island` (`Notch`, `DynamicIsland`) | first child: folded; second child: unfolded. As a child of `<Window>`, beside the content, it floats at the top of the window (`Slot.Padding` is its distance from the edge) | `Expanded`, `ExpandOnHover` (default true), `ExpandOnClick` (default true), `Attached` (square upper corners: a notch) |
 
 ## Controls
 
 | Tag (aliases) | Attributes |
 |---|---|
-| `Label` (`Text`, `TextBlock`) | `Text`, `TextSize` (or `FontSize`), `Font` (path of a .ttf), `TextAlign` (`Left Center Right`), `Wrap`, `Color` |
+| `Label` (`Text`, `TextBlock`) | `Text`, `TextSize` (or `FontSize`), `Font` (path of a .ttf), `TextAlign` (`Left Center Right`), `Wrap`, `Color`, `Markdown` (`true`: the text is Markdown, see below) |
 | `Button` | `Text`, `Style` (`Default`, `Primary`, `Flat`) |
 | `Checkbox` (`CheckBox`) | `Text`, `Checked`, `Style` (`Check`, `Radio`, `Switch`). Radio boxes of the same parent are exclusive |
 | `Slider` | `Min`, `Max`, `Value`, `Step`, `Orientation` |
@@ -208,11 +214,105 @@ panel uses the attributes that make sense for it.
 | `MenuItem` | `Text`, `Shortcut`, `Checkable`, `Checked` |
 | `Viewport` | `Source` (image shown until the application sets a texture), `Stretch`, `FlipY`, `Realtime` |
 | `Custom` | drawn by the application: `Rcustom_set_paint_callback` |
-| `TextEditor` (`TextArea`) | `Text` (or the text inside the element), `Language` (`C`, `C++`, `C#`, `Java`, `JavaScript`, `TypeScript`, `Python`, `Rust`, `GLSL`, `JSON`, `CSS`, `XML`, `HTML`, one declared with `Rlanguage_register`, or `None`), `LineNumbers`, `Wrap`, `ReadOnly`, `Placeholder`, `TabSize`, `TabSpaces`, `Completion` (`false`: proposes words only on Ctrl+Space), `AutoPairs` (`false`: does not close brackets and quotes), `TextSize`, `Font` |
+| `TextEditor` (`TextArea`) | `Text` (or the text inside the element), `Language` (`C`, `C++`, `C#`, `Java`, `JavaScript`, `TypeScript`, `Python`, `Rust`, `GLSL`, `JSON`, `CSS`, `XML`, `HTML`, one declared with `Rlanguage_register`, or `None`), `LineNumbers`, `Wrap`, `ReadOnly`, `Placeholder`, `TabSize`, `TabSpaces`, `Completion` (`false`: proposes words only on Ctrl+Space), `AutoPairs` (`false`: does not close brackets and quotes), `TextSize`, `Font`, `Markdown` (`true`: the same as `Language="Markdown"`: the text stays as typed, styled in place) |
 | `FileBrowser` | `Directory`, `Mode` (`Open`, `Save`, `Folder`), `Filter` (`*.png;*.jpg`), `FileName`, `DefaultExtension`, `ShowHidden`, `Multiple`, `Controls` (`false` hides the name, the filter and the buttons), `Places` (`false` hides the list of places) |
 
 A `MenuItem` shortcut works without any `<Shortcut>` element: the window
 looks for it in its menus when the keys are pressed.
+
+## Tools
+
+| Tag | Attributes and elements |
+|---|---|
+| `ColorPicker` | `Color`, `Previous` (the color shown beside it, to compare), `Alpha` (`false`: no opacity), `Popup` (`true`: a swatch that opens the picker), `Compact` (`true`: no code, no numbers), `Numbers` (`RGB` or `HSV`), `Swatches` (`"#FF453A, #0A84FF, white"`), `OnChanged` |
+| `Timeline` | `Duration` (seconds), `Time`, `FrameRate` (0: none), `Snapping`, `ViewStart`, `ViewEnd`, `Loop`, `Playing`, `HeaderWidth` (0: fits the names), `TrackHeight`, `OnChanged`. Contains `<Track>` and `<Marker>` elements |
+| `<Track>` | `Name`, `Color`, `Height`, `Locked`, `Muted`. Contains `<Clip>` and `<Key>` elements |
+| `<Clip>` | `Start`, `Length` or `End`, `Label` (or the text of the element), `Color`, `Selected` |
+| `<Key>` | `Time`, `Label`, `Color` |
+| `<Marker>` | `Time`, `Label`, `Color`: a flag on the ruler |
+| `NodeGraph` | `Zoom`, `CenterX`, `CenterY`, `Grid` (`false`: no dots), `Flow` (`Auto`: the pulses along the links run while the pointer is over the graph; `true`: always; `false`: never), `ReadOnly`, `FrameAll` (`true`: starts with every node in view), `OnChanged`. Contains `<Node>`, `<Link>` and `<Type>` elements |
+| `<Node>` | `Name` (for the links and `Rnode_graph_find_node`), `Title`, `X`, `Y`, `Color` (of its header), `Selected`. Contains `<Input>` and `<Output>` elements, and any widgets: they are shown inside the node (several are stacked) |
+| `<Input>`, `<Output>` | `Name`, `Label`, `Type` (free text; pins of different types do not link, a pin without a type links to any) |
+| `<Link>` | `From="node.output"`, `To="node.input"`, after the nodes it links |
+| `<Type>` | `Name`, `Color`: the color of the pins of a type and of their links (without it, Raven picks one from the name) |
+
+```xml
+<NodeGraph Name="graph">
+    <Type Name="number" Color="#64D2FF"/>
+    <Node Name="noise" Title="Noise" X="40" Y="60" Color="#FF9F0A">
+        <Output Name="value" Label="Value" Type="number"/>
+        <Slider Value="0.4" Width="150"/>
+    </Node>
+    <Node Name="blend" Title="Blend" X="320" Y="90">
+        <Input Name="a" Label="A" Type="number"/>
+    </Node>
+    <Link From="noise.value" To="blend.a"/>
+</NodeGraph>
+
+<Timeline Duration="12" FrameRate="24">
+    <Track Name="Camera" Color="#0A84FF">
+        <Clip Start="0" Length="3.5" Label="Wide shot"/>
+        <Key Time="6"/>
+    </Track>
+    <Marker Time="4" Label="Intro"/>
+</Timeline>
+```
+
+## Markdown
+
+`Markdown="true"` on a `Label` renders its text: headings (`#` to `######`),
+**strong**, *emphasis*, ~~struck~~, `code`, links, lists (bulleted, numbered,
+nested, with check boxes), quotes, code blocks (colored when they name a
+language of the text editor), tables, rules and line breaks. Inside an XML
+element the text may be indented with the document; `<![CDATA[ ... ]]>`
+avoids escaping `<` and `&`.
+
+A link `[text](https://...)` opens in the browser of the system;
+`[text](action:name)` fires the action `name`; `Rlabel_set_link_callback`
+receives them all instead. Bold and italic are drawn from the regular font
+unless the application gives real ones (`Rfont_set_variant`).
+
+On a `TextEditor`, the same flag keeps the text as typed and styles it where
+it stands (headings larger in color, strong and emphasis in bold and italic,
+code and links in their colors).
+
+## Files that are loaded again when they change
+
+A window or a widget created from a file (`Rwindow_create_from_xml_file`,
+`Rwidget_create_from_xml_file`), the files it includes, the files of declared
+tags (`Rxml_register_widgets_from_file`) and the theme files are watched
+while the application runs. When one is saved, the interface follows:
+
+- an element whose attributes changed keeps its widget (its handle, its
+  callbacks, its state: scroll, text typed, selection) and receives the new
+  values;
+- elements are matched by `Name`, else by content, else by position among
+  those of the same tag; new ones are built, those that are gone are deleted;
+- a widget that manages its own content (`ComboBox`, `Timeline`, `NodeGraph`,
+  menus...) is built again when the elements inside it change;
+- a file with a mistake changes nothing, and the error is reported.
+
+`Rxml_set_reload_callback` tells after each reload (the place to look widgets
+up again with `Rwidget_find`); `Rxml_set_live_reload(R_FALSE)`, or the
+environment variable `RAVEN_LIVE_RELOAD=0`, turns the watching off. Documents
+given as text (`Rwindow_create_from_xml`) are not files and are not watched.
+
+## Tags made by code
+
+A library or an application can give a tag to a widget it builds itself:
+
+```c
+static Rid make_gauge(const char* tag, void* user) { return Rwidget_create(R_WIDGET_CUSTOM); /* + callbacks */ }
+static int gauge_attribute(Rid widget, const char* name, const char* value, void* user) {
+    if (strcmp(name, "Level") != 0) return R_FALSE;      /* not mine: Raven handles Name, Width, Slot... */
+    /* ... */
+    return R_TRUE;
+}
+Rxml_register_tag("Gauge", make_gauge, gauge_attribute, NULL);      /* then: <Gauge Level="0.7" Width="120"/> */
+```
+
+`<WebView>` of the optional library `raven_web` is such a tag: see
+[WEB.md](WEB.md).
 
 ## Declaring tags
 

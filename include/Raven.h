@@ -28,6 +28,7 @@
  *     raven/raven_controls.h     labels, buttons, inputs, lists, menus...
  *     raven/raven_text_editor.h  multi-line text editor and its languages
  *     raven/raven_shell.h        header bar, docked panels, island
+ *     raven/raven_tools.h        color picker, timeline, node graph
  *     raven/raven_dialogs.h      dialogs, message boxes, file dialogs, file browser
  *     raven/raven_viewport.h     content rendered by the application
  *     raven/raven_draw.h         custom widgets: painting, springs
@@ -48,6 +49,7 @@
 #include "raven/raven_controls.h"
 #include "raven/raven_text_editor.h"
 #include "raven/raven_shell.h"
+#include "raven/raven_tools.h"
 #include "raven/raven_dialogs.h"
 #include "raven/raven_viewport.h"
 #include "raven/raven_draw.h"

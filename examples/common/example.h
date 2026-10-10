@@ -43,12 +43,17 @@ static int example_init(const char* name) {
 	return R_TRUE;
 }
 
-/** Saves a window as a binary PPM image. */
+/** Saves a window as a binary PPM image; as a PAM image, which keeps the alpha of a window that is seen through, when the name ends with ".pam". */
 static void example_capture(Rid window, const char* path) {
 	int width = 0, height = 0, i;
 	uint8_t* pixels = Rwindow_capture(window, &width, &height);
 	FILE* file = pixels ? fopen(path, "wb") : NULL;
-	if (file) {
+	size_t length = strlen(path);
+	if (file && length > 4 && strcmp(path + length - 4, ".pam") == 0) {
+		fprintf(file, "P7\nWIDTH %d\nHEIGHT %d\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n", width, height);
+		fwrite(pixels, 4, (size_t)width * (size_t)height, file);
+		fclose(file);
+	} else if (file) {
 		fprintf(file, "P6\n%d %d\n255\n", width, height);
 		for (i = 0; i < width * height; i++) fwrite(pixels + i * 4, 1, 3, file);
 		fclose(file);

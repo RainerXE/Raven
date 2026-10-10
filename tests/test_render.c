@@ -454,6 +454,119 @@ static void test_materials(void) {
 	Rwindow_destroy(window);
 }
 
+static void paint_curves(Rid widget, RPainter* painter, float width, float height, void* user_data) {
+	(void)widget;
+	(void)width;
+	(void)height;
+	(void)user_data;
+	/* a straight one, then one that bends from the top left to the bottom right */
+	Rdraw_curve(painter, 20, 30, 70, 30, 130, 30, 180, 30, 8, 1, 0, 0, 1);
+	Rdraw_curve(painter, 20, 80, 100, 80, 100, 160, 180, 160, 6, 0, 1, 0, 1);
+}
+
+static void test_curves_and_blur(void) {
+	Rid window = window_from(
+		"<Window Width=\"200\" Height=\"200\" ClearColor=\"#000000\"><Custom Name=\"custom\"/></Window>");
+	Rid stripes;
+	int i, behind, plain, frosted;
+
+	Rcustom_set_paint_callback(Rwidget_find(window, "custom"), paint_curves, NULL);
+	capture(window);
+	/* the straight curve: its middle, its thickness, its round ends */
+	CHECK_PIXEL(100, 30, 255, 0, 0);
+	CHECK_PIXEL(100, 33, 255, 0, 0);
+	CHECK_PIXEL(100, 38, 0, 0, 0);
+	CHECK_PIXEL(18, 30, 255, 0, 0);
+	CHECK_PIXEL(12, 30, 0, 0, 0);
+	/* the bent one passes through its ends and its middle, and leaves the corners of its box alone */
+	CHECK_PIXEL(25, 80, 0, 255, 0);
+	CHECK_PIXEL(100, 120, 0, 255, 0);
+	CHECK_PIXEL(175, 160, 0, 255, 0);
+	CHECK_PIXEL(170, 90, 0, 0, 0);
+	CHECK_PIXEL(30, 150, 0, 0, 0);
+	Rwindow_destroy(window);
+
+	/* a panel that blurs what is behind it: the stripes melt under it */
+	window = window_from(
+		"<Window Width=\"320\" Height=\"120\" ClearColor=\"#000000\">"
+		"  <Overlay>"
+		"    <HBox Name=\"stripes\"/>"
+		"    <HBox Slot.Padding=\"10,30\" Spacing=\"20\">"
+		"      <BackgroundBlur Name=\"plain\" Style=\"Plain\" Radius=\"16\" Width=\"130\" CornerRadius=\"0\"/>"
+		"      <BackgroundBlur Name=\"frosted\" Style=\"Frosted\" Radius=\"16\" Width=\"130\" CornerRadius=\"0\" Grain=\"0\"/>"
+		"    </HBox>"
+		"  </Overlay>"
+		"</Window>");
+	stripes = Rwidget_find(window, "stripes");
+	for (i = 0; i < 32; i++) {
+		Rid stripe = Rwidget_add_child(stripes, Rwidget_create(R_WIDGET_BORDER));
+		Rwidget_set_size(stripe, 10.0f, -1.0f);
+		Rborder_set_background(stripe, (i & 1) ? 1.0f : 0.0f, (i & 1) ? 1.0f : 0.0f, (i & 1) ? 1.0f : 0.0f, 1.0f);
+	}
+	capture(window);
+	behind = row_contrast(20.0f, 130.0f, 10.0f);
+	plain = row_contrast(20.0f, 130.0f, 60.0f);
+	frosted = row_contrast(170.0f, 280.0f, 60.0f);
+	CHECK(behind > 2000);
+	CHECK(plain < behind / 5);
+	CHECK(frosted < behind / 5);
+	/* blurred, not hidden: half white, half black gives a gray */
+	{
+		const uint8_t* p = pixel_at(75, 60);
+		CHECK(p[0] > 60 && p[0] < 200);
+	}
+	Rwindow_destroy(window);
+}
+
+static void test_node_graph(void) {
+	Rid window = window_from(
+		"<Window Width=\"520\" Height=\"220\" ClearColor=\"#000000\">"
+		"  <NodeGraph Name=\"g\" Grid=\"false\" Flow=\"false\" Color.Input=\"#000000\">"
+		"    <Type Name=\"signal\" Color=\"#00FF00\"/>"
+		"    <Node Name=\"a\" Title=\"A\" X=\"30\" Y=\"40\" Color=\"#FF0000\"><Output Name=\"o\" Label=\"Out\" Type=\"signal\"/></Node>"
+		"    <Node Name=\"b\" Title=\"B\" X=\"330\" Y=\"40\" Color=\"#0000FF\"><Input Name=\"i\" Label=\"In\" Type=\"signal\"/></Node>"
+		"    <Link From=\"a.o\" To=\"b.i\"/>"
+		"  </NodeGraph>"
+		"</Window>");
+	Rid graph = Rwidget_find(window, "g");
+	float ax, ay, bx, by, w, h;
+	const uint8_t* p;
+	int y, found = 0;
+
+	capture(window);
+	Rnode_graph_get_node_size(graph, Rnode_graph_find_node(graph, "a"), &w, &h);
+	/* the headers wear the colors of their nodes */
+	p = pixel_at(30.0f + w - 20.0f, 40.0f + 15.0f);
+	CHECK(p[0] > 150 && p[1] < 90 && p[2] < 90);
+	p = pixel_at(330.0f + w - 20.0f, 40.0f + 15.0f);
+	CHECK(p[2] > 150 && p[0] < 90 && p[1] < 110);
+	/* the canvas between the nodes is empty, except for the wire: it has the color of its type and hangs a little under the straight line */
+	Rnode_graph_get_pin_position(graph, Rnode_graph_find_pin(graph, Rnode_graph_find_node(graph, "a"), "o"), &ax, &ay);
+	Rnode_graph_get_pin_position(graph, Rnode_graph_find_pin(graph, Rnode_graph_find_node(graph, "b"), "i"), &bx, &by);
+	CHECK(ay == by && bx > ax + 100.0f);
+	for (y = (int)ay - 2; y < (int)ay + 26 && !found; y++) {
+		p = pixel_at((ax + bx) * 0.5f, (float)y);
+		if (p[1] > 200 && p[0] < 120 && p[2] < 120) found = y;
+	}
+	CHECK(found > (int)ay);
+	p = pixel_at((ax + bx) * 0.5f, ay - 30.0f);
+	CHECK(p[0] < 12 && p[1] < 12 && p[2] < 12);
+	p = pixel_at((ax + bx) * 0.5f, ay + 60.0f);
+	CHECK(p[0] < 12 && p[1] < 12 && p[2] < 12);
+	/* the pins are dots of that color on the edges */
+	p = pixel_at(ax, ay);
+	CHECK(p[1] > 180 && p[0] < 140);
+
+	/* zoomed out around the middle, everything is twice as close to it */
+	Rnode_graph_set_view(graph, 260.0f, 110.0f, 0.5f);
+	capture(window);
+	p = pixel_at(260.0f + (30.0f + w - 20.0f - 260.0f) * 0.5f, 110.0f + (40.0f + 15.0f - 110.0f) * 0.5f);
+	CHECK(p[0] > 150 && p[1] < 90 && p[2] < 90);
+	p = pixel_at(30.0f + w - 20.0f, 40.0f + 15.0f);
+	CHECK(p[0] < 12 && p[1] < 12 && p[2] < 12);
+	Rwindow_destroy(window);
+}
+
 static int g_callback_calls;
 static RViewportDrawInfo g_callback_info;
 
@@ -636,6 +749,8 @@ int main(void) {
 	RUN(test_glass);
 	RUN(test_glass_theme);
 	RUN(test_materials);
+	RUN(test_curves_and_blur);
+	RUN(test_node_graph);
 	RUN(test_viewport);
 	RUN(test_windows);
 	RUN(test_vulkan_api);

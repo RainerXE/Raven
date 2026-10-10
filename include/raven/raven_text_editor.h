@@ -58,7 +58,14 @@ typedef enum RLanguageFlags{
 	/** The words of the language are recognized whatever their case. */
 	R_LANGUAGE_IGNORE_CASE     = (1 << 5),
 	/** Markup that holds JavaScript in script elements and CSS in style elements (HTML). */
-	R_LANGUAGE_EMBEDS          = (1 << 6)
+	R_LANGUAGE_EMBEDS          = (1 << 6),
+	/**
+	 * Formatted text written in Markdown: titles, strong and emphasized
+	 * text, code, links, lists. The editor shows the text as it is written,
+	 * marks included, with strong text in bold, emphasized text in italic
+	 * and titles in bold: what will be formatted is seen while typing.
+	 */
+	R_LANGUAGE_FORMATTED_TEXT  = (1 << 7)
 }RLanguageFlags;
 
 /**
@@ -114,7 +121,12 @@ typedef enum RToken{
 	R_TOKEN_ATTRIBUTE,
 	R_TOKEN_PUNCTUATION,
 	/** A line for the preprocessor, an annotation, a declaration of a document. */
-	R_TOKEN_DIRECTIVE
+	R_TOKEN_DIRECTIVE,
+	/** Formatted text (the Markdown language): a title, strong text, emphasized text, a link. */
+	R_TOKEN_HEADING,
+	R_TOKEN_STRONG,
+	R_TOKEN_EMPHASIS,
+	R_TOKEN_LINK
 }RToken;
 
 /** What a marker says about the text it underlines. */
@@ -223,6 +235,17 @@ extern "C" {
 	RAVEN_API const char* Rtext_editor_get_language(Rid editor);
 
 	/**
+	 * @brief R_TRUE makes the editor an editor of Markdown (the "Markdown"
+	 * language; Markdown="true" in XML): the text stays as it is written,
+	 * and what it formats shows while typing, strong text in bold,
+	 * emphasized text in italic, titles in bold, code, links and marks in
+	 * their colors. A label with Rlabel_set_markdown shows the same text
+	 * formatted. R_FALSE removes the language.
+	 */
+	RAVEN_API void Rtext_editor_set_markdown(Rid editor, int enabled);
+	RAVEN_API int Rtext_editor_get_markdown(Rid editor);
+
+	/**
 	 * @brief What the language of the editor makes of the character at a
 	 * position: the colors come from it. R_TOKEN_TEXT without a language.
 	 */
@@ -268,6 +291,18 @@ extern "C" {
 	RAVEN_API void Rtext_editor_add_marker(Rid editor, int line, int from_column, int to_column, RMarkerKind kind, const char* message);
 	RAVEN_API void Rtext_editor_clear_markers(Rid editor);
 	RAVEN_API int Rtext_editor_get_marker_count(Rid editor);
+
+	/* ---- colors ---- */
+
+	/**
+	 * @brief Color of a kind of token in the theme in use, instead of the
+	 * one Raven picks for dark and for light themes. Theme files set them
+	 * with <Syntax Keyword="#FF7AB2" String="..."/>.
+	 */
+	RAVEN_API void Rtheme_set_token_color(RToken token, float r, float g, float b, float a);
+	RAVEN_API void Rtheme_get_token_color(RToken token, float* r, float* g, float* b, float* a);
+	/** @brief Back to the colors Raven picks. */
+	RAVEN_API void Rtheme_clear_token_colors(void);
 
 	/* ---- callback ---- */
 

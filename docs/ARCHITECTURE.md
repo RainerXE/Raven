@@ -122,7 +122,7 @@ task or `Rwake_up`.
 `RDrawInstance` (80 bytes) and a short list of commands.
 
 - One instance is one primitive: rounded rectangle with optional outline and
-  texture, glyph, soft shadow, line, triangle, glass.
+  texture, glyph, soft shadow, line, triangle, glass, blur, cubic curve.
 - The vertex shader expands each instance into a quad (`gl_VertexIndex`,
   no vertex or index buffer). The fragment shader evaluates the exact shape
   as a signed distance in pixels, so edges are anti-aliased at any size and
@@ -335,6 +335,106 @@ The editor keeps that byte for each line and lexes again from the first line
 that changed. Proposals, bracket matching and indentation read the same
 tokens. There is no parser: the editor knows what a word is, not what it means.
 
+## Themes and styles
+
+`widget/theme.c`, `widget/style.c`; the guide is [THEMES.md](THEMES.md). A
+theme (`rvn_theme_t`) is a table of colors and metrics, a material, a font,
+the colors of code and a list of style rules. The theme of the application
+is a copy (`g_rvn.theme`) that `Rtheme_set_...` changes; named themes
+(the four built-in ones, made on first use, and those read from files) are
+kept at addresses that do not move, so that a widget can point to one.
+
+A widget asks `rvn_widget_color(widget, role)`: what was set on the widget,
+else what the rules of its theme give it, else the theme. The rules that
+apply to a widget (its type, its classes) are merged once into a "match"
+kept by the theme; the widget keeps a pointer to it and a generation number,
+and asks again when the styles or its classes changed. A theme given to a
+widget (`Theme="..."`) is a pointer inherited down the tree when children
+are added; the island uses the "dark twin" of the current theme that way.
+
+## Files loaded again
+
+`xml/xml_watch.c`. A timer compares the date and size of the watched files
+five times a second (no thread, no API of the system: it behaves the same
+everywhere). For an interface file, Raven kept the document it was built
+from, each element knowing its widget. The new document is checked first
+(every element must be buildable), then compared with the old one: same tag
+and no attribute removed means the widget is kept and only the attributes
+that changed are set; children are paired by `Name`, else by identical
+content, else by position among those of the same tag; the rest is built or
+deleted. Classes that read their own child elements are built again when
+those differ. A file that does not parse is tried again twice (an editor may
+be in the middle of writing it) before the error is reported.
+
+## Markdown
+
+`widgets/markdown.c` parses a text into blocks and spans, lays them out for
+a width (runs of text of one font and color, and boxes: bullets, rules, code
+backgrounds, table lines), and paints them; `widgets/label.c` uses it when
+`Markdown` is set and keeps the layout until the text or the width changes.
+Bold and italic are *views* of a font (`render/font.c`): the same advances,
+glyphs drawn twice a fraction of a pixel apart from the outline (bold) or
+sheared row by row (italic), cached under their own key. In the text editor
+Markdown is one more language of `widgets/syntax.c`, whose tokens the editor
+draws with those views.
+
+## Blur, windows that are seen through, curves
+
+Three additions to the rendering model, all in `ui.frag`:
+
+- `R_PRIM_BLUR` samples the copy of the frame that glass already uses, with
+  a radius of its own (a spiral of taps over the blurred copy), a grain and
+  a saturation; no rim, no bending. `BackgroundBlur` draws it.
+- `R_DRAW_ERASE` is a command, not a primitive: its instances are blended
+  with `(ZERO, ONE_MINUS_SRC_ALPHA)`, which removes what was drawn where
+  they are. In a window that is seen through, that opens a hole down to the
+  desktop: the `Native` style of `BackgroundBlur`, where the system does
+  the blurring (`rvn_platform_t::window_set_backdrop`).
+- `R_PRIM_CURVE` is a cubic Bezier curve in one instance: the fragment
+  shader follows it as 24 segments, keeps the nearest one and how far along
+  it is, and from that draws the stroke, a halo, a color that shades from
+  one end to the other, and pulses that run along it. The links of
+  `NodeGraph` are one instance each.
+
+A transparent window asks the platform for a visual with alpha (X11: a
+32-bit visual and its colormap, only when a compositor owns the screen;
+Win32: the DWM) and the swapchain for premultiplied alpha; its frame is
+cleared to nothing and the wallpaper of the theme is not drawn.
+
+## A canvas that zooms: NodeGraph
+
+`widgets/node_graph.c`. Everything that zooms is painted in *canvas* units
+with a painter whose scale is the scale of the window times the zoom asked
+for, so that text is rasterized at the size it will have, not stretched; the
+little that is left while the zoom glides there is a scale applied afterwards
+to what was drawn (`rvn_drawlist_transform`). The zoom asked for is rounded
+to a twentieth, which bounds the number of glyph sizes it can create.
+
+The widgets inside the nodes are real children of the graph, laid out in
+that canvas. Two small hooks of the widget base make them work at any zoom:
+`child_scale` (the hit test divides by it; `events.c` converts the position
+of the mouse for each widget that receives an event; popups opened from
+there are placed where their owner really shows) and the class callback
+`child_at` (a child is only reachable where its node is the one on top).
+
+A wire hangs and swings: its control points are offset by a spring that is
+pushed back by whatever its ends just did.
+
+## Libraries beside Raven: raven_web
+
+`web/` is a separate library built on the public API only; the guide is
+[WEB.md](WEB.md). One browser process, started with two pipes (socket pairs
+on Unix, anonymous pipes whose handles are given on the command line on
+Windows); one thread reads its messages. Pictures of pages are decoded on
+that thread (`Rimage_decode`) and acknowledged at once; everything else is
+handed over as text. The UI thread is woken with `Rtask_post`, and is the
+only one that touches the views. A view is a `R_WIDGET_CUSTOM` with a paint
+callback (the texture), an event callback (the input, sent as commands of
+the protocol) and a destroy callback (the page is closed; the browser stops
+with the last view). What it needed from Raven and did not find was added to
+the public API for everyone: `Rxml_register_tag`,
+`Rwidget_set_destroy_callback`, `Rimage_decode`, `Rxml_resolve_path`.
+
 ## XML: declared widgets and documents
 
 `xml/xml_parser.c` reads a text into a tree in an arena. `xml/xml_components.c`
@@ -377,6 +477,15 @@ smallest implementation.
 **A language of the text editor.** No code: an `RLanguageDesc` given to
 `Rlanguage_register`, or an entry in `rvn_languages_built_in` (`widgets/syntax.c`).
 
+**A widget that arranges children by hand** must still measure them
+(`rvn_widget_measure`) in its own `measure`, and creates them in `init`, not
+while measuring. One that paints its children itself sets
+`RVN_CF_OWN_CHILDREN`.
+
+**A widget from outside the library.** A `R_WIDGET_CUSTOM` and its
+callbacks; `Rxml_register_tag` gives it a tag and attributes of its own.
+`web/src/web_view.c` is an example of a complete one.
+
 **An attribute.** Handle it in the `set_attribute` of the class, and list it
 in `xml/xml_schema.c` (the designer and `test_schema` read it from there).
 
@@ -401,11 +510,15 @@ for the glass themes.
 | `test_text_editor` | editing, history, wrapping, the lexer of every language, proposals, pairs, markers |
 | `test_shell` | header bar, drag and drop, hit testing, docking, island |
 | `test_dialogs` | dialogs, message boxes, the file browser on real folders |
-| `test_render` | real frames through Vulkan, pixels compared (shapes, clipping, textures, text, glass, materials); skipped without a Vulkan driver |
+| `test_themes` | styles, classes, a theme for a part of the tree, theme files, files loaded again |
+| `test_markdown` | parsing, layout, links, the Markdown language of the editor |
+| `test_tools` | color picker, timeline, node graph (links pulled with the mouse, widgets inside zoomed nodes), background blur, windows seen through, tags made by code, destroy callback, image decoding |
+| `test_render` | real frames through Vulkan, pixels compared (shapes, clipping, textures, text, glass, materials, curves, blur, node graph); skipped without a Vulkan driver |
+| `test_web` | `raven_web`: JSON and base64 always; with a browser of the Chromium family, pages, scripts, messages, input and history (skipped without one) |
 | `designer_script` | the designer adding, moving, wrapping, undoing, and checking its XML |
 | `bindings_up_to_date`, `binding_cpp`, `binding_python`, `binding_rust`, `binding_go` | the bindings match the headers; their examples run (the last three need the shared library and their tools) |
 
 All but `test_render` run with the null platform and the null backend: no
-display, no GPU. Every test program also fails when a block is still
+display, no GPU (`test_web` starts a hidden browser when it finds one). Every test program also fails when a block is still
 allocated after `Rshutdown`. Input is injected with `Rwindow_inject_mouse_move`, `Rwindow_inject_key`...,
 which follow the same path as real events.

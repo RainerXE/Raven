@@ -73,6 +73,37 @@ extern "C" {
 	/** @brief Text color (R_COLOR_TEXT of this widget). */
 	RAVEN_API void Rlabel_set_color(Rid label, float r, float g, float b, float a);
 
+	/**
+	 * @brief R_TRUE reads the text as Markdown and shows it formatted
+	 * (Markdown="true" in XML):
+	 *
+	 *   # titles, **strong**, *emphasis*, `code`, ~~struck~~, [links](url),
+	 *   lists and lists in lists, - [x] task lists, > quotes, --- rules,
+	 *   | tables |, images alone on their line, and ``` blocks of code with
+	 *   the colors of their language (```c, ```python...: the languages of
+	 *   the text editor, raven_text_editor.h).
+	 *
+	 * The text wraps on the width of the label unless Rlabel_set_wrap said
+	 * otherwise; put the label in a scroll box for a long document. Strong
+	 * and emphasized text use the bold and italic of the font
+	 * (Rfont_set_variant), which Raven derives from the font itself when it
+	 * was given none. The colors come from the theme: R_COLOR_LINK,
+	 * R_COLOR_CODE, R_COLOR_SEPARATOR, R_COLOR_ACCENT.
+	 */
+	RAVEN_API void Rlabel_set_markdown(Rid label, int enabled);
+	RAVEN_API int Rlabel_get_markdown(Rid label);
+	/**
+	 * @brief Called when the user clicks a link of a Markdown label.
+	 *
+	 * Without a callback, a link written [Save](action:file.save) fires the
+	 * action "file.save" (Raction_bind), and http, https and mailto links
+	 * open in the browser or the mail program of the user (Ropen_url).
+	 */
+	typedef void (*RLabelLinkCallback)(Rid label, const char* url, void* user_data);
+	RAVEN_API void Rlabel_set_link_callback(Rid label, RLabelLinkCallback callback, void* user_data);
+	/** @brief The text of a Markdown label without its marks, as a reader sees it. Valid until the next call. */
+	RAVEN_API const char* Rlabel_get_plain_text(Rid label);
+
 
 	/* ============================================================================
 	 *  BUTTON

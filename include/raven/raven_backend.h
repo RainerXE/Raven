@@ -38,6 +38,8 @@
 #define R_PRIM_LINE      3u /* segment with round caps */
 #define R_PRIM_TRIANGLE  4u /* filled triangle */
 #define R_PRIM_GLASS     5u /* rounded rectangle of glass: refracts and tints what is behind it */
+#define R_PRIM_BLUR      6u /* rounded rectangle that shows what is behind it out of focus: uv = radius (pixels), grain, saturation, light */
+#define R_PRIM_CURVE     7u /* cubic curve: a stroke that shades from one color to another, with an optional halo and pulses running along it */
 #define R_PRIM_MASK      0xFu
 /** The instance samples the texture of its draw command. */
 #define R_INSTANCE_TEXTURED (1u << 4)
@@ -53,6 +55,8 @@
  *   LINE      ax, ay, bx, by       -               [0] = thickness    -
  *   TRIANGLE  ax, ay, bx, by       -               [0], [1] = cx, cy  -
  *   GLASS     x0, y0, x1, y1       see below       tl, tr, br, bl     bevel width
+ *   BLUR      x0, y0, x1, y1       see below       tl, tr, br, bl     outline width
+ *   CURVE     ax, ay, dx, dy       see below       bx, by, cx, cy     thickness
  *
  * Fragments outside `clip` (x0, y0, x1, y1) are discarded.
  *
@@ -68,6 +72,34 @@
  *   flags         bits 8..15 = opacity of the whole primitive, 0..255
  * A backend without backdrop support may draw GLASS as a rounded rectangle
  * filled with `color`.
+ *
+ * CURVE is the cubic Bezier curve from a (rect[0], rect[1]) to d (rect[2],
+ * rect[3]) with the control points b and c (radii), drawn as a stroke with
+ * round ends:
+ *   color         color at a
+ *   border_color  color at d; the stroke shades from one to the other
+ *   border_width  thickness of the stroke, in pixels
+ *   uv[0]         radius of the halo around the stroke, in pixels (0 = none)
+ *   uv[1]         opacity of the halo next to the stroke, 0..1
+ *   uv[2]         where the pulses are: they move from a to d as it grows (one pulse takes the place of the next every 1)
+ *   uv[3]         number of pulses along the curve (0 = none)
+ *   flags         bits 8..15 = how bright the pulses are, 0..255
+ * A backend may draw it as a chain of LINE primitives.
+ *
+ * BLUR shows the backdrop out of focus, flat (no rim, no bending):
+ *   uv[0]         radius of the blur, in pixels
+ *   uv[1]         grain, 0 = none .. 1 = frosted
+ *   uv[2]         saturation of the backdrop, 1 = unchanged
+ *   uv[3]         brightness added to the result
+ *   color         tint laid over the backdrop; its alpha is the strength
+ *   border_color  color of the outline, when border_width is not 0
+ *   flags         bits 8..15 = opacity of the whole primitive, 0..255
+ * A backend without backdrop support may draw it as a rounded rectangle
+ * filled with `color`.
+ *
+ * In a window that can be seen through (RNativeWindow::transparent), the
+ * alpha of the frame is what the window system blends with: GLASS and BLUR
+ * keep the alpha of the backdrop where they are not tinted.
  */
 typedef struct RDrawInstance {
 	float rect[4];
@@ -94,7 +126,17 @@ typedef enum RDrawCommandType{
 	 * drawn since that place was last captured. A backend may always capture
 	 * the whole frame; a backend without glass ignores the command.
 	 */
-	R_DRAW_BACKDROP
+	R_DRAW_BACKDROP,
+	/**
+	 * Like R_DRAW_INSTANCES, but the instances remove what was drawn where
+	 * they are instead of drawing over it: the frame becomes transparent
+	 * there, by as much as their coverage times the alpha of their color.
+	 * That is how a window that can be seen through (R_WINDOW_TRANSPARENT)
+	 * opens a hole in itself. With premultiplied colors it is the blend
+	 * (ZERO, ONE_MINUS_SRC_ALPHA) for the color and for the alpha. A backend
+	 * whose windows are never transparent ignores the command.
+	 */
+	R_DRAW_ERASE
 }RDrawCommandType;
 
 typedef struct RDrawCommand {

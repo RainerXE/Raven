@@ -8,16 +8,17 @@
 #    ./dist.sh [--no-test] [-- extra cmake arguments]
 #
 #    dist/raven-<version>-linux-<arch>/
-#        include/                 Raven.h, raven/*.h
-#        lib/                     libraven.so, cmake/raven (find_package)
-#        lib/static/              libraven.a, cmake/raven
+#        include/                 Raven.h, raven/*.h, raven_web.h
+#        lib/                     libraven.so, libraven_web.so, cmake/raven (find_package)
+#        lib/static/              libraven.a, libraven_web.a, cmake/raven
 #        bin/raven_designer
 #        share/raven/             README.md, docs/, bindings/
 #    dist/raven-<version>-linux-<arch>.tar.gz
 #
 #  A program finds the shared library with
 #      cmake -DCMAKE_PREFIX_PATH=<folder> ...        find_package(raven)
-#  and the static one with -Draven_DIR=<folder>/lib/static/cmake/raven.
+#  and the static one with -Draven_DIR=<folder>/lib/static/cmake/raven. Its
+#  targets are raven::raven and, for web pages, the optional raven::web.
 # ---------------------------------------------------------------------------
 set -e
 

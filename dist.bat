@@ -16,10 +16,10 @@ rem    --no-pause          do not wait for a key when something fails
 rem
 rem  Result:
 rem    dist\raven-<version>-windows-x64-msvc\
-rem        include\                 Raven.h, raven\*.h
-rem        bin\raven.dll            and raven_designer.exe
-rem        lib\raven.lib            what a program links with to use raven.dll
-rem        lib\static\raven.lib     the static library
+rem        include\                 Raven.h, raven\*.h, raven_web.h
+rem        bin\raven.dll            and raven_web.dll, raven_designer.exe
+rem        lib\raven.lib            what a program links with to use raven.dll (raven_web.lib: raven_web.dll)
+rem        lib\static\raven.lib     the static library (and raven_web.lib)
 rem        lib\cmake\raven          find_package(raven) for the DLL
 rem        lib\static\cmake\raven   find_package(raven) for the static library
 rem        share\raven\             README.md, docs\, bindings\
