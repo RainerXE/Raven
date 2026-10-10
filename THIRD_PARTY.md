@@ -8,11 +8,12 @@ in the repository and compiled into the library.
 | stb_truetype 1.26 (Sean Barrett) | `third_party/stb/stb_truetype.h` | public domain or MIT, see `third_party/stb/LICENSE` | glyph outlines and rasterization |
 | stb_image 2.30 (Sean Barrett) | `third_party/stb/stb_image.h` | public domain or MIT, see `third_party/stb/LICENSE` | PNG / JPEG / BMP / TGA decoding; optional (`RAVEN_WITH_STB_IMAGE`) |
 | Roboto Regular (Google) | `third_party/roboto/Roboto-Regular-subset.ttf`, embedded as `src/resources/default_font.c` | Apache License 2.0, see `third_party/roboto/LICENSE` | default font |
+| Roboto Mono Regular (The Roboto Mono Project Authors) | `third_party/roboto-mono/RobotoMono-Regular-subset.ttf`, embedded as `src/resources/mono_font.c` | SIL Open Font License 1.1, see `third_party/roboto-mono/LICENSE` | fixed-width font of the text editor (`Rfont_get_monospace`) |
 
-The Roboto file is a subset made with `tools/subset_font.py`: Basic Latin,
+The two font files are subsets made with `tools/subset_font.py`: Basic Latin,
 Latin-1 Supplement, Latin Extended-A and a few punctuation marks and
-arrows. Hinting instructions were removed. Under the Apache License this is
-a modified version of the original font.
+arrows. Hinting instructions were removed. Under the Apache License and the
+Open Font License these are modified versions of the original fonts.
 
 Both stb files are compiled as `static` functions inside a single source
 file each (`src/render/font_raster.c`, `src/render/image_decode.c`), so they

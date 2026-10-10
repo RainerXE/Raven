@@ -9,9 +9,10 @@ wants to read, debug or extend it.
             application
                 │  Raven.h (handles, callbacks)
 ┌───────────────┴────────────────────────────────────────────┐
-│ xml/        parser, attributes, loader                     │
+│ xml/        parser, loader, declared widgets, documents    │
 │ widgets/    one file per widget type                       │
-│ widget/     tree, layout, events, painting, windows, style │
+│ widget/     tree, layout, events, painting, animation,     │
+│             windows (popups, dialogs, drag and drop), style│
 ├──────────────────────────────┬─────────────────────────────┤
 │ render/  draw lists, fonts,  │ platform/  windows, input,  │
 │          textures, renderer  │            clipboard        │
@@ -19,7 +20,7 @@ wants to read, debug or extend it.
 │   └─ null/                   │   ├─ x11/                   │
 │                              │   └─ null/                  │
 ├──────────────────────────────┴─────────────────────────────┤
-│ core/   memory, handles, threads, jobs, lock-free map      │
+│ core/   allocator, handles, threads, jobs, files, loop     │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,7 +93,9 @@ the dispatch ends.
 
 ## A frame
 
-`Rupdate` runs, for each window that needs it:
+The loop belongs to the application: `Rdraw_frame` (and `Rwait_frame`, which
+sleeps first) produces one frame. Internally (`rvn_update`, `core/context.c`)
+it runs, for each window that needs it:
 
 1. **Tasks and timers**, then the frame callback of the application.
 2. **Layout** (`widget/layout.c`, only if something changed):
@@ -109,8 +112,9 @@ the dispatch ends.
 4. **Submit**: the frame packet goes to the render thread.
 
 A window is only laid out or painted when something asked for it (a property
-changed, an event, a realtime viewport). `Rrun` sleeps in the window
-system until an event, a timer, a posted task or `Rwake_up`.
+changed, an event, a realtime viewport, an animation still moving).
+`Rwait_frame` sleeps in the window system until an event, a timer, a posted
+task or `Rwake_up`.
 
 ## Rendering model
 
@@ -232,7 +236,7 @@ pump events into one handler, clipboard, child windows, wake-up.
 specific to Windows:
 
 - While the user moves or resizes a window, Windows runs its own message
-  loop and `Rupdate` is not called. A timer emits `RVN_PEVENT_MODAL_TICK`,
+  loop and the loop of the application is not running. A timer emits `RVN_PEVENT_MODAL_TICK`,
   on which the core produces a frame, so the content follows the resize.
 - Graphics drivers send messages to the window from the thread that creates
   or resizes a swapchain. If the UI thread were blocked on the render thread
@@ -244,6 +248,117 @@ specific to Windows:
 **X11.** Xlib only. Text input goes through an X input context (dead keys,
 compose). The scale comes from the `Xft.dpi` resource. A self-pipe wakes the
 event loop from other threads.
+
+## Memory
+
+`core/heap.c` is a TLSF heap over regions of 4 MB taken from the OS
+(`VirtualAlloc`, `mmap`); a block of 1 MB or more gets a mapping of its own.
+Allocating and freeing are constant time, free neighbours are merged, and an
+empty region goes back to the OS (`Rmemory_trim`, and at `Rshutdown`).
+`core/memory.c` is what the library calls (`rvn_alloc`, `rvn_free`...): it
+forwards to the heap, or to the functions given with `Rset_allocator`, keeps
+the statistics, and in a Debug build fills new blocks with `0xCD` and freed
+ones with `0xDD`. The stb decoders are compiled with these functions.
+A build with AddressSanitizer uses `malloc` by default, so that the
+sanitizer sees every block.
+
+## Animation
+
+`widget/anim.c`. A spring (`RSpring`) is a value, a velocity and a target; it
+is advanced by the time of the frame with a fixed sub-step, with the
+stiffness and damping of its `RMotion`. Three things are built on it:
+
+- **Paint springs**: `rvn_paint_spring` (public: `Rdraw_spring`) advances a
+  spring from inside a paint function and, while it moves, asks its window
+  for another frame. Hover, press, switches, selections, scrollbars use it.
+- **Transitions**: a widget that appears gets a small state (kind, start,
+  delay); when it is painted, the instances it produced are transformed
+  after the fact (`rvn_drawlist_transform`: scale, offset, opacity around a
+  pivot). The layout is not involved, so neighbours and hit testing see the
+  widget in place from the first frame.
+- **Layout springs**: `rvn_widget_animate_layout` makes the rectangle of a
+  widget chase the one the layout gave it. Docked panels and the island use
+  it; the window steps these springs before painting.
+
+A popup that closes leaves a *ghost*: the window keeps painting it, shrinking
+back into what opened it, until its spring is at rest. `Rset_animation_time_step`
+replaces the clock (tests, films); `Rset_animations_enabled(R_FALSE)` puts
+every spring on its target at once.
+
+## Windows: header, dialogs, drag and drop
+
+`widget/window.c` holds what belongs to a window rather than to a widget.
+
+- **Custom header.** The platform asks the core what is under a point
+  (`rvn_window_region_at`: client, caption, one of the eight edges, a
+  button). On Windows the answer is given to `WM_NCHITTEST`, so the system
+  itself moves, resizes and snaps the window. On X11 the core starts the
+  move or the resize (`_NET_WM_MOVERESIZE`, or by hand without a window
+  manager) from `rvn_window_press_region`.
+- **Popups** are roots of their own, laid out and painted after the content:
+  menus, combo lists, the completion list, tooltips. **Dialogs** are popups
+  with the `RVN_POPUP_DIALOG` placement: a veil over the window, the content
+  on a sheet that rises; the window owns the content. `Rdialog_run` and
+  `Rmessage_box` run a nested loop.
+- **Drag and drop.** The platforms translate `WM_DROPFILES` and the XDND
+  protocol into `RVN_PEVENT_DRAG` / `RVN_PEVENT_DROP`. The target is the
+  nearest widget under the pointer that has a drop callback, else the
+  window; it is highlighted while it accepts.
+- **File dialogs** (`widgets/dialogs.c`): the common dialogs on Windows, a
+  child process (`zenity`, `kdialog`) on Linux during which input to the
+  windows of Raven is blocked, and otherwise a dialog of Raven around the
+  `FileBrowser` widget (`widgets/file_browser.c`, on `core/fs.c`).
+
+## Docking
+
+`widgets/dock_area.c`. The panels are the children of the widget; their
+arrangement is a binary tree beside them: a leaf is a group of tabs, a node
+splits its rectangle in two with a ratio. Arranging walks the tree; each
+group then *chases* its rectangle with layout springs, which is what makes
+the panels fly when the tree changes. Dragging a tab shows where it would go
+(a tab bar, the middle or a side of a group, an edge of the area) and
+dropping it edits the tree. `Rdock_area_save_layout` writes the tree as text:
+`H(250,T(0;files),V(500,T(0;editor),T(1;log,about)))`.
+
+## Text editor
+
+`widgets/text_editor.c`. The text is an array of lines, each a small UTF-8
+buffer; every change goes through one function (`rvn_ed_replace`) that also
+records what undoes it. Only the visible rows are measured, wrapped, colored
+and painted.
+
+`widgets/syntax.c` holds the languages: a description (`RLanguageDesc`: words,
+comments, quotes, flags) and three table-driven lexers that work line by
+line, carrying one byte of state from a line to the next (inside a block
+comment, inside a text that spans lines, inside the script of an HTML page).
+The editor keeps that byte for each line and lexes again from the first line
+that changed. Proposals, bracket matching and indentation read the same
+tokens. There is no parser: the editor knows what a word is, not what it means.
+
+## XML: declared widgets and documents
+
+`xml/xml_parser.c` reads a text into a tree in an arena. `xml/xml_components.c`
+rewrites that tree before anything is built: `<Widget>` declarations are
+copied into a registry and removed, their uses are replaced by their bodies
+with the expressions computed, `<Repeat>`, `<ForEach>`, `<If>` and
+`<Include>` are carried out. `xml/xml_loader.c` then builds widgets from a
+plain tree, as before.
+
+`xml/xml_dom.c` is the other way to hold a document: nodes that are objects
+with handles, for tools. To build, it is turned into the tree of the loader
+with each element carrying the handle of its node (`source`); the rewriting
+keeps it, and gives everything a declared widget expands into the node where
+the tag is used. `xml/xml_schema.c` lists the tags and attributes as data; a
+test gives every attribute it lists to the loader, so the list cannot drift
+from what the classes accept.
+
+## Tools
+
+`tools/designer/main.c` is an application of the public API only (it is also
+a test of it: `designer_script` drives it without a window system).
+`tools/bindgen/` reads the public headers with a small parser that only knows
+the shapes they use (`cparse.py`) and writes `bindings/`; a test fails when
+`bindings/` is not what it would write.
 
 ## Adding things
 
@@ -259,6 +374,14 @@ it from `rvn_platform_select` (`platform/platform.c`), and add the matching
 surface creation in `vk_surface.c`. `platform/null/null_platform.c` is the
 smallest implementation.
 
+**A language of the text editor.** No code: an `RLanguageDesc` given to
+`Rlanguage_register`, or an entry in `rvn_languages_built_in` (`widgets/syntax.c`).
+
+**An attribute.** Handle it in the `set_attribute` of the class, and list it
+in `xml/xml_schema.c` (the designer and `test_schema` read it from there).
+
+**A binding.** `tools/bindgen/gen_<language>.py` with a `generate(api)` function.
+
 **A backend.** Implement the ten functions of `RBackendVTable`; an
 application can do it without touching Raven (`Rbackend_register`, then
 `Rinit(R_BACKEND_CUSTOM)`). The shaders to port are
@@ -271,10 +394,18 @@ for the glass themes.
 |---|---|
 | `test_layout` | panels, slots, dirty propagation |
 | `test_widgets` | controls driven by injected mouse and keyboard events |
-| `test_xml` | parser, loader, attributes, error reporting |
+| `test_xml` | parser, loader, attributes, error reporting, declared widgets, documents, the list of tags and attributes |
 | `test_threads` | jobs, posted tasks, asynchronous textures, parallel paint equal to serial paint |
-| `test_render` | real frames through Vulkan, pixels compared (shapes, clipping, textures, text, glass); skipped without a Vulkan driver |
+| `test_memory` | the heap (random allocations checked block by block), statistics, a custom allocator |
+| `test_animation` | springs, transitions, popups that close, time step |
+| `test_text_editor` | editing, history, wrapping, the lexer of every language, proposals, pairs, markers |
+| `test_shell` | header bar, drag and drop, hit testing, docking, island |
+| `test_dialogs` | dialogs, message boxes, the file browser on real folders |
+| `test_render` | real frames through Vulkan, pixels compared (shapes, clipping, textures, text, glass, materials); skipped without a Vulkan driver |
+| `designer_script` | the designer adding, moving, wrapping, undoing, and checking its XML |
+| `bindings_up_to_date`, `binding_cpp`, `binding_python`, `binding_rust`, `binding_go` | the bindings match the headers; their examples run (the last three need the shared library and their tools) |
 
-The first four run with the null platform and the null backend: no display,
-no GPU. Input is injected with `Rwindow_inject_mouse_move`, `Rwindow_inject_key`...,
+All but `test_render` run with the null platform and the null backend: no
+display, no GPU. Every test program also fails when a block is still
+allocated after `Rshutdown`. Input is injected with `Rwindow_inject_mouse_move`, `Rwindow_inject_key`...,
 which follow the same path as real events.

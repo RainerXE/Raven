@@ -16,11 +16,13 @@ endif()
 option(RAVEN_BUILD_SHARED "Build Raven as a shared library (raven.dll / libraven.so)" OFF)
 option(RAVEN_BUILD_EXAMPLES "Build the example programs" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_TESTS "Build the tests and the benchmark" ${RAVEN_IS_TOP_LEVEL})
+option(RAVEN_BUILD_TOOLS "Build the tools (the designer)" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BACKEND_VULKAN "Compile the Vulkan backend" ON)
 option(RAVEN_WITH_STB_IMAGE "Decode PNG / JPEG / BMP / TGA textures with stb_image" ON)
 option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SDK is found" ON)
 option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator or glslc)" OFF)
 option(RAVEN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(RAVEN_MSVC_STATIC_RUNTIME "Visual C++: link the C runtime statically (/MT) instead of using its DLL (/MD)" OFF)
 set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11 or null")
 set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 null)
 
@@ -39,6 +41,11 @@ if(RAVEN_IS_TOP_LEVEL)
 	if(RAVEN_BUILD_EXAMPLES)
 		set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT raven_editor)
 	endif()
+endif()
+
+if(MSVC AND RAVEN_MSVC_STATIC_RUNTIME)
+	# for a program that must run without the Visual C++ redistributable
+	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -74,6 +81,9 @@ set(RAVEN_PUBLIC_HEADERS
 	include/raven/raven_widget.h
 	include/raven/raven_layout.h
 	include/raven/raven_controls.h
+	include/raven/raven_text_editor.h
+	include/raven/raven_shell.h
+	include/raven/raven_dialogs.h
 	include/raven/raven_viewport.h
 	include/raven/raven_draw.h
 	include/raven/raven_xml.h
@@ -89,6 +99,10 @@ set(RAVEN_CORE_SOURCES
 	src/core/file.c
 	src/core/handle.c
 	src/core/handle.h
+	src/core/heap.c
+	src/core/fs.c
+	src/core/fs.h
+	src/core/heap.h
 	src/core/jobs.c
 	src/core/jobs.h
 	src/core/lfmap.c
@@ -116,9 +130,11 @@ set(RAVEN_RENDER_SOURCES
 	src/render/texture.c
 	src/render/null/null_backend.c
 	src/resources/default_font.c
+	src/resources/mono_font.c
 )
 
 set(RAVEN_WIDGET_SOURCES
+	src/widget/anim.c
 	src/widget/events.c
 	src/widget/layout.c
 	src/widget/paint.c
@@ -157,6 +173,13 @@ set(RAVEN_WIDGETS_SOURCES
 	src/widgets/progress_bar.c
 	src/widgets/slider.c
 	src/widgets/spin_box.c
+	src/widgets/syntax.c
+	src/widgets/text_editor.c
+	src/widgets/header_bar.c
+	src/widgets/file_browser.c
+	src/widgets/dialogs.c
+	src/widgets/dock_area.c
+	src/widgets/island.c
 	src/widgets/text_input.c
 	src/widgets/tree_view.c
 	src/widgets/viewport.c
@@ -165,6 +188,9 @@ set(RAVEN_WIDGETS_SOURCES
 set(RAVEN_XML_SOURCES
 	src/xml/xml.h
 	src/xml/xml_attributes.c
+	src/xml/xml_components.c
+	src/xml/xml_dom.c
+	src/xml/xml_schema.c
 	src/xml/xml_loader.c
 	src/xml/xml_parser.c
 )
@@ -190,7 +216,11 @@ if(RAVEN_PLATFORM_SELECTED STREQUAL "win32")
 		src/platform/win32/win32_platform.c
 	)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_PLATFORM_WIN32)
-	list(APPEND RAVEN_LIBRARIES user32 gdi32)
+	list(APPEND RAVEN_LIBRARIES user32 gdi32 shell32 comdlg32 ole32)
+	if(MINGW)
+		# some MinGW distributions declare the API of Windows XP unless told otherwise; Raven needs Windows 7
+		list(APPEND RAVEN_DEFINITIONS _WIN32_WINNT=0x0601 WINVER=0x0601)
+	endif()
 elseif(RAVEN_PLATFORM_SELECTED STREQUAL "x11")
 	find_package(X11 REQUIRED)
 	list(APPEND RAVEN_PLATFORM_SOURCES
@@ -279,6 +309,13 @@ set_target_properties(raven PROPERTIES
 )
 raven_set_compiler_options(raven)
 
+if(MINGW AND RAVEN_BUILD_SHARED)
+	# the DLL is raven.dll, as with Visual C++ (libraven.dll.a is what programs link with),
+	# and it does not need the DLLs of the compiler to be shipped beside it
+	set_target_properties(raven PROPERTIES PREFIX "")
+	target_link_options(raven PRIVATE -static-libgcc)
+endif()
+
 if(RAVEN_PLATFORM_SELECTED STREQUAL "x11")
 	target_include_directories(raven PRIVATE ${X11_INCLUDE_DIR})
 endif()
@@ -289,7 +326,7 @@ endif()
 message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SELECTED} vulkan=${RAVEN_BACKEND_VULKAN} shared=${RAVEN_BUILD_SHARED}")
 
 # ---------------------------------------------------------------------------
-#  Examples and tests
+#  Examples, tools and tests
 # ---------------------------------------------------------------------------
 
 if(RAVEN_BUILD_EXAMPLES)
@@ -299,6 +336,12 @@ endif()
 if(RAVEN_BUILD_TESTS)
 	enable_testing()
 	add_subdirectory(tests)
+	add_subdirectory(bindings)
+endif()
+
+# (after enable_testing: the designer has a test of its own)
+if(RAVEN_BUILD_TOOLS)
+	add_subdirectory(tools)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -323,3 +366,45 @@ write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion
 	VERSION ${PROJECT_VERSION} COMPATIBILITY SameMinorVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ravenConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion.cmake"
 	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/raven)
+
+# ---------------------------------------------------------------------------
+#  Packages:  cmake --build <dir> --target package
+#  (dist.bat and dist.sh build the complete ones: static and shared together)
+# ---------------------------------------------------------------------------
+
+if(RAVEN_IS_TOP_LEVEL)
+	install(FILES README.md THIRD_PARTY.md DESTINATION ${CMAKE_INSTALL_DATADIR}/raven)
+	install(DIRECTORY docs DESTINATION ${CMAKE_INSTALL_DATADIR}/raven)
+	# the licenses of what the library contains (THIRD_PARTY.md says what and why)
+	file(GLOB RAVEN_THIRD_PARTY_LICENSES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/third_party" "third_party/*/LICENSE*" "third_party/*/OFL*")
+	foreach(license ${RAVEN_THIRD_PARTY_LICENSES})
+		get_filename_component(component "${license}" DIRECTORY)
+		install(FILES "third_party/${license}" DESTINATION ${CMAKE_INSTALL_DATADIR}/raven/licenses/${component})
+	endforeach()
+	install(DIRECTORY bindings DESTINATION ${CMAKE_INSTALL_DATADIR}/raven
+		PATTERN "CMakeLists.txt" EXCLUDE PATTERN "target" EXCLUDE PATTERN "__pycache__" EXCLUDE PATTERN "Cargo.lock" EXCLUDE)
+
+	if(MSVC)
+		set(RAVEN_PACKAGE_COMPILER "msvc")
+	elseif(MINGW)
+		set(RAVEN_PACKAGE_COMPILER "mingw")
+	else()
+		string(TOLOWER "${CMAKE_C_COMPILER_ID}" RAVEN_PACKAGE_COMPILER)
+	endif()
+	string(TOLOWER "${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}" RAVEN_PACKAGE_SYSTEM)
+	if(RAVEN_BUILD_SHARED)
+		set(RAVEN_PACKAGE_KIND "shared")
+	else()
+		set(RAVEN_PACKAGE_KIND "static")
+	endif()
+	set(CPACK_PACKAGE_NAME "raven")
+	set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+	set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+	set(CPACK_PACKAGE_FILE_NAME "raven-${PROJECT_VERSION}-${RAVEN_PACKAGE_SYSTEM}-${RAVEN_PACKAGE_COMPILER}-${RAVEN_PACKAGE_KIND}")
+	if(WIN32)
+		set(CPACK_GENERATOR "ZIP")
+	else()
+		set(CPACK_GENERATOR "TGZ")
+	endif()
+	include(CPack)
+endif()

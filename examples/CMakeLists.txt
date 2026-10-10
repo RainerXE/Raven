@@ -4,6 +4,12 @@
 #   editor           a window described in XML, software-rendered viewport,
 #                    custom widget, virtual list
 #   glass            the glass themes: translucent, refracting controls and panels
+#   notepad          a text editor: custom header bar, languages, file dialogs,
+#                    files dropped from the system
+#   animations       transitions, springs in a custom widget, an island
+#   workspace        panels that dock, a file browser, materials
+#   components       tags declared in XML with <Widget>, documents built from C
+#   memory           an allocator given by the application, and the statistics
 #   viewport_vulkan  a Vulkan scene shown in the UI (offscreen image + in-pass draw)
 #   viewport_opengl  an OpenGL scene shown in a native child window
 
@@ -23,6 +29,11 @@ endfunction()
 raven_add_example(hello hello/main.c)
 raven_add_example(editor editor/main.c editor/editor.xml)
 raven_add_example(glass glass/main.c glass/glass.xml)
+raven_add_example(notepad notepad/main.c notepad/notepad.xml)
+raven_add_example(animations animations/main.c animations/animations.xml)
+raven_add_example(workspace workspace/main.c workspace/workspace.xml)
+raven_add_example(components components/main.c components/components.xml components/widgets.xml)
+raven_add_example(memory memory/main.c)
 
 # The Vulkan example calls Vulkan itself, so it needs the Vulkan library
 # (the Vulkan SDK on Windows, libvulkan-dev on Linux). Raven does not.

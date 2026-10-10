@@ -60,7 +60,12 @@ int main(void) {
 	quit = Rwidget_add_child(row, Rbutton_create("Quit"));
 	Rbutton_set_clicked_callback(quit, on_quit, NULL);
 
-	example_run(window);
+	/* the loop belongs to the application: Raven draws one frame per call,
+	 * and Rwait_frame sleeps until there is something to draw */
+	if (!example_automated(window)) {
+		while (Rwait_frame(-1.0)) {
+		}
+	}
 
 	/* releases every window, widget and resource that is still alive */
 	Rshutdown();

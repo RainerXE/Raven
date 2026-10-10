@@ -153,7 +153,7 @@ static void scene_draw(int width, int height) {
 	glEnd();
 }
 
-/* Called once per Rupdate. */
+/* Called once per frame. */
 static void on_frame(double delta_seconds, void* user_data) {
 	int width = 0, height = 0;
 	(void)user_data;
@@ -204,7 +204,12 @@ int main(void) {
 	}
 
 	Rset_frame_callback(on_frame, NULL);
-	example_run(app.window);
+	/* the loop belongs to the application: Raven draws one frame per call,
+	 * and Rwait_frame sleeps until there is something to draw */
+	if (!example_automated(app.window)) {
+		while (Rwait_frame(-1.0)) {
+		}
+	}
 
 	/* the context goes before the window it was created on */
 	Rset_frame_callback(NULL, NULL);

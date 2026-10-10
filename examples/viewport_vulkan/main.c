@@ -534,7 +534,12 @@ int main(void) {
 	Rviewport_set_draw_callback(app.callback_viewport, on_draw, NULL);
 	Rset_frame_callback(on_frame, NULL);
 
-	example_run(app.window);
+	/* the loop belongs to the application: Raven draws one frame per call,
+	 * and Rwait_frame sleeps until there is something to draw */
+	if (!example_automated(app.window)) {
+		while (Rwait_frame(-1.0)) {
+		}
+	}
 
 	/* ---- shutdown: the device belongs to Raven, so our objects go first ---- */
 	Rset_frame_callback(NULL, NULL);

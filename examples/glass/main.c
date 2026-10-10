@@ -6,7 +6,8 @@
  * Two things are needed to get this look:
  *
  *   Rtheme_apply(R_THEME_GLASS_DARK);      every control becomes glass
- *   <Border Material="Glass" ...>          a panel of glass (glass.xml)
+ *   <Border Material="FrostedGlass" ...>   a panel of glass: clear (Glass),
+ *                                          frosted or tinted (glass.xml)
  *
  * Glass shows what is behind it, so it needs something to show: the theme
  * gives the window a soft colored wallpaper, replaced with
@@ -85,6 +86,9 @@ static void add_card(Rid grid, int index) {
 	Rslot_set_valign(chip, R_VALIGN_BOTTOM);
 	Rslot_set_padding(chip, 12.0f, 0.0f, 0.0f, 12.0f);
 	(void)title;
+
+	/* the cards pop in one after the other */
+	Rwidget_set_transition(card, R_TRANSITION_POP, 0.30f + 0.06f * (float)index);
 }
 
 static void on_action(Rid sender, const char* action, void* user_data) {
@@ -104,7 +108,7 @@ static void on_action(Rid sender, const char* action, void* user_data) {
 	}
 }
 
-/* Called once per Rupdate: the player advances while it plays. */
+/* Called once per frame: the player advances while it plays. */
 static void on_frame(double delta_seconds, void* user_data) {
 	char text[16];
 	int total;
@@ -164,7 +168,12 @@ int main(int argc, char** argv) {
 	/* the player moves: keep producing frames */
 	Rwindow_set_continuous_redraw(app.window, R_TRUE);
 
-	example_run(app.window);
+	/* the loop belongs to the application: Raven draws one frame per call,
+	 * and Rwait_frame sleeps until there is something to draw */
+	if (!example_automated(app.window)) {
+		while (Rwait_frame(-1.0)) {
+		}
+	}
 
 	Rshutdown();
 	return 0;

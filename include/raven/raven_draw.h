@@ -17,6 +17,29 @@
 
 typedef struct RPainter RPainter;
 
+/**
+ * How a spring moves. Animations in Raven are springs, as on iOS: a value is
+ * pulled toward its target and may run past it before settling, which is what
+ * makes a control feel alive rather than mechanical.
+ */
+typedef enum RMotion{
+	/** Fast, no bounce: hover, highlights. */
+	R_MOTION_SNAPPY = 0x0320,
+	/** Slower, no bounce: scrolling, fades, sizes. */
+	R_MOTION_SMOOTH,
+	/** Runs a little past the target and comes back: switches, popups, pressed buttons. */
+	R_MOTION_BOUNCY,
+	/** Swings several times around the target: things that fly in or get dropped. */
+	R_MOTION_WOBBLY
+}RMotion;
+
+/** State of one animated value. Zero-initialize it and keep it with the widget. */
+typedef struct RSpring {
+	float value;
+	float velocity;
+	int started;
+} RSpring;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -67,6 +90,22 @@ extern "C" {
 	 */
 	RAVEN_API void Rdraw_glass(RPainter* painter, float x, float y, float width, float height,
 		float radius, float r, float g, float b, float a);
+
+	/**
+	 * @brief Animates a value from the paint callback of a custom widget.
+	 * Moves the spring toward `target` by the time elapsed since the last
+	 * frame and returns its value. While it moves, the window keeps drawing
+	 * frames by itself. The first call puts the spring on its target.
+	 *
+	 *     static RSpring size;                                  (zeroed)
+	 *     float s = Rdraw_spring(painter, &size, hovered ? 1.0f : 0.0f, R_MOTION_BOUNCY);
+	 *     Rdraw_circle(painter, cx, cy, 20.0f + 8.0f * s, ...);
+	 */
+	RAVEN_API float Rdraw_spring(RPainter* painter, RSpring* spring, float target, RMotion motion);
+	/** @brief Pushes a spring away from its target (units per second): it bounces back. */
+	RAVEN_API void Rspring_kick(RSpring* spring, float velocity);
+	/** @brief Puts a spring at rest on a value, without animation. */
+	RAVEN_API void Rspring_set(RSpring* spring, float value);
 
 	/** @brief Restricts the following draws to a rectangle, intersected with the current one. */
 	RAVEN_API void Rdraw_push_clip_rect(RPainter* painter, float x, float y, float width, float height);

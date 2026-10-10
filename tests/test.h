@@ -75,12 +75,28 @@ static inline int test_init(int worker_threads) {
 	desc.headless = R_TRUE;
 	desc.worker_threads = worker_threads;
 	Rerror_set_callback(test_error_callback);
-	return Rinit_ex(&desc);
+	if (!Rinit_ex(&desc)) return 0;
+	/* the tests read the state right after an input: no animation in between */
+	Rset_animations_enabled(R_FALSE);
+	return 1;
 }
 
 #define RUN(function) do { printf("%s\n", #function); function(); } while (0)
 
+/* Called after Rshutdown: besides the checks of the test, the library must have freed everything. */
 static inline int test_report(const char* name) {
+	RMemoryStats memory;
+	Rmemory_get_stats(&memory);
+	g_test_checks++;
+	if (memory.allocation_count != 0) {
+		g_test_failures++;
+		printf("  FAIL: %u allocation(s) of the library are still alive after Rshutdown\n", (unsigned)memory.allocation_count);
+	}
+	g_test_checks++;
+	if (!Rmemory_check()) {
+		g_test_failures++;
+		printf("  FAIL: the heap of the library is corrupted\n");
+	}
 	printf("%s: %d checks, %d failures\n", name, g_test_checks, g_test_failures);
 	return g_test_failures == 0 ? 0 : 1;
 }

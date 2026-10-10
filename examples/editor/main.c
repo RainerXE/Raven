@@ -425,7 +425,7 @@ static void on_outliner_selection(Rid tree, Rid item, void* user_data) {
  *  Frame
  * ------------------------------------------------------------------------- */
 
-/* Called once per Rupdate, before the layout. */
+/* Called once per frame, before the layout. */
 static void on_frame(double delta_seconds, void* user_data) {
 	static double stats_timer;
 	(void)user_data;
@@ -491,7 +491,12 @@ int main(void) {
 	scene_add("Planet");
 	scene_add("Moon");
 
-	example_run(ui.window);
+	/* the loop belongs to the application: Raven draws one frame per call,
+	 * and Rwait_frame sleeps until there is something to draw */
+	if (!example_automated(ui.window)) {
+		while (Rwait_frame(-1.0)) {
+		}
+	}
 
 	free(g_render.pixels);
 	Rshutdown();

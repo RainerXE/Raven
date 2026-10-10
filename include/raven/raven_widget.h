@@ -78,6 +78,22 @@ typedef enum RWidgetType{
 	/** Widget painted and measured by application callbacks. */
 	R_WIDGET_CUSTOM,
 
+	/* ---- raven_text_editor.h ---- */
+	/** Multi-line text editor. */
+	R_WIDGET_TEXT_EDITOR,
+
+	/* ---- raven_shell.h ---- */
+	/** Title bar of a window with a custom header, holding any widget. */
+	R_WIDGET_HEADER_BAR,
+	/** Panels docked side by side or behind tabs, that the user rearranges. */
+	R_WIDGET_DOCK_AREA,
+	/** A capsule that unfolds into a panel, at the top of a window. */
+	R_WIDGET_ISLAND,
+
+	/* ---- raven_dialogs.h ---- */
+	/** Explorer of the files of the computer. */
+	R_WIDGET_FILE_BROWSER,
+
 	R_WIDGET_LAST_
 }RWidgetType;
 
@@ -103,6 +119,31 @@ typedef enum RVisibility{
 	/** Not drawn and takes no space. */
 	R_COLLAPSED
 }RVisibility;
+
+/**
+ * How a widget arrives. A transition animates what the widget and its
+ * children draw; the layout is not affected, the widget is in place from the
+ * first frame for its neighbours and for the mouse.
+ */
+typedef enum RTransition{
+	R_TRANSITION_NONE = 0x0300,
+	/** Becomes opaque. */
+	R_TRANSITION_FADE,
+	/** Grows from a smaller size and bounces a little past its own. */
+	R_TRANSITION_POP,
+	/** Shrinks from a larger size. */
+	R_TRANSITION_ZOOM,
+	/** Flies in from below / above / the right / the left, and settles with a bounce. */
+	R_TRANSITION_FLY_UP,
+	R_TRANSITION_FLY_DOWN,
+	R_TRANSITION_FLY_LEFT,
+	R_TRANSITION_FLY_RIGHT,
+	/** Falls from above, squashes on landing and wobbles. */
+	R_TRANSITION_DROP,
+	/** Short slide from the right / from the left, without bounce: pages that replace one another. */
+	R_TRANSITION_SLIDE_LEFT,
+	R_TRANSITION_SLIDE_RIGHT
+}RTransition;
 
 typedef enum ROrientation{
 	R_HORIZONTAL = 0x0270,
@@ -227,11 +268,25 @@ extern "C" {
 	/** @brief Opacity multiplier applied to the widget and its descendants (0..1). */
 	RAVEN_API void Rwidget_set_opacity(Rid widget, float opacity);
 
+	/**
+	 * @brief Gives the widget a transition that plays each time it appears:
+	 * when its window is first drawn, when it is added to a window that is
+	 * shown, and when it becomes visible again (Rwidget_set_visibility, a
+	 * tab or a switcher showing it). In XML: Appear="FlyUp" AppearDelay="0.1".
+	 * @param delay_seconds Time before it starts. Give growing delays to the
+	 * items of a group to make them arrive one after the other.
+	 */
+	RAVEN_API void Rwidget_set_transition(Rid widget, RTransition transition, float delay_seconds);
+	/** @brief Plays a transition once, now, whatever the widget was given with Rwidget_set_transition. */
+	RAVEN_API void Rwidget_play_transition(Rid widget, RTransition transition, float delay_seconds);
+
 	/** @brief R_TRUE clips the descendants to the bounds of the widget. */
 	RAVEN_API void Rwidget_set_clipping(Rid widget, int clip);
 
 	/** @brief Text shown when the cursor rests on the widget. NULL removes it. */
 	RAVEN_API void Rwidget_set_tooltip(Rid widget, const char* text);
+	/** @return The tooltip text of the widget, "" when it has none. */
+	RAVEN_API const char* Rwidget_get_tooltip(Rid widget);
 
 	RAVEN_API void Rwidget_set_cursor(Rid widget, RCursor cursor);
 
@@ -273,6 +328,30 @@ extern "C" {
 	RAVEN_API void Rwidget_set_action(Rid widget, const char* action);
 	RAVEN_API const char* Rwidget_get_action(Rid widget);
 
+	/**
+	 * @brief Makes the widget a target for what is dragged from other
+	 * applications: files from the file manager, text. It is highlighted
+	 * while a drop on it would be accepted. NULL removes the callback.
+	 */
+	RAVEN_API void Rwidget_set_drop_callback(Rid widget, RDropCallback callback, void* user_data);
+
+	/**
+	 * @brief In a window created with R_WINDOW_CUSTOM_HEADER: dragging the
+	 * widget moves the window and a double click maximizes it, as a title bar
+	 * does. The buttons, fields and other controls inside it keep working.
+	 * In XML: WindowDrag="true".
+	 */
+	RAVEN_API void Rwidget_set_window_drag(Rid widget, int enabled);
+
+	/** @brief Deepest widget of a subtree under a point of its window, or R_INVALID_ID. */
+	RAVEN_API Rid Rwidget_hit_test(Rid root, float x, float y);
+	/**
+	 * @brief Deepest visible widget of a subtree under a point of its window,
+	 * whether it reacts to the pointer or not: a label, a panel, a disabled
+	 * button. What a design tool selects with a click.
+	 */
+	RAVEN_API Rid Rwidget_pick(Rid root, float x, float y);
+
 	/** @brief Menu opened by a right click on the widget. The widget does not own it. */
 	RAVEN_API void Rwidget_set_context_menu(Rid widget, Rid menu);
 
@@ -290,6 +369,18 @@ extern "C" {
 	 */
 	RAVEN_API void Rwidget_set_color(Rid widget, RColorRole role, float r, float g, float b, float a);
 	RAVEN_API void Rwidget_clear_color(Rid widget, RColorRole role);
+
+	/**
+	 * @brief Gives one widget a material of its own, whatever the theme:
+	 * a solid button in a glass window, a panel of clear glass in a flat one.
+	 * A widget that draws no surface (a box, a label) gets one of this
+	 * material behind it: any widget can become a panel of glass.
+	 * In XML: Material="Glass | FrostedGlass | TintedGlass | Solid".
+	 * @param material R_MATERIAL_DEFAULT follows the theme again.
+	 */
+	RAVEN_API void Rwidget_set_material(Rid widget, RMaterial material);
+	/** @return The material the widget is drawn with: its own, or the one of the theme. */
+	RAVEN_API RMaterial Rwidget_get_material(Rid widget);
 
 	/** @brief Overrides a theme metric for one widget. */
 	RAVEN_API void Rwidget_set_metric(Rid widget, RMetric metric, float value);

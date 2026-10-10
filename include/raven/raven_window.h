@@ -17,7 +17,15 @@ typedef enum RWindowFlags{
 	R_WINDOW_NO_RESIZE  = (1 << 0),
 	R_WINDOW_HIDDEN     = (1 << 1),
 	R_WINDOW_BORDERLESS = (1 << 2),
-	R_WINDOW_MAXIMIZED  = (1 << 3)
+	R_WINDOW_MAXIMIZED  = (1 << 3),
+	/**
+	 * No title bar from the OS: the content covers the whole window and
+	 * draws its own header, with a R_WIDGET_HEADER_BAR (raven_shell.h) or
+	 * with any widget given to Rwidget_set_window_drag. The window is still
+	 * moved, resized, snapped and maximized by the OS, as it does for its own
+	 * title bars.
+	 */
+	R_WINDOW_CUSTOM_HEADER = (1 << 4)
 }RWindowFlags;
 
 typedef enum RWindowSystem{
@@ -40,6 +48,18 @@ typedef struct RNativeWindow {
 	uintptr_t visual;
 } RNativeWindow;
 
+/** Edges and corners of a window, for Rwindow_begin_resize. */
+typedef enum RWindowEdge{
+	R_EDGE_LEFT = 0x00D0,
+	R_EDGE_RIGHT,
+	R_EDGE_TOP,
+	R_EDGE_BOTTOM,
+	R_EDGE_TOP_LEFT,
+	R_EDGE_TOP_RIGHT,
+	R_EDGE_BOTTOM_LEFT,
+	R_EDGE_BOTTOM_RIGHT
+}RWindowEdge;
+
 typedef enum RMouseButton{
 	R_MOUSE_LEFT = 0,
 	R_MOUSE_RIGHT,
@@ -60,7 +80,7 @@ typedef enum RCursor{
 	R_CURSOR_IBEAM,
 	R_CURSOR_HAND,
 	R_CURSOR_CROSSHAIR,
-	RAVEN_CURSOR_RESIZE_H,
+	R_CURSOR_RESIZE_H,
 	R_CURSOR_RESIZE_V,
 	R_CURSOR_RESIZE_NWSE,
 	R_CURSOR_RESIZE_NESW,
@@ -82,7 +102,7 @@ typedef enum RKey{
 	R_KEY_SEMICOLON = 59,
 	R_KEY_EQUAL = 61,
 	R_KEY_A = 65, R_KEY_B, R_KEY_C, R_KEY_D, R_KEY_E, R_KEY_F,
-	R_KEY_G, RAVEN_KEY_H, R_KEY_I, R_KEY_J, R_KEY_K, R_KEY_L,
+	R_KEY_G, R_KEY_H, R_KEY_I, R_KEY_J, R_KEY_K, R_KEY_L,
 	R_KEY_M, R_KEY_N, R_KEY_O, R_KEY_P, R_KEY_Q, R_KEY_R,
 	R_KEY_S, R_KEY_T, R_KEY_U, R_KEY_V, R_KEY_W, R_KEY_X,
 	R_KEY_Y, R_KEY_Z,
@@ -174,6 +194,43 @@ typedef struct REvent {
 	Ruint codepoint;
 } REvent;
 
+/** Moments of a drag coming from another application (files from the file manager, text...). */
+typedef enum RDropPhase{
+	/** The pointer came over the target. */
+	R_DROP_ENTER = 0x00E0,
+	/** It moves over the target. */
+	R_DROP_MOVE,
+	/** It left the target without dropping. */
+	R_DROP_LEAVE,
+	/** The user dropped: `paths` and `text` hold what was dropped. */
+	R_DROP_DROPPED
+}RDropPhase;
+
+/**
+ * What a drop target receives. The files and the text are only known when
+ * the drop happens (R_DROP_DROPPED), and are valid during the callback.
+ */
+typedef struct RDropEvent {
+	RDropPhase phase;
+	Rid window;
+	/** Pointer position in the window, and relative to the target widget. */
+	float x, y;
+	float local_x, local_y;
+	/** Dropped files and folders, as UTF-8 paths. */
+	const char* const* paths;
+	int path_count;
+	/** Dropped text when it is not files, or NULL. */
+	const char* text;
+} RDropEvent;
+
+/**
+ * @brief Called for a drop target (a widget, or a window: `target` is its
+ * handle). Return R_TRUE to accept: while the pointer is over the target this
+ * shows the "can drop here" cursor and highlights the target; for
+ * R_DROP_DROPPED it tells the source that the data was taken.
+ */
+typedef int (*RDropCallback)(Rid target, const RDropEvent* event, void* user_data);
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -202,6 +259,7 @@ extern "C" {
 	RAVEN_API Rid Rwindow_get_content(Rid window);
 
 	RAVEN_API void Rwindow_set_title(Rid window, const char* title);
+	RAVEN_API const char* Rwindow_get_title(Rid window);
 	RAVEN_API void Rwindow_set_size(Rid window, int width, int height);
 	RAVEN_API void Rwindow_get_size(Rid window, int* width, int* height);
 	RAVEN_API void Rwindow_set_min_size(Rid window, int width, int height);
@@ -217,6 +275,26 @@ extern "C" {
 	RAVEN_API void Rwindow_maximize(Rid window);
 	RAVEN_API void Rwindow_minimize(Rid window);
 	RAVEN_API void Rwindow_restore(Rid window);
+	RAVEN_API int Rwindow_is_maximized(Rid window);
+	RAVEN_API int Rwindow_is_minimized(Rid window);
+	/** @return R_TRUE while the window is the one the user is working in. */
+	RAVEN_API int Rwindow_is_active(Rid window);
+
+	/**
+	 * @brief Asks to close the window, as the close button of its title bar
+	 * does: the close callback is asked first and may refuse.
+	 */
+	RAVEN_API void Rwindow_close(Rid window);
+
+	/**
+	 * Custom headers. Call these from a mouse-down handler, while the left
+	 * button is held: the window follows the pointer until the button is
+	 * released (the widget does not receive the release). A
+	 * R_WIDGET_HEADER_BAR and the widgets given to Rwidget_set_window_drag do
+	 * it by themselves.
+	 */
+	RAVEN_API void Rwindow_begin_move(Rid window);
+	RAVEN_API void Rwindow_begin_resize(Rid window, RWindowEdge edge);
 
 	/**
 	 * @brief Color behind the content. By default it is the theme color
@@ -245,6 +323,12 @@ extern "C" {
 	/** @brief Called after the window was resized. Sizes are in logical units. */
 	typedef void (*RWindowResizeCallback)(Rid window, int width, int height, void* user_data);
 	RAVEN_API void Rwindow_set_resize_callback(Rid window, RWindowResizeCallback callback, void* user_data);
+
+	/**
+	 * @brief Takes what is dropped on the window from other applications,
+	 * where no widget takes it (Rwidget_set_drop_callback). NULL removes it.
+	 */
+	RAVEN_API void Rwindow_set_drop_callback(Rid window, RDropCallback callback, void* user_data);
 
 	RAVEN_API void Rwindow_set_user_handle(Rid window, void* handle);
 	RAVEN_API void* Rwindow_get_user_handle(Rid window);
@@ -281,6 +365,14 @@ extern "C" {
 	RAVEN_API void Rwindow_inject_mouse_wheel(Rid window, float wheel_x, float wheel_y);
 	RAVEN_API void Rwindow_inject_key(Rid window, RKey key, int pressed, Ruint modifiers);
 	RAVEN_API void Rwindow_inject_text(Rid window, const char* text);
+	/**
+	 * @brief A drag from another application moves over the window
+	 * (`inside` R_TRUE) or leaves it.
+	 * @return R_TRUE when a drop at this position would be accepted.
+	 */
+	RAVEN_API int Rwindow_inject_drag(Rid window, float x, float y, int inside);
+	/** @brief Drops files and / or text at a position. Returns R_TRUE when a target took them. */
+	RAVEN_API int Rwindow_inject_drop(Rid window, float x, float y, const char* const* paths, int path_count, const char* text);
 
 	/**
 	 * @brief Registers a keyboard shortcut active while the window has focus and

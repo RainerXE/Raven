@@ -12,25 +12,28 @@
  *         Rinit(R_BACKEND_VULKAN);
  *         Rid window = Rwindow_create("Hello", 640, 480, R_WINDOW_DEFAULT);
  *         Rwindow_set_content(window, Rlabel_create("Hello, world"));
- *         int code = Rrun();
+ *         while (Rwait_frame(-1.0)) {}
  *         Rshutdown();
- *         return code;
+ *         return 0;
  *     }
  *
  * The headers can also be included one by one:
  *
- *     raven/raven_core.h       lifecycle, main loop, threads, errors
- *     raven/raven_window.h     windows, input events
- *     raven/raven_style.h      themes, colors, metrics
- *     raven/raven_resources.h  fonts, textures
- *     raven/raven_widget.h     widget tree, slots, common properties
- *     raven/raven_layout.h     panels
- *     raven/raven_controls.h   labels, buttons, inputs, lists, menus...
- *     raven/raven_viewport.h   content rendered by the application
- *     raven/raven_draw.h       custom widgets
- *     raven/raven_xml.h        windows described in XML
- *     raven/raven_vulkan.h     sharing a Vulkan device or images (no Vulkan header needed)
- *     raven/raven_backend.h    writing a rendering backend
+ *     raven/raven_core.h         lifecycle, the loop, memory, threads, actions, errors
+ *     raven/raven_window.h       windows, input events, drag and drop
+ *     raven/raven_style.h        themes, colors, metrics, materials
+ *     raven/raven_resources.h    fonts, textures
+ *     raven/raven_widget.h       widget tree, slots, common properties, transitions
+ *     raven/raven_layout.h       panels
+ *     raven/raven_controls.h     labels, buttons, inputs, lists, menus...
+ *     raven/raven_text_editor.h  multi-line text editor and its languages
+ *     raven/raven_shell.h        header bar, docked panels, island
+ *     raven/raven_dialogs.h      dialogs, message boxes, file dialogs, file browser
+ *     raven/raven_viewport.h     content rendered by the application
+ *     raven/raven_draw.h         custom widgets: painting, springs
+ *     raven/raven_xml.h          interfaces in XML, declared tags, documents
+ *     raven/raven_vulkan.h       sharing the Vulkan device of the library
+ *     raven/raven_backend.h      writing a rendering backend
  */
 
 #ifndef RAVEN_H
@@ -43,6 +46,9 @@
 #include "raven/raven_widget.h"
 #include "raven/raven_layout.h"
 #include "raven/raven_controls.h"
+#include "raven/raven_text_editor.h"
+#include "raven/raven_shell.h"
+#include "raven/raven_dialogs.h"
 #include "raven/raven_viewport.h"
 #include "raven/raven_draw.h"
 #include "raven/raven_xml.h"

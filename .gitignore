@@ -1,7 +1,10 @@
-build/
-build-*/
-out/
+*.pyc
 .vs/
 .vscode/
 CMakeSettings.json
 CMakeUserPresets.json
+__pycache__/
+build-*/
+build/
+dist/
+out/

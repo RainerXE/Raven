@@ -121,13 +121,27 @@ typedef struct RInitDesc {
 	float ui_scale;
 } RInitDesc;
 
-/** Optional memory hooks. See Rset_allocator. */
+/** Memory functions of the application, to replace the allocator of Raven. See Rset_allocator. */
 typedef struct RAllocator {
 	void* (*alloc)(size_t size, void* user_data);
 	void* (*realloc)(void* ptr, size_t size, void* user_data);
 	void  (*free)(void* ptr, void* user_data);
 	void* user_data;
 } RAllocator;
+
+/** What the library holds. See Rmemory_get_stats. */
+typedef struct RMemoryStats {
+	/** Bytes in the blocks currently allocated. 0 with the allocator of the application. */
+	size_t used_bytes;
+	/** Highest value of used_bytes since the start. */
+	size_t peak_bytes;
+	/** Bytes taken from the OS: used_bytes, plus what is free in the heap. */
+	size_t reserved_bytes;
+	/** Blocks currently allocated. 0 after Rshutdown: anything else is a leak of the library. */
+	size_t allocation_count;
+	/** Allocations made since the start. */
+	uint64_t total_allocations;
+} RMemoryStats;
 
 /** Timings and counters of the last frame produced for a window. */
 typedef struct RFrameStats {
@@ -176,11 +190,60 @@ extern "C" {
 	/** @return The library version, e.g. "0.1.0". */
 	RAVEN_API const char* Rget_version(void);
 
+	/* ============================================================================
+	 *  MEMORY
+	 * ============================================================================ */
+
 	/**
-	 * @brief Replaces the memory functions. Must be called before Rinit.
-	 * The functions are called from several threads and must be thread-safe.
+	 * Raven does not call malloc. It has its own allocator: memory is taken
+	 * from the OS by regions of 4 MB and handed out by a TLSF heap, which
+	 * allocates and frees in constant time and merges free neighbours. All the
+	 * memory of the library goes through it, the bundled font and image
+	 * decoders included.
+	 */
+
+	/**
+	 * @brief Replaces the allocator of Raven with the functions of the
+	 * application (an engine allocator, a tracker...). NULL selects the
+	 * allocator of Raven again. Must be called before Rinit, and before any
+	 * other function that allocates. The functions are called from several
+	 * threads; alloc must return memory aligned for any type (16 bytes).
 	 */
 	RAVEN_API void Rset_allocator(const RAllocator* allocator);
+
+	/**
+	 * @return An allocator that forwards to malloc, realloc and free of the C
+	 * runtime: Rset_allocator(Rallocator_get_system()) is how memory tools
+	 * that follow malloc (Valgrind, heap profilers) see the blocks of Raven.
+	 * The environment variable RAVEN_ALLOCATOR=system does the same without
+	 * recompiling, and it is the default in a build with AddressSanitizer.
+	 */
+	RAVEN_API const RAllocator* Rallocator_get_system(void);
+
+	/**
+	 * @brief Memory from the allocator of Raven (or from the one given to
+	 * Rset_allocator), for the application: custom widgets, pixel buffers.
+	 * Aligned on 16 bytes. Never returns NULL: running out of memory is a
+	 * fatal error. Thread-safe.
+	 */
+	RAVEN_API void* Rmemory_alloc(size_t size);
+	/** @brief Resizes a block, keeping its content. A NULL block is allocated. Thread-safe. */
+	RAVEN_API void* Rmemory_realloc(void* ptr, size_t size);
+	/** @brief Frees a block. NULL is ignored. Thread-safe. */
+	RAVEN_API void Rmemory_free(void* ptr);
+
+	/** @brief What the library holds right now. Thread-safe. */
+	RAVEN_API void Rmemory_get_stats(RMemoryStats* stats);
+
+	/**
+	 * @brief Walks the whole heap of Raven and verifies its structure.
+	 * @return R_FALSE when it is corrupted (a buffer overrun wrote over a block
+	 * header). Slow: for tests and for hunting a bug. Thread-safe.
+	 */
+	RAVEN_API int Rmemory_check(void);
+
+	/** @brief Returns to the OS the regions of the heap that hold nothing. Thread-safe. */
+	RAVEN_API void Rmemory_trim(void);
 
 
 	/* ============================================================================
@@ -188,47 +251,103 @@ extern "C" {
 	 * ============================================================================ */
 
 	/**
-	 * @brief Runs the event loop until Rquit is called or the last window closes.
+	 * Raven has no loop of its own: the application writes it and asks for one
+	 * frame at a time.
 	 *
-	 * The loop is event-driven: when nothing changes, the thread sleeps and no
-	 * frame is produced. It is equivalent to:
+	 *     while (Rdraw_frame()) {            a game or an engine: never waits,
+	 *         update_and_render_my_scene();  call it once per frame of yours
+	 *     }
 	 *
-	 *     while (Ris_running()) { Rwait_events(-1.0); Rupdate(); }
+	 *     while (Rwait_frame(-1.0)) {        a tool: sleeps until something
+	 *     }                                  happens, costs nothing when idle
 	 *
-	 * @return The exit code passed to Rquit.
+	 *     return Rget_exit_code();
 	 */
-	RAVEN_API int Rrun(void);
 
-	/** @brief Asks the event loop to stop. Thread-safe. */
+	/**
+	 * @brief Produces one frame: processes the pending OS events without
+	 * waiting, runs the posted tasks and the timers, then lays out, paints and
+	 * submits every window that changed. A window in which nothing changed is
+	 * not drawn again, so the call is cheap when the UI is idle.
+	 * @return R_FALSE once Rquit was called or the last window is closed.
+	 */
+	RAVEN_API int Rdraw_frame(void);
+
+	/**
+	 * @brief Same as Rdraw_frame, but first sleeps until there is something to
+	 * do: an OS event, a posted task, a timer, an animation, a pending redraw.
+	 * @param timeout_seconds Longest sleep. Negative sleeps without limit, 0
+	 * does not sleep.
+	 */
+	RAVEN_API int Rwait_frame(double timeout_seconds);
+
+	/** @brief Makes Rdraw_frame and Rwait_frame return R_FALSE. Thread-safe. */
 	RAVEN_API void Rquit(int exit_code);
+
+	/** @return The code given to Rquit, 0 when the last window was closed. */
+	RAVEN_API int Rget_exit_code(void);
 
 	/** @return R_FALSE once Rquit was called or every window is closed. */
 	RAVEN_API int Ris_running(void);
 
-	/** @brief Processes pending OS events without waiting. */
+	/**
+	 * @brief Processes the pending OS events without producing a frame.
+	 * Rdraw_frame does it already: only useful to keep the windows responsive
+	 * during a long operation.
+	 */
 	RAVEN_API void Rpoll_events(void);
 
 	/**
-	 * @brief Sleeps until an OS event, a posted task, a timer or a pending redraw.
+	 * @brief Sleeps until an OS event, a posted task, a timer or a pending
+	 * redraw, and processes the OS events. Rwait_frame does it already.
 	 * @param timeout_seconds Maximum wait. Negative waits without limit.
 	 */
 	RAVEN_API void Rwait_events(double timeout_seconds);
 
 	/**
-	 * @brief Runs posted tasks and timers, then lays out, paints and submits
-	 * every window that changed since the last call.
-	 */
-	RAVEN_API void Rupdate(void);
-
-	/**
-	 * @brief Registers a function called once per Rupdate, before layout.
-	 * Use it to drive an application or game loop from Rrun.
+	 * @brief Registers a function called once per frame, before the layout.
+	 * The body of your loop does the same job; the callback is also called
+	 * while the OS keeps the thread in a loop of its own (on Windows, while
+	 * the user moves or resizes a window), when your loop is not running.
 	 */
 	typedef void (*RFrameCallback)(double delta_seconds, void* user_data);
 	RAVEN_API void Rset_frame_callback(RFrameCallback callback, void* user_data);
 
+	/** @return Seconds between the last two frames. */
+	RAVEN_API double Rget_delta_time(void);
+
 	/** @return Seconds elapsed since Rinit, from a monotonic clock. Thread-safe. */
 	RAVEN_API double Rget_time(void);
+
+
+	/* ============================================================================
+	 *  ANIMATIONS
+	 * ============================================================================ */
+
+	/**
+	 * Controls move with springs: buttons squash when pressed and bounce back,
+	 * switches slide and stretch, popups pop out of what opened them, lists
+	 * scroll with inertia and stretch at their ends. Nothing has to be done
+	 * for it; these functions only tune it. See also Rwidget_set_transition
+	 * (widgets that fly in) and Rdraw_spring (custom widgets).
+	 */
+
+	/**
+	 * @brief R_FALSE makes every change immediate: for users who ask for
+	 * reduced motion, and for tests that read the state right after an input.
+	 */
+	RAVEN_API void Rset_animations_enabled(int enabled);
+	RAVEN_API int Rget_animations_enabled(void);
+
+	/** @brief Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion. */
+	RAVEN_API void Rset_animation_speed(float speed);
+
+	/**
+	 * @brief When positive, each frame advances the animations by exactly this
+	 * many seconds instead of the time really elapsed: frames rendered one by
+	 * one for a video or a screenshot, deterministic tests. 0 follows the clock.
+	 */
+	RAVEN_API void Rset_animation_time_step(double seconds);
 
 
 	/* ============================================================================
@@ -239,8 +358,8 @@ extern "C" {
 	typedef void (*RParallelRangeCallback)(Ruint begin, Ruint end, void* user_data);
 
 	/**
-	 * @brief Queues a function to run on the UI thread during the next Rupdate
-	 * and wakes the event loop. Thread-safe: this is how worker threads touch the UI.
+	 * @brief Queues a function to run on the UI thread during the next frame
+	 * and wakes Rwait_frame. Thread-safe: this is how worker threads touch the UI.
 	 */
 	RAVEN_API void Rtask_post(RTaskCallback task, void* user_data);
 
@@ -253,7 +372,7 @@ extern "C" {
 	 */
 	RAVEN_API void Rparallel_for(Ruint count, Ruint grain, RParallelRangeCallback function, void* user_data);
 
-	/** @brief Wakes Rwait_events from any thread. */
+	/** @brief Wakes Rwait_frame and Rwait_events from any thread. */
 	RAVEN_API void Rwake_up(void);
 
 	RAVEN_API int Rget_worker_thread_count(void);
@@ -290,6 +409,13 @@ extern "C" {
 
 	RAVEN_API void Raction_bind(const char* name, RActionCallback callback, void* user_data);
 	RAVEN_API void Raction_unbind(const char* name);
+	/**
+	 * @brief Fires an action as a widget would: the function bound to the
+	 * name is called, or the default handler. What a tool bar button, a
+	 * script or a test uses to do what a menu item does.
+	 * @param sender Passed to the function; R_INVALID_ID when there is none.
+	 */
+	RAVEN_API void Raction_fire(const char* name, Rid sender);
 
 	/** @brief Receives every action that has no bound function (e.g. a script bridge). */
 	RAVEN_API void Raction_set_default_handler(RActionCallback callback, void* user_data);

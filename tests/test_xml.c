@@ -4,6 +4,8 @@
 
 #include "test.h"
 
+#include <stdlib.h>
+
 static int g_actions;
 static Rid g_sender;
 
@@ -175,6 +177,675 @@ static void test_errors(void) {
 	CHECK(Rerror_get_last(NULL, NULL) == R_NO_ERROR);
 }
 
+/* ---------------------------------------------------------------------------
+ *  Widgets declared in XML
+ * ------------------------------------------------------------------------- */
+
+static int register_text(const char* xml) {
+	return Rxml_register_widgets(xml, strlen(xml));
+}
+
+static const char* label_of(Rid scope, const char* name) {
+	Rid label = Rwidget_find(scope, name);
+	return label != R_INVALID_ID ? Rlabel_get_text(label) : "(not found)";
+}
+
+static void test_components(void) {
+	static const char library[] =
+		"<Widgets>"
+		"  <Widget Name=\"Field\" Label=\"Name\" Hint=\"\" Wide=\"false\">"
+		"    <HBox Spacing=\"8\">"
+		"      <Label Name=\"label\" Text=\"{Label}:\" Width=\"{Wide ? 140 : 90}\"/>"
+		"      <TextInput Name=\"input\" Placeholder=\"{Hint}\" Slot.Fill=\"1\"/>"
+		"      <Children/>"
+		"    </HBox>"
+		"  </Widget>"
+		"  <Widget Name=\"Card\" Title=\"Untitled\" Count=\"0\">"
+		"    <Border Padding=\"10\">"
+		"      <VBox Name=\"box\">"
+		"        <Label Name=\"title\" Text=\"{upper(Title)} ({Count * 2 + 1})\"/>"
+		"        <Label Name=\"badge\" If=\"{Count &gt; 2}\">many</Label>"
+		"        <Children><Label Name=\"empty\">Nothing here</Label></Children>"
+		"        <HBox Name=\"footer\"><Children Name=\"footer\"/></HBox>"
+		"      </VBox>"
+		"    </Border>"
+		"  </Widget>"
+		"</Widgets>";
+	Rid window, row, field, card, box, footer;
+
+	CHECK(!Rxml_is_widget_registered("Field"));
+	CHECK(Rxml_register_widgets(library, sizeof(library) - 1) == 2);
+	CHECK(Rxml_is_widget_registered("Field"));
+	CHECK(Rxml_is_widget_registered("card"));
+	CHECK(Rxml_get_registered_widget_count() == 2);
+	CHECK_STR(Rxml_get_registered_widget_name(0), "Field");
+	CHECK(Rxml_get_registered_widget_name(2) == NULL);
+
+	/* the new tags are used like the built-in ones */
+	{
+		const char* xml =
+			"<Window Width=\"400\" Height=\"300\">"
+			"<VBox Name=\"rows\">"
+			"<Field Name=\"email\" Label=\"Email\" Hint=\"you@example.com\" Slot.Padding=\"4\"/>"
+			"<Field Name=\"password\" Label=\"Password\" Wide=\"true\"><Button Name=\"show\" Text=\"Show\"/></Field>"
+			"<Field Name=\"plain\"/>"
+			"</VBox></Window>";
+		window = Rwindow_create_from_xml(xml, strlen(xml));
+	}
+	CHECK(Rwindow_is_valid(window));
+	row = Rwidget_find(window, "email");
+	/* the tag became the root of its body, and took the attributes that are not parameters */
+	CHECK(Rwidget_get_type(row) == R_WIDGET_HBOX);
+	CHECK(Rwidget_get_child_count(row) == 2);
+	CHECK_STR(label_of(row, "label"), "Email:");
+	CHECK_STR(Rtext_input_get_text(Rwidget_find(row, "input")), "");
+	CHECK_RECT(row, 4, 4, 392, Rtheme_get_metric(R_METRIC_CONTROL_HEIGHT));
+	CHECK_RECT(Rwidget_find(row, "label"), 4, 4, 90, Rtheme_get_metric(R_METRIC_CONTROL_HEIGHT));
+	/* an expression of a parameter, and children given at the use */
+	field = Rwidget_find(window, "password");
+	CHECK_STR(label_of(field, "label"), "Password:");
+	{
+		float x, y, w, h;
+		Rwidget_get_rect(Rwidget_find(field, "label"), &x, &y, &w, &h);
+		CHECK_NEAR(w, 140);
+	}
+	CHECK(Rwidget_get_child_count(field) == 3);
+	CHECK(Rwidget_get_parent(Rwidget_find(window, "show")) == field);
+	/* default values */
+	CHECK_STR(label_of(Rwidget_find(window, "plain"), "label"), "Name:");
+	Rwindow_destroy(window);
+
+	/* expressions, conditions, default content and named places for children */
+	card = widget_from("<Card Title=\"Hello\" Count=\"3\"><Button Name=\"ok\" Text=\"OK\" Into=\"footer\"/><Label Name=\"body\">Body</Label></Card>");
+	CHECK(Rwidget_get_type(card) == R_WIDGET_BORDER);
+	box = Rwidget_find(card, "box");
+	footer = Rwidget_find(card, "footer");
+	CHECK_STR(label_of(card, "title"), "HELLO (7)");
+	CHECK(Rwidget_find(card, "badge") != R_INVALID_ID);
+	CHECK(Rwidget_find(card, "empty") == R_INVALID_ID);
+	CHECK(Rwidget_get_parent(Rwidget_find(card, "body")) == box);
+	CHECK(Rwidget_get_parent(Rwidget_find(card, "ok")) == footer);
+	CHECK(Rwidget_get_child_count(footer) == 1);
+	Rwidget_destroy(card);
+
+	card = widget_from("<Card/>");
+	CHECK_STR(label_of(card, "title"), "UNTITLED (1)");
+	CHECK(Rwidget_find(card, "badge") == R_INVALID_ID);
+	CHECK(Rwidget_find(card, "empty") != R_INVALID_ID);
+	CHECK(Rwidget_get_child_count(Rwidget_find(card, "footer")) == 0);
+	Rwidget_destroy(card);
+
+	/* a declared widget uses another one, and passes its own children on */
+	{
+		const char* xml =
+			"<VBox>"
+			"<Widget Name=\"Titled\" Title=\"?\" Level=\"1\">"
+			"  <Card Title=\"{Title} {Level}\" Count=\"{Level + 1}\"><Children/></Card>"
+			"</Widget>"
+			"<Titled Name=\"t\" Title=\"Deep\" Level=\"2\"><Label Name=\"inner\">in</Label></Titled>"
+			"</VBox>";
+		Rid root = widget_from(xml);
+		CHECK(Rwidget_get_child_count(root) == 1);
+		card = Rwidget_find(root, "t");
+		CHECK(Rwidget_get_type(card) == R_WIDGET_BORDER);
+		CHECK_STR(label_of(card, "title"), "DEEP 2 (7)");
+		CHECK(Rwidget_find(card, "badge") != R_INVALID_ID);
+		CHECK(Rwidget_get_parent(Rwidget_find(card, "inner")) == Rwidget_find(card, "box"));
+		Rwidget_destroy(root);
+		CHECK(Rxml_is_widget_registered("Titled"));
+	}
+
+	/* repetitions */
+	{
+		const char* xml =
+			"<VBox>"
+			"<Widget Name=\"Stars\" Count=\"3\" Names=\"a|b\">"
+			"  <HBox>"
+			"    <Repeat Count=\"{Count}\" Var=\"i\"><Label Name=\"star{i}\" Text=\"{i + 1}/{Count}\"/></Repeat>"
+			"    <ForEach Items=\"{Names}\" Var=\"n\"><Button Name=\"b_{n}\" Text=\"{Index}:{n}\" If=\"{n != 'skip'}\"/></ForEach>"
+			"    <If Test=\"{Count == 0}\"><Label Name=\"none\">none</Label></If>"
+			"    <Label Name=\"brace\" Text=\"{{literal}} {'}'}\"/>"
+			"  </HBox>"
+			"</Widget>"
+			"<Stars Name=\"s3\"/>"
+			"<Stars Name=\"s0\" Count=\"0\" Names=\"x|skip|y\"/>"
+			"</VBox>";
+		Rid root = widget_from(xml), s3, s0;
+		s3 = Rwidget_find(root, "s3");
+		s0 = Rwidget_find(root, "s0");
+		CHECK(Rwidget_get_child_count(s3) == 3 + 2 + 1);
+		CHECK_STR(label_of(s3, "star0"), "1/3");
+		CHECK_STR(label_of(s3, "star2"), "3/3");
+		CHECK(Rwidget_find(s3, "b_a") != R_INVALID_ID && Rwidget_find(s3, "b_b") != R_INVALID_ID);
+		CHECK(Rwidget_find(s3, "none") == R_INVALID_ID);
+		CHECK_STR(label_of(s3, "brace"), "{literal} }");
+		CHECK(Rwidget_get_child_count(s0) == 2 + 1 + 1);
+		CHECK(Rwidget_find(s0, "b_x") != R_INVALID_ID && Rwidget_find(s0, "b_y") != R_INVALID_ID);
+		CHECK(Rwidget_find(s0, "b_skip") == R_INVALID_ID);
+		CHECK(Rwidget_find(s0, "none") != R_INVALID_ID);
+		Rwidget_destroy(root);
+	}
+
+	/* outside of a declaration, braces are only braces */
+	{
+		Rid label = widget_from("<Label>int main() { return {0}; }</Label>");
+		CHECK_STR(Rlabel_get_text(label), "int main() { return {0}; }");
+		Rwidget_destroy(label);
+	}
+
+	/* the text between the tags of a use is its Text */
+	{
+		const char* xml = "<VBox><Widget Name=\"Shout\" Text=\"\"><Label Text=\"{Text}!\"/></Widget>"
+			"<Widget Name=\"Plain\"><Label/></Widget><Shout Name=\"a\">hey</Shout><Plain Name=\"b\">ho</Plain></VBox>";
+		Rid root = widget_from(xml);
+		CHECK_STR(label_of(root, "a"), "hey!");
+		CHECK_STR(label_of(root, "b"), "ho");
+		Rwidget_destroy(root);
+	}
+
+	/* mistakes are reported and leave nothing behind */
+	EXPECT_ERRORS_BEGIN();
+	CHECK(widget_from("<VBox><Widget><Label/></Widget></VBox>") != R_INVALID_ID);
+	CHECK(register_text("<Widget Name=\"Button\"><Label/></Widget>") == 0);
+	CHECK(register_text("<Widget Name=\"Empty\"/>") == 0);
+	CHECK(register_text("<Widget Name=\"1x\"><Label/></Widget>") == 0);
+	CHECK(register_text("<Widget Name=\"Loop\"><Loop/></Widget>") == 1);
+	CHECK(widget_from("<Loop/>") == R_INVALID_ID);
+	CHECK(register_text("<Widget Name=\"Two\"><Label/><Label/></Widget>") == 1);
+	CHECK(widget_from("<Two/>") == R_INVALID_ID);
+	CHECK(widget_from("<Widget Name=\"OnlyDeclared\"><Label/></Widget>") == R_INVALID_ID);
+	CHECK(register_text("<Widget Name=\"Broken\"") == 0);
+	EXPECT_ERRORS_END(8);
+	/* If="..." on the use of a declared tag keeps or drops it, and is not passed on to the widget (no warning) */
+	{
+		const char* xml = "<VBox><Widget Name=\"IfChip\" T=\"\"><Label Text=\"{T}\"/></Widget>"
+			"<Widget Name=\"IfHost\" Show=\"\"><HBox><IfChip If=\"{!empty(Show)}\" T=\"{Show}\" Name=\"chip\"/></HBox></Widget>"
+			"<IfHost Name=\"with\" Show=\"yes\"/><IfHost Name=\"without\"/></VBox>";
+		Rid root = widget_from(xml);
+		CHECK(root != R_INVALID_ID);
+		CHECK(Rwidget_get_child_count(Rwidget_find(root, "with")) == 1);
+		CHECK_STR(label_of(Rwidget_find(root, "with"), "chip"), "yes");
+		CHECK(Rwidget_get_child_count(Rwidget_find(root, "without")) == 0);
+		Rwidget_destroy(root);
+	}
+	/* an expression that cannot be computed gives an empty text and a warning */
+	EXPECT_ERRORS_BEGIN();
+	{
+		const char* xml = "<VBox><Widget Name=\"Bad\" A=\"1\"><Label Text=\"[{Unknown}][{A +}][{A / 0}][{nope(A)}]\"/></Widget><Bad Name=\"bad\"/></VBox>";
+		Rid root = widget_from(xml);
+		CHECK_STR(label_of(root, "bad"), "[][][0][]");
+		Rwidget_destroy(root);
+	}
+	EXPECT_ERRORS_END(3);
+
+	/* declarations kept in a file of their own, and brought in where they are needed */
+	{
+		const char* library_xml = "<Widgets><Widget Name=\"FromFile\" Text=\"file\"><Label Text=\"from {Text}\"/></Widget></Widgets>";
+		const char* part_xml = "<Label Name=\"part\">a part</Label>";
+		const char* temp = getenv("TMPDIR") ? getenv("TMPDIR") : (getenv("TEMP") ? getenv("TEMP") : "/tmp");
+		char library_path[512], part_path[512], xml[1400];
+		Rid root;
+		snprintf(library_path, sizeof(library_path), "%s/raven_test_library.xml", temp);
+		snprintf(part_path, sizeof(part_path), "%s/raven_test_part.xml", temp);
+		CHECK(Rfile_write(library_path, library_xml, strlen(library_xml)));
+		CHECK(Rfile_write(part_path, part_xml, strlen(part_xml)));
+		snprintf(xml, sizeof(xml), "<VBox><Include Source=\"%s\"/><Include Source=\"%s\"/><FromFile Name=\"used\"/></VBox>", library_path, part_path);
+		root = widget_from(xml);
+		CHECK(Rwidget_get_child_count(root) == 2);
+		CHECK_STR(label_of(root, "part"), "a part");
+		CHECK_STR(label_of(root, "used"), "from file");
+		Rwidget_destroy(root);
+		Rxml_unregister_widget("FromFile");
+		CHECK(Rxml_register_widgets_from_file(library_path) == 1);
+		CHECK(Rxml_is_widget_registered("FromFile"));
+		remove(library_path);
+		remove(part_path);
+		EXPECT_ERRORS_BEGIN();
+		CHECK(Rxml_register_widgets_from_file(library_path) == 0);
+		root = widget_from(xml);
+		CHECK(root != R_INVALID_ID && Rwidget_get_child_count(root) == 1);
+		Rwidget_destroy(root);
+		EXPECT_ERRORS_END(3);
+	}
+
+	/* declaring a name again replaces it; a name can be forgotten */
+	CHECK(register_text("<Widget Name=\"Two\"><Label Text=\"second\"/></Widget>") == 1);
+	card = widget_from("<Two/>");
+	CHECK_STR(Rlabel_get_text(card), "second");
+	Rwidget_destroy(card);
+	Rxml_unregister_widget("Two");
+	Rxml_unregister_widget("never declared");
+	CHECK(!Rxml_is_widget_registered("Two"));
+	EXPECT_ERRORS_BEGIN();
+	CHECK(widget_from("<Two/>") == R_INVALID_ID);
+	EXPECT_ERRORS_END(1);
+}
+
+
+/* ---------------------------------------------------------------------------
+ *  Documents that can be edited
+ * ------------------------------------------------------------------------- */
+
+static Rid parse_text(const char* xml) {
+	return Rxml_document_parse(xml, strlen(xml), NULL);
+}
+
+static void test_documents(void) {
+	const char* source =
+		"<?xml version=\"1.0\"?>\n"
+		"<!-- header -->\n"
+		"<Window Title=\"A &amp; B\" Width=\"320\" Height=\"200\">\n"
+		"  <VBox Name=\"box\" Spacing=\"4\">\n"
+		"    <!-- first -->\n"
+		"    <Label Name=\"l\">Hello &lt;you&gt;</Label>\n"
+		"    <Button Name=\"b\" Text=\"Go\" OnClicked=\"go\"/>\n"
+		"  </VBox>\n"
+		"</Window>\n";
+	RXmlError error;
+	Rid document, root, box, label, button, comment, added, copy, other;
+	const char* text;
+
+	/* reading */
+	document = parse_text(source);
+	CHECK(Rxml_document_is_valid(document));
+	root = Rxml_document_get_root(document);
+	CHECK(Rxml_node_is_valid(root));
+	CHECK(Rxml_node_get_document(root) == document);
+	CHECK_STR(Rxml_node_get_tag(root), "Window");
+	CHECK(Rxml_node_get_parent(root) == R_INVALID_ID);
+	CHECK(Rxml_node_get_index(root) == 0);
+	CHECK(Rxml_node_get_line(root) == 3);
+	CHECK(Rxml_node_get_attribute_count(root) == 3);
+	CHECK_STR(Rxml_node_get_attribute_name(root, 0), "Title");
+	CHECK_STR(Rxml_node_get_attribute_value(root, 0), "A & B");
+	CHECK(Rxml_node_get_attribute_name(root, 3) == NULL);
+	CHECK(Rxml_node_get_attribute_value(root, -1) == NULL);
+	CHECK_STR(Rxml_node_get_attribute(root, "width"), "320");
+	CHECK(Rxml_node_get_attribute(root, "Nope") == NULL);
+	CHECK(Rxml_node_get_child_count(root) == 1);
+	box = Rxml_node_get_child(root, 0);
+	CHECK(Rxml_node_get_child(root, 1) == R_INVALID_ID);
+	CHECK(Rxml_node_get_parent(box) == root);
+	CHECK(Rxml_node_get_child_count(box) == 3);
+	comment = Rxml_node_get_child(box, 0);
+	label = Rxml_node_get_child(box, 1);
+	button = Rxml_node_get_child(box, 2);
+	CHECK(Rxml_node_is_comment(comment) && !Rxml_node_is_comment(label));
+	CHECK_STR(Rxml_node_get_tag(comment), "");
+	CHECK_STR(Rxml_node_get_text(comment), " first ");
+	CHECK_STR(Rxml_node_get_text(label), "Hello <you>");
+	CHECK_STR(Rxml_node_get_text(button), "");
+	CHECK(Rxml_node_get_index(button) == 2);
+	CHECK(Rxml_node_get_line(label) == 6);
+
+	/* writing: one element per line, tabs, what must be escaped is, comments are kept */
+	text = Rxml_document_to_string(document);
+	CHECK_STR(text,
+		"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+		"<!-- header -->\n"
+		"<Window Title=\"A &amp; B\" Width=\"320\" Height=\"200\">\n"
+		"\t<VBox Name=\"box\" Spacing=\"4\">\n"
+		"\t\t<!-- first -->\n"
+		"\t\t<Label Name=\"l\">Hello &lt;you&gt;</Label>\n"
+		"\t\t<Button Name=\"b\" Text=\"Go\" OnClicked=\"go\"/>\n"
+		"\t</VBox>\n"
+		"</Window>\n");
+	/* (written, the nodes know their new lines) */
+	CHECK(Rxml_node_get_line(root) == 3 && Rxml_node_get_line(button) == 7);
+	/* what is written reads back the same */
+	other = parse_text(text);
+	CHECK(other != R_INVALID_ID);
+	{
+		char* first = strdup(text);
+		CHECK_STR(Rxml_document_to_string(other), first);
+		free(first);
+	}
+	Rxml_document_destroy(other);
+	CHECK(!Rxml_document_is_valid(other));
+
+	/* changing */
+	Rxml_node_set_attribute(button, "Text", "Say \"hi\"\n<now>");
+	Rxml_node_set_attribute(button, "onclicked", NULL);
+	Rxml_node_set_attribute(button, "Style", "Primary");
+	Rxml_node_set_attribute(button, "Nope", NULL);
+	CHECK(Rxml_node_get_attribute_count(button) == 3);
+	CHECK_STR(Rxml_node_to_string(button), "<Button Name=\"b\" Text=\"Say &quot;hi&quot;&#10;&lt;now&gt;\" Style=\"Primary\"/>\n");
+	Rxml_node_set_text(label, "");
+	Rxml_node_set_tag(label, "Checkbox");
+	CHECK_STR(Rxml_node_to_string(label), "<Checkbox Name=\"l\"/>\n");
+	Rxml_node_set_text(label, "On & on");
+	added = Rxml_node_add_child(box, "Slider", 0);
+	CHECK(Rxml_node_get_child(box, 0) == added && Rxml_node_get_index(comment) == 1);
+	CHECK(Rxml_node_get_line(added) == 0);
+	Rxml_node_set_attribute(added, "Value", "0.5");
+	other = Rxml_node_add_comment(box, " last ", -1);
+	CHECK(Rxml_node_get_index(other) == 4);
+	other = Rxml_node_add_xml(box, "<HBox><Label Text='in'/><!-- c --></HBox>", 41, 1);
+	CHECK(Rxml_node_get_index(other) == 1);
+	CHECK(Rxml_node_get_child_count(other) == 2);
+	CHECK(Rxml_node_get_document(Rxml_node_get_child(other, 0)) == document);
+	copy = Rxml_node_duplicate(other);
+	CHECK(Rxml_node_get_index(copy) == 2 && copy != other);
+	CHECK_STR(Rxml_node_get_attribute(Rxml_node_get_child(copy, 0), "Text"), "in");
+	/* moving: inside the copy, then back out, and never into itself */
+	CHECK(Rxml_node_move(button, copy, 0));
+	CHECK(Rxml_node_get_parent(button) == copy && Rxml_node_get_index(button) == 0);
+	CHECK(Rxml_node_get_child_count(box) == 6);
+	CHECK(!Rxml_node_move(copy, button, 0));
+	CHECK(!Rxml_node_move(copy, copy, 0));
+	CHECK(!Rxml_node_move(root, box, 0));
+	CHECK(Rxml_node_move(button, box, -1));
+	CHECK(Rxml_node_get_index(button) == 6);
+	CHECK(Rxml_node_move(button, box, 0));
+	CHECK(Rxml_node_get_index(button) == 0 && Rxml_node_get_index(added) == 1);
+	/* removing takes what is inside along */
+	{
+		Rid inner = Rxml_node_get_child(copy, 0);
+		Rxml_node_remove(copy);
+		CHECK(!Rxml_node_is_valid(copy) && !Rxml_node_is_valid(inner));
+	}
+	CHECK_STR(Rxml_node_to_string(box),
+		"<VBox Name=\"box\" Spacing=\"4\">\n"
+		"\t<Button Name=\"b\" Text=\"Say &quot;hi&quot;&#10;&lt;now&gt;\" Style=\"Primary\"/>\n"
+		"\t<Slider Value=\"0.5\"/>\n"
+		"\t<HBox>\n"
+		"\t\t<Label Text=\"in\"/>\n"
+		"\t\t<!-- c -->\n"
+		"\t</HBox>\n"
+		"\t<!-- first -->\n"
+		"\t<Checkbox Name=\"l\">On &amp; on</Checkbox>\n"
+		"\t<!-- last -->\n"
+		"</VBox>\n");
+
+	/* what cannot be done */
+	EXPECT_ERRORS_BEGIN();
+	Rxml_node_remove(root);
+	CHECK(Rxml_node_is_valid(root));
+	CHECK(Rxml_node_duplicate(root) == R_INVALID_ID);
+	CHECK(Rxml_node_add_child(box, "1bad", -1) == R_INVALID_ID);
+	CHECK(Rxml_node_add_child(box, "", -1) == R_INVALID_ID);
+	CHECK(Rxml_node_add_child(comment, "Label", -1) == R_INVALID_ID);
+	CHECK(Rxml_node_add_comment(box, "a -- b", -1) == R_INVALID_ID);
+	CHECK(Rxml_node_add_xml(box, "<Open>", 6, -1) == R_INVALID_ID);
+	Rxml_node_set_tag(box, "a b");
+	Rxml_node_set_tag(comment, "Label");
+	Rxml_node_set_attribute(box, "a b", "1");
+	Rxml_node_set_attribute(comment, "A", "1");
+	CHECK_STR(Rxml_node_get_tag(box), "VBox");
+	CHECK(Rxml_node_get_attribute_count(box) == 2);
+	CHECK(Rxml_node_get_child_count(box) == 6);
+	CHECK(Rxml_document_create("no good") == R_INVALID_ID);
+	CHECK(Rxml_document_get_root(0x12345) == R_INVALID_ID);
+	CHECK_STR(Rxml_node_get_tag(0x12345), "");
+	CHECK(parse_text("<A><B></A>") == R_INVALID_ID);
+	CHECK(Rxml_document_load("/nonexistent/file.xml") == R_INVALID_ID);
+	EXPECT_ERRORS_END(16);
+	/* a mistake in the text, told to the caller instead of the error callback */
+	CHECK(Rxml_document_parse("<A>\n  <B></A>", 13, &error) == R_INVALID_ID);
+	CHECK(error.line == 2 && error.column > 1 && strstr(error.message, "does not match") != NULL);
+	CHECK(Rxml_document_parse("<A/>", 4, &error) != R_INVALID_ID);
+	CHECK(error.line == 0 && error.message[0] == '\0');
+
+	/* building: the widgets and the nodes know each other */
+	{
+		Rid widget = Rxml_document_create_widget(document);
+		Rid slider_widget, window;
+		CHECK(Rwidget_is_valid(widget));
+		/* (the root is a <Window>: this is what it would show) */
+		CHECK(Rwidget_get_type(widget) == R_WIDGET_VBOX);
+		CHECK(Rwidget_get_xml_node(widget) == box);
+		CHECK(Rxml_node_get_widget(box) == widget);
+		CHECK(Rxml_node_get_widget(root) == R_INVALID_ID);
+		slider_widget = Rxml_node_get_widget(added);
+		CHECK(Rwidget_get_type(slider_widget) == R_WIDGET_SLIDER);
+		CHECK(Rslider_get_value(slider_widget) == 0.5f);
+		CHECK(Rwidget_get_xml_node(Rwidget_find(widget, "b")) == button);
+		CHECK(Rxml_node_get_widget(comment) == R_INVALID_ID);
+		CHECK(Rwidget_get_xml_node(R_INVALID_ID) == R_INVALID_ID);
+		/* a widget that was not built from a document, and one whose widget is gone */
+		{
+			Rid plain = Rbutton_create("x");
+			CHECK(Rwidget_get_xml_node(plain) == R_INVALID_ID);
+			Rwidget_destroy(plain);
+		}
+		Rwidget_destroy(widget);
+		Rdraw_frame();
+		CHECK(Rxml_node_get_widget(box) == R_INVALID_ID);
+
+		window = Rxml_document_create_window(document);
+		CHECK(Rwindow_is_valid(window));
+		CHECK_STR(Rwindow_get_title(window), "A & B");
+		CHECK(Rxml_node_get_widget(root) == window);
+		CHECK(Rwidget_get_xml_node(Rwidget_find(window, "box")) == box);
+		CHECK(Rxml_node_get_widget(button) == Rwidget_find(window, "b"));
+		/* the document can go: what was built stays, and no longer leads to a node */
+		Rxml_document_destroy(document);
+		CHECK(!Rxml_node_is_valid(box));
+		CHECK(Rwidget_get_xml_node(Rwidget_find(window, "box")) == R_INVALID_ID);
+		Rdraw_frame();
+		Rwindow_destroy(window);
+	}
+
+	/* declared widgets: everything a use becomes leads to the node of the use; its children to their own */
+	document = parse_text(
+		"<VBox>"
+		"<Widget Name=\"DomCard\" Title=\"t\"><Border><VBox><Label Name=\"title\" Text=\"{Title}\"/><Children/></VBox></Border></Widget>"
+		"<DomCard Name=\"one\" Title=\"One\"><Button Name=\"inner\" Text=\"x\"/></DomCard>"
+		"<Repeat Count=\"2\" Var=\"i\"><Label Text=\"r{i}\"/></Repeat>"
+		"</VBox>");
+	CHECK(document != R_INVALID_ID);
+	{
+		Rid widget = Rxml_document_create_widget(document);
+		Rid use, repeat, card, title, inner;
+		root = Rxml_document_get_root(document);
+		use = Rxml_node_get_child(root, 1);
+		repeat = Rxml_node_get_child(root, 2);
+		CHECK(Rwidget_is_valid(widget));
+		CHECK(Rxml_is_widget_registered("DomCard"));
+		card = Rwidget_find(widget, "one");
+		CHECK(Rwidget_get_type(card) == R_WIDGET_BORDER);
+		CHECK(Rxml_node_get_widget(use) == card);
+		CHECK(Rwidget_get_xml_node(card) == use);
+		title = Rwidget_find(card, "title");
+		CHECK_STR(Rlabel_get_text(title), "One");
+		CHECK(Rwidget_get_xml_node(title) == use);
+		inner = Rwidget_find(card, "inner");
+		CHECK(Rwidget_get_xml_node(inner) == Rxml_node_get_child(use, 0));
+		CHECK(Rxml_node_get_widget(Rxml_node_get_child(use, 0)) == inner);
+		/* a repeated element: its copies all come from the one node, which gives the first */
+		CHECK(Rwidget_get_child_count(widget) == 3);
+		CHECK(Rwidget_get_xml_node(Rwidget_get_child(widget, 1)) == Rxml_node_get_child(repeat, 0));
+		CHECK(Rwidget_get_xml_node(Rwidget_get_child(widget, 2)) == Rxml_node_get_child(repeat, 0));
+		CHECK(Rxml_node_get_widget(Rxml_node_get_child(repeat, 0)) == Rwidget_get_child(widget, 1));
+		/* the declaration itself, and <Repeat>, are not widgets */
+		CHECK(Rxml_node_get_widget(Rxml_node_get_child(root, 0)) == R_INVALID_ID);
+		CHECK(Rxml_node_get_widget(repeat) == R_INVALID_ID);
+		Rwidget_destroy(widget);
+	}
+	Rxml_unregister_widget("DomCard");
+	Rxml_document_destroy(document);
+
+	/* a mistake in what is built is reported with the line the node has */
+	document = parse_text("<VBox>\n<Label/>\n<Nonsense/>\n</VBox>");
+	EXPECT_ERRORS_BEGIN();
+	CHECK(Rxml_document_create_widget(document) == R_INVALID_ID);
+	EXPECT_ERRORS_END(1);
+	Rxml_document_destroy(document);
+
+	/* from nothing, to a file and back */
+	document = Rxml_document_create("HBox");
+	root = Rxml_document_get_root(document);
+	Rxml_node_set_attribute(root, "Spacing", "6");
+	Rxml_node_set_text(Rxml_node_add_child(root, "Label", -1), "saved");
+	CHECK_STR(Rxml_document_to_string(document), "<HBox Spacing=\"6\">\n\t<Label>saved</Label>\n</HBox>\n");
+	{
+		const char* path = "raven_test_document.xml";
+		Rid loaded, widget;
+		CHECK(Rxml_document_save(document, path));
+		loaded = Rxml_document_load(path);
+		CHECK(loaded != R_INVALID_ID);
+		CHECK_STR(Rxml_document_to_string(loaded), "<HBox Spacing=\"6\">\n\t<Label>saved</Label>\n</HBox>\n");
+		widget = Rxml_document_create_widget(loaded);
+		CHECK(Rwidget_get_type(widget) == R_WIDGET_HBOX && Rwidget_get_child_count(widget) == 1);
+		CHECK_STR(Rlabel_get_text(Rwidget_get_child(widget, 0)), "saved");
+		Rwidget_destroy(widget);
+		Rxml_document_destroy(loaded);
+		remove(path);
+		EXPECT_ERRORS_BEGIN();
+		CHECK(!Rxml_document_save(document, ""));
+		CHECK(!Rxml_document_save(document, "/nonexistent-folder/x.xml"));
+		EXPECT_ERRORS_END(2);
+	}
+	/* (left alive on purpose: the library releases the documents it is left with) */
+}
+
+/* The sample value given to an attribute of each kind. */
+static const char* schema_sample(const RXmlAttributeInfo* info, char* buffer, size_t size) {
+	switch (info->type) {
+		case R_XML_BOOL: return "true";
+		case R_XML_NUMBER: return "1";
+		case R_XML_COLOR: return "#336699";
+		case R_XML_ACTION: return "test.action";
+		case R_XML_NUMBERS: return "1";
+		case R_XML_LIST: return "a|b";
+		case R_XML_CHOICE: {
+			size_t length = strcspn(info->choices, "|");
+			if (length >= size) length = size - 1;
+			memcpy(buffer, info->choices, length);
+			buffer[length] = '\0';
+			return buffer;
+		}
+		default: return "x";
+	}
+}
+
+static void test_schema(void) {
+	RXmlAttributeInfo info;
+	int tag, index, total = 0;
+	char buffer[64];
+
+	CHECK(Rxml_get_tag_count() > 30);
+	CHECK_STR(Rxml_get_tag_name(0), "Window");
+	CHECK(Rxml_get_tag_name(-1) == NULL && Rxml_get_tag_name(Rxml_get_tag_count()) == NULL);
+	CHECK(Rxml_get_tag_children("Window") == 1);
+	CHECK(Rxml_get_tag_children("VBox") == 2);
+	CHECK(Rxml_get_tag_children("Border") == 1);
+	CHECK(Rxml_get_tag_children("Label") == 0);
+	CHECK(Rxml_get_tag_children("textblock") == 0);
+	CHECK(Rxml_get_tag_children("NotATag") == 2);
+	CHECK(strlen(Rxml_get_tag_description("button")) > 0);
+	CHECK_STR(Rxml_get_tag_description("NotATag"), "");
+
+	/* every tag is one the loader knows, and every attribute listed for it is accepted with a value of its kind */
+	for (tag = 1; tag < Rxml_get_tag_count(); tag++) {
+		const char* name = Rxml_get_tag_name(tag);
+		char xml[96];
+		Rid widget, parent;
+		int count = Rxml_get_attribute_count(name), choices;
+		snprintf(xml, sizeof(xml), "<VBox><%s/></VBox>", name);
+		parent = Rwidget_create_from_xml(xml, strlen(xml));
+		CHECK(parent != R_INVALID_ID);
+		if (parent == R_INVALID_ID) continue;
+		/* (a menu and its items are not children like the others) */
+		widget = Rwidget_get_child_count(parent) ? Rwidget_get_child(parent, 0) : R_INVALID_ID;
+		if (widget == R_INVALID_ID) {
+			Rwidget_destroy(parent);
+			parent = R_INVALID_ID;
+			snprintf(xml, sizeof(xml), "<%s/>", name);
+			widget = Rwidget_create_from_xml(xml, strlen(xml));
+		}
+		CHECK(widget != R_INVALID_ID);
+		CHECK(count > 60);
+		CHECK(!Rxml_get_attribute_info(name, count, &info));
+		for (index = 0; index < count; index++) {
+			const char* value;
+			CHECK(Rxml_get_attribute_info(name, index, &info));
+			CHECK(info.name && info.group && info.description);
+			CHECK((info.type == R_XML_CHOICE) == (info.choices != NULL));
+			total++;
+			/* (a file would have to exist, and a saved arrangement to be one) */
+			if (info.type == R_XML_FILE || strcmp(info.name, "Layout") == 0) continue;
+			value = schema_sample(&info, buffer, sizeof(buffer));
+			/* (some take a share below 1, some two numbers, some four) */
+			if (!Rwidget_set_attribute(widget, info.name, value) &&
+				!(info.type == R_XML_NUMBER && Rwidget_set_attribute(widget, info.name, "0.5")) &&
+				!(info.type == R_XML_NUMBERS && (Rwidget_set_attribute(widget, info.name, "1,1") ||
+					Rwidget_set_attribute(widget, info.name, "0,0,1,1")))) {
+				g_test_failures++;
+				printf("  FAIL <%s %s=\"%s\"> is listed but not accepted\n", name, info.name, value);
+			}
+			g_test_checks++;
+			/* each of the choices, not only the first */
+			for (choices = 0; info.type == R_XML_CHOICE && info.choices[choices]; ) {
+				size_t length = strcspn(info.choices + choices, "|");
+				snprintf(buffer, sizeof(buffer), "%.*s", (int)length, info.choices + choices);
+				if (!Rwidget_set_attribute(widget, info.name, buffer)) {
+					g_test_failures++;
+					printf("  FAIL <%s %s=\"%s\"> is listed but not accepted\n", name, info.name, buffer);
+				}
+				g_test_checks++;
+				choices += (int)length;
+				if (info.choices[choices] == '|') choices++;
+			}
+		}
+		Rwidget_destroy(parent != R_INVALID_ID ? parent : widget);
+		Rdraw_frame();
+	}
+	CHECK(total > 2000);
+
+	/* the window: its own attributes only, each accepted */
+	{
+		char xml[1024];
+		int length = snprintf(xml, sizeof(xml), "<Window");
+		Rid window;
+		int count = Rxml_get_attribute_count("Window");
+		CHECK(count >= 10 && count < 20);
+		for (index = 0; index < count; index++) {
+			CHECK(Rxml_get_attribute_info("window", index, &info));
+			CHECK_STR(info.group, "Window");
+			if (info.type == R_XML_FILE) continue;
+			length += snprintf(xml + length, sizeof(xml) - (size_t)length, " %s=\"%s\"", info.name,
+				info.type == R_XML_NUMBER ? "300" : schema_sample(&info, buffer, sizeof(buffer)));
+		}
+		snprintf(xml + length, sizeof(xml) - (size_t)length, "/>");
+		/* (an attribute it does not know would be reported, and fail the test) */
+		window = Rwindow_create_from_xml(xml, strlen(xml));
+		CHECK(Rwindow_is_valid(window));
+		Rwindow_destroy(window);
+	}
+
+	/* groups, in order: the tag, Widget, Slot, Colors, Metrics */
+	CHECK(Rxml_get_attribute_info("Button", 0, &info));
+	CHECK_STR(info.name, "Text");
+	CHECK_STR(info.group, "Button");
+	CHECK(info.type == R_XML_TEXT);
+	CHECK(Rxml_get_attribute_info("Button", 1, &info) && info.type == R_XML_CHOICE);
+	CHECK_STR(info.choices, "Default|Primary|Flat");
+	CHECK(Rxml_get_attribute_info("Button", 3, &info));
+	CHECK_STR(info.group, "Widget");
+	CHECK_STR(info.name, "Name");
+	CHECK(Rxml_get_attribute_info("Button", Rxml_get_attribute_count("Button") - 1, &info));
+	CHECK_STR(info.group, "Metrics");
+	CHECK(!Rxml_get_attribute_info("Button", -1, &info));
+	CHECK(!Rxml_get_attribute_info(NULL, 0, &info));
+	CHECK(Rxml_get_attribute_count(NULL) == 0);
+
+	/* a tag declared with <Widget>: its parameters, with their default value as description, then what every widget has */
+	CHECK(register_text("<Widget Name=\"SchemaCard\" Title=\"Untitled\" Wide=\"false\"><Border/></Widget>") == 1);
+	CHECK(Rxml_get_tag_children("SchemaCard") == 2);
+	CHECK(Rxml_get_attribute_count("SchemaCard") == Rxml_get_attribute_count("Spacer") + 2);
+	CHECK(Rxml_get_attribute_info("SchemaCard", 0, &info));
+	CHECK_STR(info.name, "Title");
+	CHECK_STR(info.group, "SchemaCard");
+	CHECK_STR(info.description, "Untitled");
+	CHECK(Rxml_get_attribute_info("SchemaCard", 1, &info));
+	CHECK_STR(info.name, "Wide");
+	CHECK(Rxml_get_attribute_info("SchemaCard", 2, &info));
+	CHECK_STR(info.name, "Name");
+	CHECK_STR(info.group, "Widget");
+	Rxml_unregister_widget("SchemaCard");
+}
+
 int main(void) {
 	if (!test_init(0)) {
 		printf("cannot initialize Raven\n");
@@ -183,6 +854,9 @@ int main(void) {
 	RUN(test_window);
 	RUN(test_widget_fragment);
 	RUN(test_errors);
+	RUN(test_components);
+	RUN(test_documents);
+	RUN(test_schema);
 	Rshutdown();
 	return test_report("test_xml");
 }

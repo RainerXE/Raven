@@ -3,9 +3,19 @@
   Raven example - glass.xml
 
   The glass themes (R_THEME_GLASS_DARK / R_THEME_GLASS_LIGHT) turn every
-  control into glass. Panels become glass with Material="Glass" on a Border:
-  here a side bar, a tool bar and a player bar float in an Overlay above a
-  page that scrolls under them.
+  control into glass. Material="..." says what one widget is made of, and
+  there are three kinds of glass, from the lightest to the heaviest:
+
+    Glass          clear: what is behind shows through, bent at the rim
+    FrostedGlass   blurred: the colors behind, without their shapes
+    TintedGlass    blurred and colored by the theme: the easiest to read on
+
+  Here a side bar (frosted), a tool bar (tinted) and a player bar (clear)
+  float in an Overlay above a page that scrolls under them.
+
+  Appear="..." makes a widget arrive with a transition when the window opens:
+  the bars fly in from the edges, the title rises, and the cards (built in
+  main.c) pop one after the other.
 -->
 <Window Title="Raven - glass" Width="1100" Height="720" MinWidth="820" MinHeight="560">
 	<Overlay>
@@ -13,8 +23,8 @@
 		<!-- the page: it scrolls under everything else -->
 		<ScrollBox Name="page">
 			<VBox Spacing="18" Slot.Padding="304,92,28,120">
-				<Label TextSize="36">Good evening</Label>
-				<Label Wrap="true" Opacity="0.75">Everything that floats on this page is glass: it blurs and bends what scrolls behind it, picks up its colors and catches the light on its rim. Scroll, or drag a slider and watch its knob turn into a lens.</Label>
+				<Label TextSize="36" Appear="FlyUp" AppearDelay="0.1">Good evening</Label>
+				<Label Wrap="true" Opacity="0.75" Appear="FlyUp" AppearDelay="0.18">Everything that floats on this page is glass: it blurs and bends what scrolls behind it, picks up its colors and catches the light on its rim. Scroll, or drag a slider and watch its knob turn into a lens.</Label>
 				<UniformGrid Name="cards" Columns="3" MinCellSize="200,150" Spacing="16"/>
 				<Label TextSize="22" Slot.Padding="0,10,0,0">Controls</Label>
 				<WrapBox Spacing="10">
@@ -36,8 +46,8 @@
 		</ScrollBox>
 
 		<!-- side bar -->
-		<Border Material="Glass" CornerRadius="28" Padding="16" Width="264" Shadow="28"
-			Slot.HAlign="Left" Slot.Padding="18,18,0,18">
+		<Border Material="FrostedGlass" CornerRadius="28" Padding="16" Width="264" Shadow="28"
+			Slot.HAlign="Left" Slot.Padding="18,18,0,18" Appear="FlyRight">
 			<VBox Spacing="12">
 				<Label TextSize="22">Library</Label>
 				<TextInput Placeholder="Search"/>
@@ -67,8 +77,8 @@
 		</Border>
 
 		<!-- tool bar -->
-		<Border Material="Glass" CornerRadius="100" Padding="6" Shadow="24"
-			Slot.HAlign="Center" Slot.VAlign="Top" Slot.Padding="286,18,0,0">
+		<Border Material="TintedGlass" CornerRadius="100" Padding="6" Shadow="24"
+			Slot.HAlign="Center" Slot.VAlign="Top" Slot.Padding="286,18,0,0" Appear="Drop" AppearDelay="0.25">
 			<HBox Spacing="4">
 				<Button Text="Today" Style="Flat"/>
 				<Button Text="Library" Style="Flat"/>
@@ -80,7 +90,7 @@
 
 		<!-- player bar -->
 		<Border Material="Glass" CornerRadius="100" Padding="10,8" Shadow="30"
-			Slot.HAlign="Center" Slot.VAlign="Bottom" Slot.Padding="286,0,0,22">
+			Slot.HAlign="Center" Slot.VAlign="Bottom" Slot.Padding="286,0,0,22" Appear="FlyUp" AppearDelay="0.35">
 			<HBox Spacing="12">
 				<Button Text="Previous" Style="Flat"/>
 				<Button Name="play" Text="Pause" Style="Primary" MinWidth="76" OnClicked="player.toggle"/>

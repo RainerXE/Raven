@@ -1,6 +1,7 @@
 # Tests.
 #
-#   test_layout, test_widgets, test_xml, test_threads
+#   test_layout, test_widgets, test_xml, test_threads, test_memory, test_animation,
+#   test_text_editor, test_shell, test_dialogs
 #       run headless (null platform + null backend): no display and no GPU are
 #       needed, so they run on any build machine.
 #   test_render
@@ -32,6 +33,11 @@ raven_add_test(test_layout)
 raven_add_test(test_widgets)
 raven_add_test(test_xml)
 raven_add_test(test_threads)
+raven_add_test(test_memory)
+raven_add_test(test_animation)
+raven_add_test(test_text_editor)
+raven_add_test(test_shell)
+raven_add_test(test_dialogs)
 
 if(RAVEN_BACKEND_VULKAN)
 	raven_add_test(test_render)

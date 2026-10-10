@@ -31,7 +31,9 @@ attribute can be set at run time with `Rwidget_set_attribute(widget, "Text", "He
 - Tags are widget types. Tag and attribute names are not case sensitive.
 - The parser handles elements, attributes, text, comments, CDATA, the five
   predefined entities (`&amp; &lt; &gt; &quot; &apos;`) and numeric character
-  references. Files are UTF-8. There is no DTD, namespace or include.
+  references. Files are UTF-8. There is no DTD or namespace.
+- `<` and `&` are written `&lt;` and `&amp;` inside attribute values, as XML
+  requires: `If="{Count &lt; 3}"`.
 - The text inside an element is its `Text` attribute: `<Label>Hello</Label>`
   is `<Label Text="Hello"/>`.
 - Children are created first, then the attributes of the parent are applied,
@@ -57,7 +59,8 @@ Lengths are in logical units: they are multiplied by the scale of the monitor.
 ## `<Window>`
 
 Only as the root, with `Rwindow_create_from_xml[File]`. It has one child
-widget, the content, and any number of `<Shortcut>`.
+widget, the content, optionally an `<Island>` that floats at its top, and any
+number of `<Shortcut>` and `<Widget>` declarations.
 
 | Attribute | Value |
 |---|---|
@@ -68,6 +71,7 @@ widget, the content, and any number of `<Shortcut>`.
 | `Borderless`, `Maximized`, `Hidden` | boolean |
 | `ClearColor` | color behind the content (default: the theme color `Window`) |
 | `Background` | path of an image drawn behind the content, scaled to cover the window. With a glass theme it replaces the wallpaper of the theme |
+| `CustomHeader` | boolean: no title bar from the system; a `HeaderBar` in the content replaces it (see below). The window keeps its shadow, its resizing edges and its snapping |
 
 `<Shortcut Keys="Ctrl+S" Action="file.save"/>` fires an action when the keys
 are pressed anywhere in the window.
@@ -86,6 +90,10 @@ are pressed anywhere in the window.
 | `HitTestable` | boolean: false lets the mouse through to what is behind |
 | `Focusable` | boolean |
 | `Tooltip` | text shown when the cursor rests on the widget |
+| `Material` | what the surface of the widget, and of what it contains, is made of: `Solid`, `Glass` (clear), `FrostedGlass`, `TintedGlass`, or `Default` (the material of the theme) |
+| `Appear` | transition played each time the widget appears: `None Fade Pop Zoom FlyUp FlyDown FlyLeft FlyRight Drop SlideLeft SlideRight` |
+| `AppearDelay` | seconds before the transition starts; growing delays make a group arrive one after the other |
+| `WindowDrag` | boolean: in a window with `CustomHeader`, dragging the widget moves the window |
 | `Cursor` | `Arrow IBeam Hand Crosshair ResizeH ResizeV ResizeNWSE ResizeNESW Move NotAllowed` |
 | `Action`, `OnClicked`, `OnChanged`, `OnCommitted`, `OnActivated` | name of the action fired by the main event of the widget (see below) |
 | `Color.<Role>` | overrides a theme color for this widget, e.g. `Color.Accent="#E5484D"` |
@@ -150,7 +158,11 @@ panel uses the attributes that make sense for it.
 | `Slot.Position` | `x,y` offset from the anchor | Canvas |
 | `Slot.Size` | `width,height` (when the anchors do not stretch) | Canvas |
 | `Slot.Alignment` | `x,y` pivot of the child, 0..1 (`0.5,0.5` centers it on its position) | Canvas |
-| `Slot.Title` | text of the tab | TabView |
+| `Slot.Title` | text of the tab | TabView, DockArea |
+| `Slot.Dock` | `Left`, `Right`, `Top`, `Bottom`: the side the panel takes; `Tab`: a tab beside the panel named by `Slot.DockTo` | DockArea |
+| `Slot.DockTo` | name of the panel it is placed against; without it, the whole area | DockArea |
+| `Slot.DockSize` | share of the place it is cut from, 0..1 (0: a half, or a quarter of the whole area) | DockArea |
+| `Slot.Closable` | `false` removes the close button of its tab | DockArea |
 
 ## Panels
 
@@ -171,6 +183,9 @@ panel uses the attributes that make sense for it.
 | `Switcher` (`WidgetSwitcher`) | shows one child at a time | `Index` |
 | `TabView` (`Tabs`) | one tab per child (`Slot.Title`) | `ActiveTab` |
 | `Expander` (`ExpandableArea`) | one child under a collapsible header | `Title`, `Expanded` |
+| `DockArea` | each child is a panel with a tab, moved by the user (see the slot attributes); the first child fills the area, the others are placed around it | `Movable` (`false`: the panels stay where they are), `Layout` (an arrangement saved with `Rdock_area_save_layout`) |
+| `HeaderBar` (`TitleBar`) | the title bar of a window with `CustomHeader`: children are packed from the left, those with `Slot.HAlign="Right"` from the right, before the window buttons | `Title` (default: the title of the window), `Buttons` (`All`, `None`, or a list: `Close,Minimize,Maximize`), `ButtonSide` (`Right` or `Left`), `TitleAlign` (`Center` or `Left`), `Background` (`false`: no surface) |
+| `Island` (`Notch`, `DynamicIsland`) | first child: folded; second child: unfolded. As a child of `<Window>`, beside the content, it floats at the top of the window (`Slot.Padding` is its distance from the edge) | `Expanded`, `ExpandOnHover` (default true), `ExpandOnClick` (default true), `Attached` (square upper corners: a notch) |
 
 ## Controls
 
@@ -193,9 +208,80 @@ panel uses the attributes that make sense for it.
 | `MenuItem` | `Text`, `Shortcut`, `Checkable`, `Checked` |
 | `Viewport` | `Source` (image shown until the application sets a texture), `Stretch`, `FlipY`, `Realtime` |
 | `Custom` | drawn by the application: `Rcustom_set_paint_callback` |
+| `TextEditor` (`TextArea`) | `Text` (or the text inside the element), `Language` (`C`, `C++`, `C#`, `Java`, `JavaScript`, `TypeScript`, `Python`, `Rust`, `GLSL`, `JSON`, `CSS`, `XML`, `HTML`, one declared with `Rlanguage_register`, or `None`), `LineNumbers`, `Wrap`, `ReadOnly`, `Placeholder`, `TabSize`, `TabSpaces`, `Completion` (`false`: proposes words only on Ctrl+Space), `AutoPairs` (`false`: does not close brackets and quotes), `TextSize`, `Font` |
+| `FileBrowser` | `Directory`, `Mode` (`Open`, `Save`, `Folder`), `Filter` (`*.png;*.jpg`), `FileName`, `DefaultExtension`, `ShowHidden`, `Multiple`, `Controls` (`false` hides the name, the filter and the buttons), `Places` (`false` hides the list of places) |
 
 A `MenuItem` shortcut works without any `<Shortcut>` element: the window
 looks for it in its menus when the keys are pressed.
+
+## Declaring tags
+
+A document can declare its own tags. A `<Widget>` names a piece of interface,
+with parameters, and is then used like any widget of the library:
+
+```xml
+<Widget Name="Field" Label="Name" Hint="" Wide="false">
+    <HBox Spacing="8">
+        <Label Text="{Label}:" Width="{Wide ? 140 : 90}"/>
+        <TextInput Placeholder="{Hint}" Slot.Fill="1"/>
+        <Children/>
+    </HBox>
+</Widget>
+
+<Field Label="Email" Hint="you@example.com" Name="email"/>
+<Field Label="Password" Wide="true"><Button Text="Show"/></Field>
+```
+
+- The attributes of `<Widget>` other than `Name` are its **parameters**, with
+  their default values. It contains exactly one element: what the tag stands for.
+- Inside it, `{...}` is computed and replaced by its value. `{{` and `}}`
+  write a brace.
+- Where the tag is used, the attributes that are parameters give their
+  values; the others (`Name`, `Slot.Fill`, `OnClicked`, `Material`...) go to
+  the element the tag stands for. The text inside the tag is its `Text`.
+- `<Children/>` is replaced by the children given where the tag is used;
+  `<Children Name="footer"/>` by those marked `Into="footer"`.
+- A declaration is known from the moment it is read until the library shuts
+  down, in every document loaded afterwards. Declaring a name again replaces
+  it. It cannot take the name of a tag of the library.
+- A tag can use the tags declared before it, but not itself.
+
+| Element or attribute | |
+|---|---|
+| `<Widget Name="..." Param="default" ...>` | declares a tag |
+| `<Widgets>` | the root of a file that only holds declarations |
+| `<Children/>`, `<Children Name="x"/>` | where the children given to the tag go |
+| `Into="x"` | on a child given to a tag: goes to `<Children Name="x"/>` |
+| `If="..."` | on any element: kept when the value is true |
+| `<If Test="...">` | keeps what it contains when the test is true |
+| `<Repeat Count="3" Var="i">` | repeats what it contains; `{i}` is 0, 1, 2 |
+| `<ForEach Items="a\|b\|c" Var="x" Index="n" Separator="\|">` | repeats for each text of a list; `{x}` is the text, `{n}` its index |
+| `<Include Source="file.xml"/>` | brings in another file: its declarations, and its element if it has one |
+
+Expressions: numbers, texts between single quotes, parameters and variables;
+`+ - * / %` (`+` joins texts), `== != < <= > >=`, `&& || !`, `a ? b : c`,
+parentheses; `min(a, b)`, `max(a, b)`, `round`, `floor`, `ceil`, `abs`,
+`len(text)`, `upper`, `lower`, `empty(text)`, `default(value, fallback)`;
+`{Instance}` is a number that differs for each use of a tag (to build unique
+names). False is `false`, `0` and the empty text. `{...}` is only
+computed inside a `<Widget>`, a `<Repeat>` or a `<ForEach>`: elsewhere braces
+are ordinary characters.
+
+From C: `Rxml_register_widgets(text, size)` and
+`Rxml_register_widgets_from_file(path)` read declarations ahead of the
+documents that use them; `Rxml_get_registered_widget_name` lists them.
+`examples/components` shows all of this.
+
+## Documents and tools
+
+`Rxml_document_parse` reads a text into a tree of nodes that can be changed,
+written back (`Rxml_document_to_string`, comments kept) and built
+(`Rxml_document_create_widget`, `Rxml_document_create_window`). A widget built
+from a document knows its node (`Rwidget_get_xml_node`) and a node its widget
+(`Rxml_node_get_widget`). `Rxml_get_tag_name`, `Rxml_get_attribute_count` and
+`Rxml_get_attribute_info` list the tags of the library and, for each, its
+attributes with the kind of value they take: the tables of this page as data.
+The designer (`raven_designer`) is built on these functions.
 
 ## A complete example
 

@@ -28,6 +28,31 @@ typedef enum RTheme{
 	R_THEME_GLASS_LIGHT
 }RTheme;
 
+/**
+ * What surfaces are made of, from the clearest to the most opaque. A theme
+ * has one material for everything (Rtheme_set_material); any widget can be
+ * given its own (Rwidget_set_material, Material="..." in XML).
+ *
+ * The three glasses share the same anatomy (a tint over what is behind, a
+ * rim that bends it and catches the light, a shadow) and differ by how much
+ * they let through. Within one material, surfaces are also told apart by
+ * their height above the window: bars lie flat, panels float a little,
+ * controls a little more, menus and dialogs highest; each level has a
+ * brighter rim and a deeper shadow than the one below.
+ */
+typedef enum RMaterial{
+	/** Opaque: filled with the colors of the theme. The material of R_THEME_DARK and R_THEME_LIGHT. */
+	R_MATERIAL_SOLID = 0x02E0,
+	/** Clear glass: what is behind stays sharp enough to be recognized, strongly bent at the rim. */
+	R_MATERIAL_GLASS,
+	/** Frosted glass: what is behind is blurred into soft colors. The material of the glass themes. */
+	R_MATERIAL_FROSTED_GLASS,
+	/** Frosted glass colored by the accent color of the theme (or of the widget): for what must stand out. */
+	R_MATERIAL_TINTED_GLASS,
+	/** Not a material: "the one of the theme". Removes the material given to a widget. */
+	R_MATERIAL_DEFAULT
+}RMaterial;
+
 /** Color roles. The comment lists the widgets reading each role. */
 typedef enum RColorRole{
 	/** Window clear color. */
@@ -126,6 +151,14 @@ extern "C" {
 
 	RAVEN_API void Rtheme_set_metric(RMetric metric, float value);
 	RAVEN_API float Rtheme_get_metric(RMetric metric);
+
+	/**
+	 * @brief Material of every widget that was not given one with
+	 * Rwidget_set_material. Rtheme_apply sets it: solid for the flat
+	 * themes, frosted glass for the glass themes.
+	 */
+	RAVEN_API void Rtheme_set_material(RMaterial material);
+	RAVEN_API RMaterial Rtheme_get_material(void);
 
 	/** @brief Font used by widgets that have no font of their own. */
 	RAVEN_API void Rtheme_set_font(Rid font);

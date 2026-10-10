@@ -36,7 +36,7 @@ static void wait_for_posted(int count) {
 	double deadline = Rget_time() + 5.0;
 	while (g_posted < count && Rget_time() < deadline) {
 		Rwait_events(0.05);
-		Rupdate();
+		Rdraw_frame();
 	}
 }
 
@@ -146,7 +146,7 @@ static RFrameStats paint_big_tree(int workers) {
 	/* the first frame also rasterizes the glyphs: measure a later one */
 	for (frame = 0; frame < 5; frame++) {
 		Rwindow_request_redraw(window);
-		Rupdate();
+		Rdraw_frame();
 	}
 	Rwindow_get_frame_stats(window, &stats);
 	Rshutdown();

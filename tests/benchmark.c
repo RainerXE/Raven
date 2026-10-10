@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
 	Rwindow_set_content(window, build_tree(columns));
 	build_ms = (Rget_time() - start) * 1000.0;
 
-	Rupdate();
+	Rdraw_frame();
 	Rwindow_get_frame_stats(window, &stats);
 	printf("%u widgets, %d worker thread(s)\n", stats.widget_count, Rget_worker_thread_count());
 	printf("  build         %8.2f ms\n", build_ms);
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
 
 	for (i = 0; i < frames; i++) {
 		Rwindow_request_redraw(window);
-		Rupdate();
+		Rdraw_frame();
 		Rwindow_get_frame_stats(window, &stats);
 		if (stats.paint_ms < best) best = stats.paint_ms;
 		sum += stats.paint_ms;
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
 	/* one label changes: only its ancestors are measured and arranged again */
 	label = Rwidget_get_child(Rwidget_get_child(Rwidget_get_child(Rwidget_get_child(Rwidget_get_child(Rwindow_get_content(window), 0), 3), 7), 0), 0);
 	Rlabel_set_text(label, "a longer text than before");
-	Rupdate();
+	Rdraw_frame();
 	Rwindow_get_frame_stats(window, &stats);
 	printf("  relayout      %8.3f ms   after changing one label\n", stats.layout_ms);
 

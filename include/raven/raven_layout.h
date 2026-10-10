@@ -28,14 +28,6 @@
 
 #include "raven_widget.h"
 
-typedef enum RMaterial{
-	/** Filled with the background color (default). */
-	R_MATERIAL_SOLID = 0x02E0,
-	/** Glass: blurs and refracts what is behind, see R_THEME_GLASS_DARK. */
-	R_MATERIAL_GLASS
-}RMaterial;
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif

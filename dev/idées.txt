@@ -1,18 +1,17 @@
-//intégration curl native
-//API C++, Rust, C#, Python, Zig, et autres.
-//balise <Widget> pour register un nouveau type de widget (balise)
-custom header bar native
 //faire un IDE complet avec
-multiline text editor //(avec language server natif C/C++, C#, Python, Java, Javascript, HTML, CSS, Rust)
-widget editor visuel pour editer des xml directement (et bien plus)
-file explorer natif comme dans Qt
-docking (avec quelques animations dans le style glossy, un peu cartoon tu vois)
-ajoute des animations tres inspirées du style glossy d'apple si c'est pas déja fait, si c'est déja fait tant mieux, ne le refais pas.
 //intégration native HRL
-fully custom memory allocator
-drag & drop from the os
-boucle se fait avec while(...) { RDrawFrame(); } ou un truc comme ca, je veux pas que il gere sa propre boucle de rendu
 release android et ios (ca doit rester cross platform), donc propose moi des trucs pour faire ca
-hiérarchie plus subtile entre les matériaux (Glass, FrostedGlass, TintedGlass) qu'on peut appliquer sur n'importe quel widget et en global pour les widgets qui ne sont pas set manuellement
-encoche virtuelle (dynamic island) qui se déplie comme sur mac quoi et on peut mettre ce qu'on veut dedans
-build avec mingw et msvc pour la distribution
+transparence avec l'os (pas que avec l'app elle meme)
+editeur bevy avec l'api Rust
+webgl pour visualiser l'app dans un navigateur
+intégration navigateur embarqué, pour visualiser des html/css/js etc... (depuis une librarie séparée et pas obligatoire)
+format markdown natif (activable avec un flag sur les widgets concernés comme text, editable text, etc...)
+license commerciale
+themes tres personalisables
+update automatique en temps réel des xml chargés depuis le disque (pas embeded et pas en memory bien sur)
+
+widgets:
+color picker complet
+sequencer / timeline
+node graph (organique, pas un truc flat moche)
+background blur (blur différent entre natif, glassy, etc...)

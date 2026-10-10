@@ -25,7 +25,7 @@ static float g_scale = 1.0f;
 /* Renders the window and keeps its pixels for the CHECK_PIXEL that follow. */
 static void capture(Rid window) {
 	Rpixels_free(g_pixels);
-	Rupdate();
+	Rdraw_frame();
 	g_pixels = Rwindow_capture(window, &g_width, &g_height);
 	g_scale = Rwindow_get_scale(window);
 	CHECK(g_pixels != NULL);
@@ -375,6 +375,85 @@ static void test_glass_theme(void) {
 	Rtheme_apply(R_THEME_DARK);
 }
 
+/* How much a row of pixels changes from one pixel to the next: sharp edges give a high value. */
+static int row_contrast(float x0, float x1, float y) {
+	int total = 0;
+	float x;
+	for (x = x0; x + 1.0f < x1; x += 1.0f) {
+		const uint8_t* a = pixel_at(x, y);
+		int r = a[0], g = a[1], b = a[2];
+		const uint8_t* c = pixel_at(x + 1.0f, y);
+		total += abs(r - c[0]) + abs(g - c[1]) + abs(b - c[2]);
+	}
+	return total;
+}
+
+static void test_materials(void) {
+	/* four panels over the same stripes: each material lets them through in its own way */
+	Rid window = window_from(
+		"<Window Width=\"440\" Height=\"120\" ClearColor=\"#000000\">"
+		"  <Overlay>"
+		"    <HBox Name=\"stripes\"/>"
+		"    <HBox Slot.Padding=\"10,30\" Spacing=\"20\">"
+		"      <Border Name=\"solid\" Material=\"Solid\" Width=\"90\" CornerRadius=\"0\" Background=\"#202020\"/>"
+		"      <Border Name=\"clear\" Material=\"Glass\" Width=\"90\" CornerRadius=\"0\" Background=\"#20202040\"/>"
+		"      <Border Name=\"frosted\" Material=\"FrostedGlass\" Width=\"90\" CornerRadius=\"0\" Background=\"#20202040\"/>"
+		"      <VBox Name=\"tinted\" Material=\"TintedGlass\" Width=\"90\"/>"
+		"    </HBox>"
+		"  </Overlay>"
+		"</Window>");
+	Rid stripes = Rwidget_find(window, "stripes");
+	RFrameStats stats;
+	const uint8_t* p;
+	int i, behind, solid, clear, frosted;
+
+	for (i = 0; i < 44; i++) {
+		Rid stripe = Rwidget_add_child(stripes, Rwidget_create(R_WIDGET_BORDER));
+		Rwidget_set_size(stripe, 10.0f, -1.0f);
+		Rborder_set_background(stripe, (i & 1) ? 1.0f : 0.0f, (i & 1) ? 1.0f : 0.0f, (i & 1) ? 1.0f : 0.0f, 1.0f);
+	}
+	CHECK(Rwidget_get_material(Rwidget_find(window, "solid")) == R_MATERIAL_SOLID);
+	CHECK(Rwidget_get_material(Rwidget_find(window, "clear")) == R_MATERIAL_GLASS);
+	CHECK(Rwidget_get_material(Rwidget_find(window, "tinted")) == R_MATERIAL_TINTED_GLASS);
+	CHECK(Rwidget_get_material(stripes) == R_MATERIAL_SOLID);
+	capture(window);
+	Rwindow_get_frame_stats(window, &stats);
+	/* the theme is flat, and yet three widgets are glass */
+	CHECK(stats.backdrop_count >= 1);
+
+	behind = row_contrast(15.0f, 95.0f, 10.0f);
+	solid = row_contrast(15.0f, 95.0f, 60.0f);
+	clear = row_contrast(125.0f, 205.0f, 60.0f);
+	frosted = row_contrast(235.0f, 315.0f, 60.0f);
+	CHECK(behind > 2000);
+	/* solid hides the stripes, clear glass keeps them readable, frosted glass melts them */
+	CHECK(solid < 50);
+	CHECK(clear > frosted * 2);
+	CHECK(clear > behind / 6);
+	CHECK(frosted < behind / 4);
+	/* the widget that draws nothing by itself became a panel, colored by the accent: more blue than red */
+	p = pixel_at(390, 60);
+	CHECK(p[2] > p[0] + 20);
+
+	/* the material of the theme is the one of every widget that has none */
+	Rwidget_set_material(Rwidget_find(window, "solid"), R_MATERIAL_DEFAULT);
+	CHECK(Rwidget_get_material(Rwidget_find(window, "solid")) == R_MATERIAL_SOLID);
+	Rtheme_set_material(R_MATERIAL_FROSTED_GLASS);
+	CHECK(Rtheme_get_material() == R_MATERIAL_FROSTED_GLASS);
+	CHECK(Rwidget_get_material(Rwidget_find(window, "solid")) == R_MATERIAL_FROSTED_GLASS);
+	CHECK(Rwidget_get_material(Rwidget_find(window, "clear")) == R_MATERIAL_GLASS);
+	capture(window);
+	CHECK(row_contrast(15.0f, 95.0f, 60.0f) > 50);
+	Rtheme_apply(R_THEME_DARK);
+	CHECK(Rtheme_get_material() == R_MATERIAL_SOLID);
+
+	EXPECT_ERRORS_BEGIN();
+	Rtheme_set_material(R_MATERIAL_DEFAULT);
+	Rwidget_set_material(stripes, (RMaterial)7);
+	EXPECT_ERRORS_END(2);
+	Rwindow_destroy(window);
+}
+
 static int g_callback_calls;
 static RViewportDrawInfo g_callback_info;
 
@@ -446,7 +525,7 @@ static void test_windows(void) {
 	for (i = 0; i < 50; i++) {
 		int width = 0, height = 0;
 		Rpoll_events();
-		Rupdate();
+		Rdraw_frame();
 		Rwindow_get_size(first, &width, &height);
 		if (width == 260 && height == 140) break;
 #if !defined(_WIN32)
@@ -527,6 +606,8 @@ static int start(int headless) {
 		Rshutdown();
 		return 0;
 	}
+	/* pixels are compared right after a change: no animation in between */
+	Rset_animations_enabled(R_FALSE);
 	return 1;
 }
 
@@ -554,6 +635,7 @@ int main(void) {
 	RUN(test_custom_drawing);
 	RUN(test_glass);
 	RUN(test_glass_theme);
+	RUN(test_materials);
 	RUN(test_viewport);
 	RUN(test_windows);
 	RUN(test_vulkan_api);

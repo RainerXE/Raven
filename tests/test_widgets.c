@@ -584,7 +584,7 @@ static void test_timers_theme_and_attributes(void) {
 
 	timer = Rtimer_create(0.0, R_FALSE, on_timer, &fired);
 	CHECK(Rtimer_is_valid(timer));
-	for (i = 0; i < 3; i++) Rupdate();
+	for (i = 0; i < 3; i++) Rdraw_frame();
 	CHECK(fired == 1);
 	CHECK(!Rtimer_is_valid(timer));
 
@@ -632,7 +632,7 @@ int main(void) {
 	RUN(test_timers_theme_and_attributes);
 
 	/* everything still paints */
-	Rupdate();
+	Rdraw_frame();
 	Rshutdown();
 	return test_report("test_widgets");
 }

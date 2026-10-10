@@ -39,6 +39,12 @@ extern "C" {
 	RAVEN_API Rid Rfont_get_default(void);
 
 	/**
+	 * @return The fixed-width font embedded in the library (Roboto Mono, same
+	 * characters), used by default by the text editors. In XML: Font="monospace".
+	 */
+	RAVEN_API Rid Rfont_get_monospace(void);
+
+	/**
 	 * @brief Font used for the characters missing from `font` (symbols, icons,
 	 * other scripts). Fallbacks can be chained.
 	 */
