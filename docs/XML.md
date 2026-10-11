@@ -263,8 +263,11 @@ looks for it in its menus when the keys are pressed.
 `Markdown="true"` on a `Label` renders its text: headings (`#` to `######`),
 **strong**, *emphasis*, ~~struck~~, `code`, links, lists (bulleted, numbered,
 nested, with check boxes), quotes, code blocks (colored when they name a
-language of the text editor), tables, rules and line breaks. Inside an XML
-element the text may be indented with the document; `<![CDATA[ ... ]]>`
+language of the text editor), tables, rules, line breaks and images. Images on
+a line of their own use the usual `![description](path)` syntax; `path` can be
+relative to the XML file or an `http://` / `https://` URL. Remote images load
+asynchronously (requires `curl` on macOS/Linux and WinHTTP on Windows). Inside
+an XML element the text may be indented with the document; `<![CDATA[ ... ]]>`
 avoids escaping `<` and `&`.
 
 A link `[text](https://...)` opens in the browser of the system;

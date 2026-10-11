@@ -2,6 +2,14 @@ cmake_minimum_required(VERSION 3.16)
 
 project(raven VERSION 0.1.0 DESCRIPTION "Raven - lightweight multithreaded GUI library in C" LANGUAGES C)
 
+if(APPLE)
+	# Cocoa is the native macOS window API; almost all Raven code remains C.
+	enable_language(OBJC)
+	set(CMAKE_OBJC_STANDARD 11)
+	set(CMAKE_OBJC_STANDARD_REQUIRED ON)
+	add_compile_definitions(_DARWIN_C_SOURCE)
+endif()
+
 # ---------------------------------------------------------------------------
 #  Options
 # ---------------------------------------------------------------------------
@@ -24,8 +32,8 @@ option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SD
 option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator or glslc)" OFF)
 option(RAVEN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(RAVEN_MSVC_STATIC_RUNTIME "Visual C++: link the C runtime statically (/MT) instead of using its DLL (/MD)" OFF)
-set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11 or null")
-set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 null)
+set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11, cocoa or null")
+set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 cocoa null)
 
 if(RAVEN_IS_TOP_LEVEL)
 	# one folder for the programs and the DLL, so that a shared build runs in place
@@ -59,11 +67,13 @@ include(RavenCompilerOptions)
 if(RAVEN_PLATFORM STREQUAL "auto")
 	if(WIN32)
 		set(RAVEN_PLATFORM_SELECTED "win32")
-	elseif(UNIX AND NOT APPLE)
+	elseif(APPLE)
+		set(RAVEN_PLATFORM_SELECTED "cocoa")
+	elseif(UNIX)
 		set(RAVEN_PLATFORM_SELECTED "x11")
 	else()
 		set(RAVEN_PLATFORM_SELECTED "null")
-		message(WARNING "Raven: no window system is implemented for this OS yet: building the headless (null) platform only.")
+		message(WARNING "Raven: no native window system is implemented for this OS: building the headless (null) platform only.")
 	endif()
 else()
 	set(RAVEN_PLATFORM_SELECTED "${RAVEN_PLATFORM}")
@@ -102,6 +112,8 @@ set(RAVEN_CORE_SOURCES
 	src/core/handle.h
 	src/core/heap.c
 	src/core/fs.c
+	src/core/fs_watch.c
+	src/core/fs_watch.h
 	src/core/fs.h
 	src/core/heap.h
 	src/core/jobs.c
@@ -206,6 +218,11 @@ set(RAVEN_XML_SOURCES
 set(RAVEN_DEFINITIONS "")
 set(RAVEN_LIBRARIES "")
 
+# The HTTP(S) image loader uses WinHTTP even in a headless Windows build.
+if(WIN32)
+	list(APPEND RAVEN_LIBRARIES winhttp)
+endif()
+
 # threads
 if(WIN32)
 	list(APPEND RAVEN_CORE_SOURCES src/core/thread_win32.c)
@@ -238,8 +255,21 @@ elseif(RAVEN_PLATFORM_SELECTED STREQUAL "x11")
 	)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_PLATFORM_X11)
 	list(APPEND RAVEN_LIBRARIES ${X11_X11_LIB})
+elseif(RAVEN_PLATFORM_SELECTED STREQUAL "cocoa")
+	if(NOT APPLE)
+		message(FATAL_ERROR "Raven: the cocoa platform is only available on macOS")
+	endif()
+	list(APPEND RAVEN_PLATFORM_SOURCES src/platform/cocoa/cocoa_platform.m)
+	list(APPEND RAVEN_DEFINITIONS RAVEN_PLATFORM_COCOA)
+	find_library(RAVEN_APPKIT_FRAMEWORK AppKit)
+	find_library(RAVEN_QUARTZCORE_FRAMEWORK QuartzCore)
+	find_library(RAVEN_METAL_FRAMEWORK Metal)
+	if(NOT RAVEN_APPKIT_FRAMEWORK OR NOT RAVEN_QUARTZCORE_FRAMEWORK OR NOT RAVEN_METAL_FRAMEWORK)
+		message(FATAL_ERROR "Raven: Cocoa builds require the AppKit, QuartzCore and Metal frameworks")
+	endif()
+	list(APPEND RAVEN_LIBRARIES ${RAVEN_APPKIT_FRAMEWORK} ${RAVEN_QUARTZCORE_FRAMEWORK} ${RAVEN_METAL_FRAMEWORK})
 elseif(NOT RAVEN_PLATFORM_SELECTED STREQUAL "null")
-	message(FATAL_ERROR "Raven: unknown RAVEN_PLATFORM '${RAVEN_PLATFORM_SELECTED}' (expected auto, win32, x11 or null)")
+	message(FATAL_ERROR "Raven: unknown RAVEN_PLATFORM '${RAVEN_PLATFORM_SELECTED}' (expected auto, win32, x11, cocoa or null)")
 endif()
 
 # Vulkan backend: only the headers are needed, the library is loaded at run time

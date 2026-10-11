@@ -2,7 +2,7 @@
 
 A lightweight, multithreaded GUI library in C for editors and tools.
 
-- **C11, no dependency.** Raven opens its own windows (Win32, X11), loads
+- **C11, no dependency.** Raven opens its own native windows (Win32, X11, Cocoa on macOS), loads
   Vulkan at run time and has its own memory allocator. A stripped shared
   library is about 1.3 MB, two fonts included.
 - **Slate-style layout.** Boxes, grid, overlay, border, canvas, scroll box,
@@ -114,7 +114,8 @@ has been verified there, and what has not been verified anywhere:
 | `dist.sh`, CMake presets, install, `find_package` | run on Linux |
 | The designer | run on Linux/X11; a scripted run is part of the tests |
 | Bindings | C++, Python, Rust and Go are compiled and run by the tests. **C#, Zig and LuaJIT were generated but never compiled or run** |
-| macOS, Wayland | not implemented (XWayland works through the X11 platform) |
+| macOS / Cocoa | native Cocoa windows, drag-and-drop, clipboard and Metal surface for Vulkan/MoltenVK are implemented in this change, but **not built or run on macOS here** |
+| Wayland | no native backend yet (XWayland works through the X11 platform) |
 
 ## Building
 
@@ -158,7 +159,7 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 | `RAVEN_BUILD_TOOLS` | `ON` when top level | `raven_designer` |
 | `RAVEN_BUILD_WEB` | `ON` when top level | `raven_web`, the optional library that shows web pages ([docs/WEB.md](docs/WEB.md)); it needs nothing more to build |
 | `RAVEN_BACKEND_VULKAN` | `ON` | `OFF` builds without any GPU code (custom backend or headless) |
-| `RAVEN_PLATFORM` | `auto` | `win32`, `x11` or `null` |
+| `RAVEN_PLATFORM` | `auto` | `win32`, `x11`, `cocoa` (macOS) or `null` |
 | `RAVEN_WITH_STB_IMAGE` | `ON` | PNG / JPEG / BMP / TGA decoding |
 | `RAVEN_FETCH_VULKAN_HEADERS` | `ON` | download the Khronos headers when no SDK is found |
 | `RAVEN_VULKAN_INCLUDE_DIR` | | folder containing `vulkan/vulkan.h`, to skip the search |
@@ -787,7 +788,7 @@ and how to add a widget, a window system or a backend.
 
 ## Not implemented yet
 
-macOS and native Wayland; text kerning, right-to-left and complex scripts;
+native Wayland; text kerning, right-to-left and complex scripts;
 IME composition window placement; in the text editor: several cursors,
 search and replace, code folding, a language server client; tearing a docked
 panel off into its own window; dragging out of a window to another

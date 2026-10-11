@@ -2,7 +2,7 @@
  * Raven
  * raven_window.h : OS windows, input enums and events.
  *
- * Raven creates and owns its windows (Win32, X11). Sizes and positions are in
+ * Raven creates and owns its windows (Win32, X11, Cocoa on macOS). Sizes and positions are in
  * logical units; multiply by Rwindow_get_scale to get pixels.
  */
 
@@ -42,6 +42,7 @@ typedef enum RWindowFlags{
  *
  *   Windows 11          every value
  *   Windows 10          TRANSPARENT, BLUR, ACRYLIC (MICA gives ACRYLIC)
+ *   macOS               TRANSPARENT; other backdrops fall back to transparency
  *   X11                 TRANSPARENT with any compositing manager; BLUR where
  *                       the compositor blurs on request (KWin; picom and
  *                       others with their own settings); ACRYLIC and MICA
@@ -73,6 +74,7 @@ typedef enum RWindowSystem{
  * Native handles of a window or of a native viewport.
  *   Win32 : display = HINSTANCE, window = HWND
  *   X11   : display = Display*,  window = Window (XID), visual = VisualID
+ *   Cocoa : display = NSWindow*, window = CAMetalLayer* for Vulkan presentation
  */
 typedef struct RNativeWindow {
 	RWindowSystem system;
