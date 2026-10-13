@@ -9,6 +9,7 @@
 #include "test.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #if defined(_WIN32)
 #include <direct.h>
@@ -39,7 +40,12 @@ static void make_tree(void) {
 #else
 	if (!temp) temp = "/tmp";
 #endif
-	snprintf(g_root, sizeof(g_root), "%s%sraven_test_dialogs_%u", temp, TEST_SEPARATOR, (unsigned)(Rget_time() * 1e6) + 17u);
+	{
+		/* macOS gives TMPDIR with a separator at its end: the file browser writes paths without "//" */
+		size_t length = strlen(temp);
+		while (length > 1 && (temp[length - 1] == '/' || temp[length - 1] == '\\')) length--;
+		snprintf(g_root, sizeof(g_root), "%.*s%sraven_test_dialogs_%u", (int)length, temp, TEST_SEPARATOR, (unsigned)(Rget_time() * 1e6) + 17u);
+	}
 	test_mkdir(g_root);
 	test_mkdir(in_root("sub"));
 	test_mkdir(in_root("zeta"));

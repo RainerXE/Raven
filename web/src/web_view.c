@@ -676,6 +676,24 @@ static void rw_view_key(rw_view_t* view, const REvent* event, int down) {
 		}
 	}
 
+#if defined(__APPLE__)
+	/* Chrome on macOS takes the editing keys from their commands only (as its own NSResponder would) */
+	if (down && !command && !(event->modifiers & (R_MOD_CTRL | R_MOD_ALT))) {
+		int shift = (event->modifiers & R_MOD_SHIFT) != 0;
+		switch (code) {
+			case 8: command = "deleteBackward"; break;
+			case 46: command = "deleteForward"; break;
+			case 37: command = shift ? "moveLeftAndModifySelection" : "moveLeft"; break;
+			case 39: command = shift ? "moveRightAndModifySelection" : "moveRight"; break;
+			case 38: command = shift ? "moveUpAndModifySelection" : "moveUp"; break;
+			case 40: command = shift ? "moveDownAndModifySelection" : "moveDown"; break;
+			case 36: command = shift ? "moveToBeginningOfLineAndModifySelection" : "moveToBeginningOfLine"; break;
+			case 35: command = shift ? "moveToEndOfLineAndModifySelection" : "moveToEndOfLine"; break;
+			default: break;
+		}
+	}
+#endif
+
 	memset(&params, 0, sizeof(params));
 	/* Enter carries its character: that is what validates a form or breaks a line */
 	if (down && code == 13) rw_text_puts(&params, "{\"type\":\"keyDown\",\"text\":\"\\r\"");
@@ -714,10 +732,18 @@ static void rw_view_text(rw_view_t* view, const REvent* event) {
 	}
 	utf8[length] = 0;
 	memset(&params, 0, sizeof(params));
+#if defined(__APPLE__)
+	/* Chrome on macOS drops the "char" key events: the text is inserted as such */
+	rw_text_puts(&params, "{\"text\":");
+	rw_text_json(&params, utf8);
+	rw_text_puts(&params, "}");
+	rw_view_send(view, "Input.insertText", params.data, RW_KIND_NONE, NULL, NULL);
+#else
 	rw_text_puts(&params, "{\"type\":\"char\",\"text\":");
 	rw_text_json(&params, utf8);
 	rw_text_printf(&params, ",\"modifiers\":%d}", rw_modifiers(event->modifiers));
 	rw_view_send(view, "Input.dispatchKeyEvent", params.data, RW_KIND_NONE, NULL, NULL);
+#endif
 	rw_text_free(&params);
 }
 
