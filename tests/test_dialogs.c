@@ -13,6 +13,7 @@
 
 #if defined(_WIN32)
 #include <direct.h>
+#include <windows.h>
 #define test_mkdir(path) _mkdir(path)
 #define TEST_SEPARATOR "\\"
 #else
@@ -53,6 +54,10 @@ static void make_tree(void) {
 	CHECK(Rfile_write(in_root("alpha.xml"), "<a/>", 4));
 	CHECK(Rfile_write(in_root("Gamma.XML"), "<g/>!", 5));
 	CHECK(Rfile_write(in_root(".hidden"), "", 0));
+#if defined(_WIN32)
+	/* on Windows a file is hidden by its attribute, not by its name */
+	SetFileAttributesA(in_root(".hidden"), FILE_ATTRIBUTE_HIDDEN);
+#endif
 	CHECK(Rfile_write(in_root("sub" TEST_SEPARATOR "inner.txt"), "in", 2));
 }
 

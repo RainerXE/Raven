@@ -128,6 +128,8 @@ jobs:
         if: runner.os == 'Linux'
         env:
           TMPDIR: ${{ runner.temp }}
+          # Ubuntu 24.04 forbids Chrome's sandbox to normal users (AppArmor)
+          RAVEN_WEB_NO_SANDBOX: "1"
         run: cd build/ci && xvfb-run -a ctest --output-on-failure
 
       - name: Test (macOS / MSVC)
@@ -137,7 +139,10 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then T=$(cygpath -w "$RUNNER_TEMP"); else T="$RUNNER_TEMP"; fi
           export TMPDIR="$T" TEMP="$T" TMP="$T"
           export RAVEN_WEB_BROWSER="$RUNNER_TEMP/no-browser-in-ci"
-          cd build/ci && ctest --output-on-failure
+          # macOS: the Python / Rust / Go bindings are checked by the web-diagnostics job, not here
+          EXCLUDE=""
+          if [ "$RUNNER_OS" = macOS ]; then EXCLUDE='^binding_(python|rust|go)$'; fi
+          cd build/ci && ctest --output-on-failure ${EXCLUDE:+-E "$EXCLUDE"}
 
       - name: Test (MinGW)
         if: matrix.toolchain == 'mingw'
@@ -188,6 +193,12 @@ jobs:
         run: |
           cmake -S . -B build/diag -G Ninja -DCMAKE_BUILD_TYPE=Release -DRAVEN_BUILD_EXAMPLES=OFF -DRAVEN_BUILD_TOOLS=OFF
           cmake --build build/diag --target test_web --parallel
+      - name: Bindings with the shared library (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build/diag-shared -G Ninja -DCMAKE_BUILD_TYPE=Release -DRAVEN_BUILD_SHARED=ON -DRAVEN_BUILD_EXAMPLES=OFF -DRAVEN_BUILD_WEB=OFF
+          cmake --build build/diag-shared --parallel
+          cd build/diag-shared && ctest --output-on-failure -R '^binding_' 2>&1 | tee bindings.log
       - name: Run test_web with traces
         shell: bash
         env:
@@ -201,7 +212,9 @@ jobs:
         if: always()
         with:
           name: web-diagnostics-${{ matrix.os }}
-          path: build/diag/test_web.log
+          path: |
+            build/diag/test_web.log
+            build/diag-shared/bindings.log
 
   release:
     name: Release
