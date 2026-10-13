@@ -122,19 +122,31 @@ jobs:
             ${{ matrix.extra }}
           cmake --build build/ci --parallel
 
+      # Tests: a clean, long temporary folder (no 8.3 name, no trailing separator).
+      # The browser half of test_web runs on Linux only (see the web-diagnostics job).
       - name: Test (Linux, virtual display)
         if: runner.os == 'Linux'
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: cd build/ci && xvfb-run -a ctest --output-on-failure
 
       - name: Test (macOS / MSVC)
         if: runner.os != 'Linux' && matrix.toolchain != 'mingw'
         shell: bash
-        run: cd build/ci && ctest --output-on-failure
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then T=$(cygpath -w "$RUNNER_TEMP"); else T="$RUNNER_TEMP"; fi
+          export TMPDIR="$T" TEMP="$T" TMP="$T"
+          export RAVEN_WEB_BROWSER="$RUNNER_TEMP/no-browser-in-ci"
+          cd build/ci && ctest --output-on-failure
 
       - name: Test (MinGW)
         if: matrix.toolchain == 'mingw'
         shell: msys2 {0}
-        run: cd build/ci && ctest --output-on-failure
+        run: |
+          T=$(cygpath -w "$RUNNER_TEMP")
+          export TMPDIR="$T" TEMP="$T" TMP="$T"
+          export RAVEN_WEB_BROWSER="$T\\no-browser-in-ci"
+          cd build/ci && ctest --output-on-failure
 
       - name: Install
         if: matrix.toolchain != 'mingw'
@@ -152,6 +164,44 @@ jobs:
           name: raven-${{ matrix.name }}
           path: dist/raven-${{ matrix.name }}
           if-no-files-found: error
+
+  # Runs the browser tests of raven_web on Windows and macOS with traces.
+  # It never blocks the build: its log is what is needed to fix them there.
+  web-diagnostics:
+    name: web-diagnostics-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Build test_web
+        shell: bash
+        run: |
+          cmake -S . -B build/diag -G Ninja -DCMAKE_BUILD_TYPE=Release -DRAVEN_BUILD_EXAMPLES=OFF -DRAVEN_BUILD_TOOLS=OFF
+          cmake --build build/diag --target test_web --parallel
+      - name: Run test_web with traces
+        shell: bash
+        env:
+          RAVEN_WEB_TRACE: "1"
+          RAVEN_WEB_DEBUG: "1"
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then T=$(cygpath -w "$RUNNER_TEMP"); else T="$RUNNER_TEMP"; fi
+          export TMPDIR="$T" TEMP="$T" TMP="$T"
+          cd build/diag && ./bin/test_web 2>&1 | tee test_web.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-diagnostics-${{ matrix.os }}
+          path: build/diag/test_web.log
 
   release:
     name: Release
