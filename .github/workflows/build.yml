@@ -1,0 +1,172 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ---------------- Windows / MSVC ----------------
+          - name: windows-msvc-static
+            os: windows-latest
+            toolchain: msvc
+            shared: OFF
+            extra: -DRAVEN_MSVC_STATIC_RUNTIME=ON
+          - name: windows-msvc-dynamic
+            os: windows-latest
+            toolchain: msvc
+            shared: ON
+            extra: -DRAVEN_MSVC_STATIC_RUNTIME=OFF
+          # ---------------- Windows / MinGW ---------------
+          - name: windows-mingw-static
+            os: windows-latest
+            toolchain: mingw
+            shared: OFF
+            extra: >-
+              "-DCMAKE_EXE_LINKER_FLAGS=-static -static-libgcc"
+          - name: windows-mingw-dynamic
+            os: windows-latest
+            toolchain: mingw
+            shared: ON
+            extra: ""
+          # ---------------- Linux -------------------------
+          - name: linux-static
+            os: ubuntu-latest
+            toolchain: unix
+            shared: OFF
+            extra: -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          - name: linux-dynamic
+            os: ubuntu-latest
+            toolchain: unix
+            shared: ON
+            extra: ""
+          # ---------------- macOS (universal) -------------
+          - name: macos-static
+            os: macos-latest
+            toolchain: unix
+            shared: OFF
+            extra: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"'
+          - name: macos-dynamic
+            os: macos-latest
+            toolchain: unix
+            shared: ON
+            extra: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- dependencies ----
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libx11-dev xvfb
+
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Setup MSVC
+        if: matrix.toolchain == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Setup MinGW (MSYS2 UCRT64)
+        if: matrix.toolchain == 'mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      # ---- configure / build / test / install ----
+      - name: Build (MSVC / Linux / macOS)
+        if: matrix.toolchain != 'mingw'
+        shell: bash
+        run: |
+          cmake -S . -B build/ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRAVEN_BUILD_SHARED=${{ matrix.shared }} \
+            -DRAVEN_BUILD_EXAMPLES=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/dist/raven-${{ matrix.name }}" \
+            ${{ matrix.extra }}
+          cmake --build build/ci --parallel
+
+      - name: Build (MinGW)
+        if: matrix.toolchain == 'mingw'
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build/ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRAVEN_BUILD_SHARED=${{ matrix.shared }} \
+            -DRAVEN_BUILD_EXAMPLES=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/dist/raven-${{ matrix.name }}" \
+            ${{ matrix.extra }}
+          cmake --build build/ci --parallel
+
+      - name: Test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: cd build/ci && xvfb-run -a ctest --output-on-failure
+
+      - name: Test (macOS / MSVC)
+        if: runner.os != 'Linux' && matrix.toolchain != 'mingw'
+        shell: bash
+        run: cd build/ci && ctest --output-on-failure
+
+      - name: Test (MinGW)
+        if: matrix.toolchain == 'mingw'
+        shell: msys2 {0}
+        run: cd build/ci && ctest --output-on-failure
+
+      - name: Install
+        if: matrix.toolchain != 'mingw'
+        shell: bash
+        run: cmake --install build/ci
+
+      - name: Install (MinGW)
+        if: matrix.toolchain == 'mingw'
+        shell: msys2 {0}
+        run: cmake --install build/ci
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raven-${{ matrix.name }}
+          path: dist/raven-${{ matrix.name }}
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Package
+        run: |
+          cd dist
+          for d in */; do d=${d%/}; tar czf "$d.tar.gz" "$d"; done
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz

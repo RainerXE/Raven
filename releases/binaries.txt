@@ -7,5 +7,5 @@ libclang-shared-macos-arm64.zip
 gcc-static-linux.zip
 gcc-shared-linux.zip
 rdesigner-windows-x64.exe
-rdesigner-macos
+rdesigner-macos-arm64
 rdesigner-linux
