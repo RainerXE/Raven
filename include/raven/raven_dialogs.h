@@ -151,6 +151,23 @@ extern "C" {
 	RAVEN_API const char* Rfile_dialog_get_result(int index);
 
 	/**
+	 * @brief Registers a file held in memory under a path: every file Raven
+	 * reads (XML documents and their Include, Source and Font attributes,
+	 * themes, textures, fonts, Rfile_read) is looked up here first, so that
+	 * resources embedded in the executable need no file beside it. A relative
+	 * path names the file as it is written in the XML once joined to the
+	 * folder of the document that names it (Rxml_set_base_path for a
+	 * document given as text), e.g. "ui/editor.xml". Paths compare with '/'
+	 * and '\\' alike. Memory files are not watched for live reload. Call it
+	 * after Rinit; Rshutdown forgets every file.
+	 * @param copy R_TRUE: Raven keeps a copy; R_FALSE: `data` must outlive Raven (static data).
+	 */
+	RAVEN_API int Rfile_register_memory(const char* path, const void* data, size_t size, int copy);
+	RAVEN_API void Rfile_unregister_memory(const char* path);
+	/** @brief R_TRUE when `path` is a file registered with Rfile_register_memory. */
+	RAVEN_API int Rfile_is_memory(const char* path);
+
+	/**
 	 * Whole files, with UTF-8 paths on every platform.
 	 * @return Rfile_read: the content followed by a '\0', to release with
 	 * Rmemory_free; NULL when the file cannot be read. `size` may be NULL.

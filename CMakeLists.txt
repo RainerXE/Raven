@@ -183,6 +183,7 @@ set(RAVEN_WIDGETS_SOURCES
 	src/widgets/color_picker.c
 	src/widgets/timeline.c
 	src/widgets/node_graph.c
+	src/widgets/tile_view.c
 	src/widgets/combo_box.c
 	src/widgets/image.c
 	src/widgets/label.c

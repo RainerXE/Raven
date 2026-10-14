@@ -163,6 +163,8 @@ extern "C" {
 
 	RAVEN_API void Rimage_set_texture(Rid image, Rid texture);
 	RAVEN_API void Rimage_set_tint_color(Rid image, float r, float g, float b, float a);
+	/** @brief R_TRUE: the image is tinted with the text color around it (white icons that follow the theme). XML: TintText. */
+	RAVEN_API void Rimage_set_tint_text(Rid image, int enabled);
 	RAVEN_API void Rimage_set_stretch(Rid image, RStretch stretch);
 	/** @brief Part of the texture to show, in UV coordinates. Default: 0, 0, 1, 1. */
 	RAVEN_API void Rimage_set_region(Rid image, float min_u, float min_v, float max_u, float max_v);
@@ -294,6 +296,43 @@ extern "C" {
 	/** @brief Called on double click or Enter. This also fires the action of the widget. */
 	RAVEN_API void Rtree_view_set_activated_callback(Rid tree_view, RTreeEventCallback callback, void* user_data);
 
+	/** @brief Icon drawn before the text of the item (a region u0,v0,u1,v1 of the texture). R_INVALID_ID removes it. */
+	RAVEN_API void Rtree_item_set_icon(Rid item, Rid texture, float u0, float v0, float u1, float v1);
+	/** @brief Color of the text of the item; alpha 0 goes back to the theme. */
+	RAVEN_API void Rtree_item_set_text_color(Rid item, float r, float g, float b, float a);
+
+	/**
+	 * @brief Several items can be selected: Ctrl + click adds or removes one,
+	 * Shift + click selects a range. The selection callback receives the item
+	 * clicked last (the primary one, Rtree_view_get_selected_item).
+	 */
+	RAVEN_API void Rtree_view_set_multi_select(Rid tree_view, int enabled);
+	RAVEN_API void Rtree_item_set_selected(Rid item, int selected);
+	RAVEN_API int Rtree_item_is_selected(Rid item);
+	RAVEN_API void Rtree_view_clear_selection(Rid tree_view);
+	/** @brief Selected items, top to bottom. */
+	RAVEN_API int Rtree_view_get_selection_count(Rid tree_view);
+	RAVEN_API Rid Rtree_view_get_selection(Rid tree_view, int index);
+	RAVEN_API void Rtree_view_scroll_to_item(Rid tree_view, Rid item);
+
+	/**
+	 * @brief Right click: `item` is the item under the pointer (selected
+	 * first), or R_INVALID_ID in the empty space; x, y in the window, for Rmenu_open.
+	 */
+	typedef void (*RTreeContextCallback)(Rid tree_view, Rid item, float x, float y, void* user_data);
+	RAVEN_API void Rtree_view_set_context_callback(Rid tree_view, RTreeContextCallback callback, void* user_data);
+
+	/**
+	 * @brief Items can be dragged: the selection is given to Rdrag_begin with
+	 * this type and, as data, the handles of the items in decimal separated
+	 * by spaces. NULL: no drag (default).
+	 */
+	RAVEN_API void Rtree_view_set_drag_type(Rid tree_view, const char* type);
+	/** @brief Item at a point relative to the tree (drop callbacks give local_x, local_y), or R_INVALID_ID. */
+	RAVEN_API Rid Rtree_view_get_item_at(Rid tree_view, float local_x, float local_y);
+	/** @brief Highlights where a drop would go: an item, or the whole tree (`whole_tree`). R_INVALID_ID, 0 removes it. */
+	RAVEN_API void Rtree_view_set_drop_highlight(Rid tree_view, Rid item, int whole_tree);
+
 
 	/* ============================================================================
 	 *  MENUS
@@ -327,6 +366,77 @@ extern "C" {
 	RAVEN_API void Rmenu_open(Rid menu, Rid window, float x, float y);
 	/** @brief Closes every open menu and popup of the window. */
 	RAVEN_API void Rwindow_close_popups(Rid window);
+
+
+	/* ============================================================================
+	 *  TILE VIEW (grid of tiles: an icon over a name; virtualized)
+	 * ============================================================================ */
+
+	/** What a tile shows, filled by the application when the tile is drawn. */
+	typedef struct RTileItem {
+		/** Name under the icon (valid until the callback returns). */
+		const char* text;
+		/** Second line, dimmer, or NULL. */
+		const char* detail;
+		/** Small text at the top right of the tile, or NULL. */
+		const char* badge;
+		/** Icon texture (R_INVALID_ID: none), the region of it and its tint (white by default). */
+		Rid icon;
+		float uv[4];
+		float tint[4];
+		float icon_radius;
+		/** Color of the name; alpha 0 = the theme. */
+		float text_color[4];
+	} RTileItem;
+
+	/** Fills `item` for tile `index`. Called on the UI thread, only for the tiles in view. */
+	typedef void (*RTileItemCallback)(Rid tile_view, int index, RTileItem* item, void* user_data);
+	/** Selection change (`index`: the current tile, or -1) and activation (double click, Enter). */
+	typedef void (*RTileEventCallback)(Rid tile_view, int index, void* user_data);
+	/** Right click: the tile under the pointer (selected first), or -1 in the empty space; x, y in the window. */
+	typedef void (*RTileContextCallback)(Rid tile_view, int index, float x, float y, void* user_data);
+
+	/** @brief Gives the tiles: `count` of them, described by `callback`. The selection is cleared. */
+	RAVEN_API void Rtile_view_set_items(Rid tile_view, int count, RTileItemCallback callback, void* user_data);
+	/** @brief Draws the tiles again (their description changed, not their number). */
+	RAVEN_API void Rtile_view_refresh(Rid tile_view);
+	RAVEN_API int Rtile_view_get_count(Rid tile_view);
+	/** @brief Size of a tile (its name included) and of its icon. Default 112 x 112, icon 64. */
+	RAVEN_API void Rtile_view_set_tile_size(Rid tile_view, float width, float height, float icon_size);
+	RAVEN_API void Rtile_view_set_empty_text(Rid tile_view, const char* text);
+
+	/* Several tiles can be selected: Ctrl + click, Shift + click, a rubber band from the empty space, Ctrl + A. */
+	RAVEN_API void Rtile_view_set_selected(Rid tile_view, int index, int selected);
+	RAVEN_API int Rtile_view_is_selected(Rid tile_view, int index);
+	RAVEN_API void Rtile_view_clear_selection(Rid tile_view);
+	RAVEN_API void Rtile_view_select_only(Rid tile_view, int index);
+	/** @brief The tile clicked last, or -1. */
+	RAVEN_API int Rtile_view_get_current(Rid tile_view);
+	RAVEN_API int Rtile_view_get_selection_count(Rid tile_view);
+	/** @brief Index of the nth selected tile, in order. */
+	RAVEN_API int Rtile_view_get_selection(Rid tile_view, int nth);
+	RAVEN_API void Rtile_view_scroll_to(Rid tile_view, int index);
+	/** @brief Tile at a point relative to the widget (drop callbacks give local_x, local_y), or -1. */
+	RAVEN_API int Rtile_view_get_item_at(Rid tile_view, float local_x, float local_y);
+	/** @brief Highlights the tile a drop would go to; -1 removes it. */
+	RAVEN_API void Rtile_view_set_drop_highlight(Rid tile_view, int index);
+	/**
+	 * @brief Tiles can be dragged: the selected tiles are given to Rdrag_begin
+	 * with this type and, as data, their indices separated by spaces.
+	 */
+	RAVEN_API void Rtile_view_set_drag_type(Rid tile_view, const char* type);
+	/**
+	 * @brief The data of a drag, given by the application (paths of files...)
+	 * instead of the indices: the dragged tiles are the selected ones
+	 * (Rtile_view_get_selection). The text returned is copied; NULL keeps
+	 * the indices.
+	 */
+	typedef const char* (*RTileDragDataCallback)(Rid tile_view, void* user_data);
+	RAVEN_API void Rtile_view_set_drag_data_callback(Rid tile_view, RTileDragDataCallback callback, void* user_data);
+
+	RAVEN_API void Rtile_view_set_selection_changed_callback(Rid tile_view, RTileEventCallback callback, void* user_data);
+	RAVEN_API void Rtile_view_set_activated_callback(Rid tile_view, RTileEventCallback callback, void* user_data);
+	RAVEN_API void Rtile_view_set_context_callback(Rid tile_view, RTileContextCallback callback, void* user_data);
 
 #ifdef __cplusplus
 } /* extern "C" */

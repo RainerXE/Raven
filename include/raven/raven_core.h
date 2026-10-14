@@ -336,6 +336,20 @@ extern "C" {
 	 * @brief R_FALSE makes every change immediate: for users who ask for
 	 * reduced motion, and for tests that read the state right after an input.
 	 */
+	/**
+	 * @brief Scale of the whole interface, on top of the one of the monitor
+	 * (RInitDesc.ui_scale at start): every window is laid out again. 0.25 .. 4.
+	 */
+	RAVEN_API void Rset_ui_scale(float scale);
+	/**
+	 * @brief R_TRUE: every frame waits for the vertical synchronization of the
+	 * screen (no tearing, no wasted frames); R_FALSE: as fast as possible
+	 * (RInitDesc.disable_vsync at start). Takes effect at the next frame.
+	 */
+	RAVEN_API void Rset_vsync(int enabled);
+	RAVEN_API int Rget_vsync(void);
+	RAVEN_API float Rget_ui_scale(void);
+
 	RAVEN_API void Rset_animations_enabled(int enabled);
 	RAVEN_API int Rget_animations_enabled(void);
 

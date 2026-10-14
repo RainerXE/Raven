@@ -106,6 +106,10 @@ typedef enum RWidgetType{
 	/** Nodes linked by wires, on a canvas that pans and zooms. */
 	R_WIDGET_NODE_GRAPH,
 
+	/* ---- raven_controls.h ---- */
+	/** Grid of tiles (an icon over a name), virtualized. Slate: STileView. */
+	R_WIDGET_TILE_VIEW,
+
 	R_WIDGET_LAST_
 }RWidgetType;
 

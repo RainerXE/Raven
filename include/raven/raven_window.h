@@ -127,7 +127,9 @@ typedef enum RCursor{
 	R_CURSOR_RESIZE_NWSE,
 	R_CURSOR_RESIZE_NESW,
 	R_CURSOR_MOVE,
-	R_CURSOR_NOT_ALLOWED
+	R_CURSOR_NOT_ALLOWED,
+	/** No pointer at all (a game that hides it). Windows; elsewhere the arrow. */
+	R_CURSOR_NONE
 }RCursor;
 
 /** Keyboard keys. Printable keys use their upper-case ASCII code. */
@@ -261,8 +263,12 @@ typedef struct RDropEvent {
 	/** Dropped files and folders, as UTF-8 paths. */
 	const char* const* paths;
 	int path_count;
-	/** Dropped text when it is not files, or NULL. */
+	/** Dropped text when it is not files, or NULL. For a drag inside the application: its data. */
 	const char* text;
+	/** Drag inside the application (Rdrag_begin): its type, else NULL. Set in every phase. */
+	const char* drag_type;
+	/** Widget the drag started from, or R_INVALID_ID. */
+	Rid drag_source;
 } RDropEvent;
 
 /**
@@ -342,6 +348,12 @@ extern "C" {
 	 * @brief Color behind the content. By default it is the theme color
 	 * R_COLOR_WINDOW (and, with a glass theme, the wallpaper of the theme).
 	 */
+	/**
+	 * @brief Icon of the window (title bar, task bar), from tightly packed
+	 * RGBA8 pixels; NULL goes back to the default: on Windows the first icon
+	 * of the executable, when it has one. Windows and X11.
+	 */
+	RAVEN_API void Rwindow_set_icon(Rid window, const uint8_t* rgba, int width, int height);
 	RAVEN_API void Rwindow_set_clear_color(Rid window, float r, float g, float b, float a);
 	/**
 	 * @brief Image drawn behind the content, scaled to cover the window:
@@ -367,6 +379,15 @@ extern "C" {
 	 */
 	RAVEN_API int Rwindow_set_opacity(Rid window, float opacity);
 	RAVEN_API float Rwindow_get_opacity(Rid window);
+
+	/**
+	 * @brief Keeps the window above the other windows (splash screens, tools).
+	 * @return R_FALSE when the window system cannot do it.
+	 */
+	RAVEN_API int Rwindow_set_topmost(Rid window, int topmost);
+
+	/** @brief Centers the window on the work area of its monitor (no task bar). */
+	RAVEN_API void Rwindow_center(Rid window);
 
 	/** @brief Asks for a new frame even if no widget changed. Thread-safe. */
 	RAVEN_API void Rwindow_request_redraw(Rid window);
@@ -442,6 +463,54 @@ extern "C" {
 	 * no widget handled the key.
 	 * @param action Name of the action to fire (see Raction_bind).
 	 */
+	/* ---- raw input state (polling, as games and editors need it) ---- */
+
+	/** @brief R_TRUE while the key is held down in the window (cleared when the window loses the keyboard). */
+	RAVEN_API int Rwindow_is_key_down(Rid window, RKey key);
+	/** @brief R_TRUE while the mouse button is held down over (or captured by) the window. */
+	RAVEN_API int Rwindow_is_mouse_button_down(Rid window, RMouseButton button);
+	/** @brief Modifiers (RModifier) of the last input event. */
+	RAVEN_API Ruint Rwindow_get_modifiers(Rid window);
+	/** @brief R_TRUE while the pointer is over the client area. */
+	RAVEN_API int Rwindow_is_mouse_inside(Rid window);
+	/** @brief R_TRUE when the keyboard focus is in a text input, spin box or text editor. */
+	RAVEN_API int Rwindow_wants_text_input(Rid window);
+	/** @brief R_TRUE while a menu, list or dialog is open over the window. */
+	RAVEN_API int Rwindow_has_popup(Rid window);
+	/** @brief R_FALSE: Tab no longer moves the keyboard focus (the application uses it as a shortcut). Default R_TRUE. */
+	RAVEN_API void Rwindow_set_tab_navigation(Rid window, int enabled);
+
+	/**
+	 * @brief Sees every input event of the window (mouse, wheel, keys, text)
+	 * before any widget, with `target` set to the widget under the pointer.
+	 * Returning R_TRUE consumes the event: the widgets do not get it. The
+	 * state read by Rwindow_is_key_down is updated either way.
+	 */
+	typedef int (*RWindowEventHook)(Rid window, const REvent* event, void* user_data);
+	RAVEN_API void Rwindow_set_event_hook(Rid window, RWindowEventHook hook, void* user_data);
+
+	/* ---- drag and drop inside the application ---- */
+
+	/**
+	 * @brief Starts dragging `data` from `source` (call it while a mouse button
+	 * is held, typically from a mouse-move event once the pointer has moved
+	 * a few units). Until the button is released, the widgets with a drop
+	 * callback (Rwidget_set_drop_callback) under the pointer receive
+	 * R_DROP_ENTER / MOVE / LEAVE and, on release, R_DROP_DROPPED, with
+	 * `drag_type` set and `text` = `data`. Returning R_FALSE from the callback
+	 * refuses the drop there. Escape cancels. `label` follows the pointer.
+	 * @return R_FALSE when the widget is not in a window.
+	 */
+	RAVEN_API int Rdrag_begin(Rid source, const char* type, const char* data, const char* label);
+	/** @brief R_TRUE while a drag started by Rdrag_begin is in progress in the window. */
+	RAVEN_API int Rdrag_is_active(Rid window);
+	/** @brief Type of the drag in progress, or NULL. */
+	RAVEN_API const char* Rdrag_get_type(Rid window);
+	/** @brief Data of the drag in progress, or NULL. */
+	RAVEN_API const char* Rdrag_get_data(Rid window);
+	/** @brief Ends the drag in progress without dropping (the target receives R_DROP_LEAVE). */
+	RAVEN_API void Rdrag_cancel(Rid window);
+
 	RAVEN_API void Rwindow_register_shortcut(Rid window, RKey key, Ruint modifiers, const char* action);
 	RAVEN_API void Rwindow_unregister_shortcut(Rid window, RKey key, Ruint modifiers);
 

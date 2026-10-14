@@ -167,6 +167,8 @@ typedef struct RDrawData {
 	uint64_t frame_index;
 	/** Pixels per logical unit of the window: effects sized in pixels (blur) follow it. */
 	float scale;
+	/** R_TRUE: the frame waits for the vertical synchronization (Rset_vsync). */
+	int vsync;
 } RDrawData;
 
 typedef enum RTextureFormat{

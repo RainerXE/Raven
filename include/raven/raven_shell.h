@@ -148,6 +148,22 @@ extern "C" {
 	RAVEN_API void Rdock_area_set_panel_title(Rid area, Rid panel, const char* title);
 	/** @brief R_FALSE removes the close button of the tab of a panel. Panels can be closed by default. */
 	RAVEN_API void Rdock_area_set_panel_closable(Rid area, Rid panel, int closable);
+	/**
+	 * @brief Takes a panel out of the arrangement without deleting it (a
+	 * window of an application closed from its menu). Its tab disappears
+	 * and its neighbours take its place; the area remembers where it was.
+	 */
+	RAVEN_API void Rdock_area_hide_panel(Rid area, Rid panel);
+	/** @brief Puts a hidden panel back where it was, and brings its tab to the front (also for a panel that is not hidden). */
+	RAVEN_API void Rdock_area_open_panel(Rid area, Rid panel);
+	/** @return R_TRUE when the panel is in the arrangement (not hidden), shown or behind another tab. */
+	RAVEN_API int Rdock_area_is_panel_open(Rid area, Rid panel);
+	/**
+	 * @brief R_TRUE: the close button of a tab hides its panel
+	 * (Rdock_area_hide_panel) instead of deleting it. XML: CloseHides="true".
+	 * The close callback is asked first either way.
+	 */
+	RAVEN_API void Rdock_area_set_close_hides(Rid area, int hides);
 	/** @brief Brings the tab of a panel to the front. */
 	RAVEN_API void Rdock_area_show_panel(Rid area, Rid panel);
 	/** @return R_TRUE when the panel is the one shown in its group of tabs. */
