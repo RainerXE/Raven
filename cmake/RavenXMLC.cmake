@@ -2,7 +2,7 @@
 #
 #   add_executable(app main.xmlc other.c)
 #   target_link_libraries(app PRIVATE raven::raven)
-#   raven_target_xmlc(app)                 # every .xmlc among the sources of app
+#   raven_target_xmlc(app)                 # every .xmlc (C) and .xmlc++/.xmlcpp (C++) among the sources of app
 #   raven_target_xmlc(app more/panel.xmlc) # or the files given
 #
 # Each .xmlc becomes <build>/ravenc/<path>.xmlc.c (rebuilt when the .xmlc
@@ -28,7 +28,7 @@ function(raven_target_xmlc target)
 	if(NOT _files)
 		get_target_property(_sources ${target} SOURCES)
 		foreach(_source IN LISTS _sources)
-			if(_source MATCHES "\\.xmlc$")
+			if(_source MATCHES "\\.(xmlc|xmlc\\+\\+|xmlcpp)$")
 				list(APPEND _files "${_source}")
 			endif()
 		endforeach()
@@ -41,7 +41,13 @@ function(raven_target_xmlc target)
 			# outside of this folder: by its name
 			get_filename_component(_relative "${_absolute}" NAME)
 		endif()
-		set(_output "${CMAKE_CURRENT_BINARY_DIR}/ravenc/${_relative}.c")
+		# C++ for .xmlc++ and .xmlcpp, C for .xmlc
+		if(_absolute MATCHES "\\.(xmlc\\+\\+|xmlcpp)$")
+			string(REPLACE "+" "p" _relative "${_relative}")
+			set(_output "${CMAKE_CURRENT_BINARY_DIR}/ravenc/${_relative}.cpp")
+		else()
+			set(_output "${CMAKE_CURRENT_BINARY_DIR}/ravenc/${_relative}.c")
+		endif()
 		get_filename_component(_output_dir "${_output}" DIRECTORY)
 		add_custom_command(
 			OUTPUT "${_output}"

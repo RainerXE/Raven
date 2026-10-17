@@ -1,0 +1,22 @@
+[package]
+name = "editor_ui"
+version = "0.1.0"
+edition = "2021"
+description = "The interface of the Raven Bevy Editor, written in Raven XML with its Rust code (src/editor.xmlrs)"
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+raven = { path = "../../../bindings/rust" }
+editor_core = { path = "../core" }
+
+[build-dependencies]
+# runs ravenc on src/editor.xmlrs (RAVENC, or ravenc on the PATH)
+raven-build = { path = "../../../bindings/rust-build" }
+
+[[bin]]
+# the editor without Bevy: the scene drawn on the CPU (to try it anywhere)
+name = "raven-scene-editor-software"
+path = "src/main.rs"

@@ -1,9 +1,19 @@
 /**
  * Raven - tools/ravenc/ravenc.c
- * The XMLC compiler: an interface in XML with its C code, in one file, turned
- * into one C source. Nothing is read or interpreted at run time.
+ * The XMLC compiler: an interface in XML with its code, in one file, turned
+ * into one source file of the language. Nothing is read or interpreted at run
+ * time: the interface becomes a table of RXmlCompiledNode.
  *
- *     ravenc main.xmlc -o main.xmlc.c [--name main]
+ *     ravenc main.xmlc -o main.xmlc.c [--name main] [--lang c]
+ *
+ *   .xmlc    C        CMake: raven_target_xmlc
+ *   .xmlc++  C++      (or .xmlcpp) CMake: raven_target_xmlc
+ *   .xmlrs   Rust     build.rs: raven_build::compile (bindings/rust-build)
+ *   .xmlpy   Python   import raven_xmlpy, then import the module (bindings/python)
+ *   .xmlgo   Go       //go:generate ravenc main.xmlgo -o main.xmlgo.go
+ *   .xmlcs   C#       Raven.XmlCs.targets (bindings/csharp)
+ *   .xmlzig  Zig      build.zig: xmlzig.add (bindings/zig)
+ *   .xmllua  LuaJIT   require("raven_xmllua") (bindings/luajit)
  *
  * An .xmlc file:
  *
@@ -15,7 +25,7 @@
  *         clicks++;
  *     }
  *     int main(void) {
- *         Rinit();
+ *         Rinit(R_BACKEND_VULKAN);
  *         main_create();                              // made by ravenc from the file name
  *         while (Rdraw_frame()) {}
  *         Rshutdown();
@@ -30,23 +40,29 @@
  *         </VBox>
  *     </Window>
  *
- * - <script> holds plain C (no XML escaping: a < b and && are written as is),
- *   at the top level of the file, as many as wanted, before or after the
- *   interface. They are copied in order, with #line, so the compiler errors
- *   point into the .xmlc.
+ * - <script> holds plain code of the language (no XML escaping: a < b and &&
+ *   are written as is), at the top level of the file, as many as wanted.
+ *   C and C++ get #line; Rust, Go, C# and Zig keep the scripts on the lines
+ *   they have in the file: the errors of the compiler point into it either way.
  * - One interface element at the top level: a <Window> (NAME_create returns
  *   the window) or any widget (NAME_create returns the widget).
  * - Action="{f}", OnClicked="{f}", OnChanged="{f}", OnCommitted="{f}",
- *   OnActivated="{f}": the C function f, an RActionCallback
- *   void f(Rid sender, const char* action, void* user_data).
- *   It is checked by the C compiler. Without braces, an action name as in XML.
- * - Name="x" (a C identifier): ui.x is that widget once NAME_create has run.
+ *   OnActivated="{f}": the function f of the scripts (a path is allowed:
+ *   App.on_ok), checked by the compiler of the language:
+ *     C       void f(Rid sender, const char* action, void* user_data)
+ *     C++     the same, or void f(Rid, const char*), or anything callable like it
+ *     Rust    fn f(sender: Rid, action: &str)
+ *     Python  def f(sender, action)
+ *     Go      func f(sender raven.ID, action string)
+ *     C#      static void F(uint sender, string action)   (Program.F, or a method of NAMEUi)
+ *     Zig     fn f(sender: Rid, action: ?[*:0]const u8, user_data: ?*anyopaque) callconv(.C) void
+ *     Lua     function f(sender, action)   (a global function, or App.f)
+ *   Without braces, an action name as in XML.
+ * - Name="x" (an identifier): the widget once NAME_create has run, as
+ *   ui.x (C, C++, Python, Go, Zig, Lua), ui().x (Rust), NAMEUi.x (C#).
  * - Everything else is the XML of Raven, built exactly as Rwindow_create_from_xml would.
  *
- * The generated file declares, before the scripts:
- *     static struct { Rid x; ... } ui;
- *     Rid NAME_create(void);
- * No header is written: another C file declares Rid NAME_create(void); itself.
+ * No header is written: another file declares NAME_create itself.
  *
  * Standalone (C99, no dependency): it runs on the build machine.
  */
@@ -436,9 +452,26 @@ static int is_event(const char* name) {
 		iequal(name, "OnCommitted") || iequal(name, "OnActivated");
 }
 
+/* What the braces may hold: a name, or a path to one (App.on_ok, crate::ui::on_ok). */
+static int is_callable(const char* s) {
+	if (!s || !(isalpha((unsigned char)*s) || *s == '_')) return 0;
+	for (s++; *s; s++) if (!(isalnum((unsigned char)*s) || *s == '_' || *s == '.' || *s == ':')) return 0;
+	return 1;
+}
+
 static int inside_declaration(const node_t* node) {
 	/* the body of a <Widget> declaration is a template: its names belong to each use */
 	for (node = node->parent; node; node = node->parent) if (iequal(node->tag, "Widget")) return 1;
+	return 0;
+}
+
+/* {Text} in the body of <Widget Text="..."> is a parameter of the declaration, not a function */
+static int is_template_parameter(const node_t* node, const char* name) {
+	const attribute_t* a;
+	for (node = node->parent; node; node = node->parent) {
+		if (!iequal(node->tag, "Widget")) continue;
+		for (a = node->attributes; a; a = a->next) if (!strcmp(a->name, name)) return 1;
+	}
 	return 0;
 }
 
@@ -454,7 +487,8 @@ static void collect(node_t* node, const char* unit) {
 			char* function = trim(xstrndup(a->value + 1, n - 2));
 			char action[512];
 			int i, found = -1;
-			if (!is_identifier(function)) die(node->line, "%s=\"%s\": the braces hold the name of a C function", a->name, a->value);
+			if (is_template_parameter(node, function)) { free(function); continue; }
+			if (!is_callable(function)) die(node->line, "%s=\"%s\": the braces hold the name of a function", a->name, a->value);
 			for (i = 0; i < g_binding_count; i++) if (!strcmp(g_bindings[i].function, function)) found = i;
 			if (found < 0) {
 				snprintf(action, sizeof(action), "ravenc.%s.%s", unit, function);
@@ -466,7 +500,7 @@ static void collect(node_t* node, const char* unit) {
 			}
 			a->value = g_bindings[found].action;
 		}
-		if (iequal(a->name, "Name") && is_identifier(a->value) && !inside_declaration(node)) {
+		if (iequal(a->name, "Name") && is_identifier(a->value) && !inside_declaration(node) && !iequal(node->tag, "Widget")) {
 			int i, seen = 0;
 			for (i = 0; i < g_name_count; i++) if (!strcmp(g_names[i], a->value)) seen = 1;
 			if (!seen) {
@@ -505,13 +539,18 @@ static char* forward_slashes(const char* s) {
 	return r;
 }
 
-/* "dir/my-app.xmlc" -> "my_app" */
-static char* unit_name(const char* path) {
+static const char* base_name(const char* path) {
 	const char* base = path;
 	const char* p;
+	for (p = path; *p; p++) if (*p == '/' || *p == '\\') base = p + 1;
+	return base;
+}
+
+/* "dir/my-app.xmlc" -> "my_app" */
+static char* unit_name(const char* path) {
+	const char* base = base_name(path);
 	char* name;
 	size_t n, i;
-	for (p = path; *p; p++) if (*p == '/' || *p == '\\') base = p + 1;
 	n = strcspn(base, ".");
 	name = xstrndup(base, n ? n : 1);
 	if (!n) name[0] = 'x';
@@ -520,16 +559,549 @@ static char* unit_name(const char* path) {
 	return name;
 }
 
+/* ---------------------------------------------------------------------------
+ *  The languages
+ * ------------------------------------------------------------------------- */
+
+typedef enum { LANG_C, LANG_CPP, LANG_RUST, LANG_PYTHON, LANG_GO, LANG_CSHARP, LANG_ZIG, LANG_LUA } lang_t;
+
+static const struct { const char* name; const char* extension; lang_t lang; } g_languages[] = {
+	{ "c", "xmlc", LANG_C }, { "cpp", "xmlc++", LANG_CPP }, { "c++", "xmlcpp", LANG_CPP }, { "rust", "xmlrs", LANG_RUST },
+	{ "python", "xmlpy", LANG_PYTHON }, { "go", "xmlgo", LANG_GO }, { "csharp", "xmlcs", LANG_CSHARP }, { "zig", "xmlzig", LANG_ZIG },
+	{ "lua", "xmllua", LANG_LUA }
+};
+
+static int language_named(const char* name, lang_t* lang) {
+	size_t i;
+	for (i = 0; i < sizeof(g_languages) / sizeof(g_languages[0]); i++) {
+		if (iequal(name, g_languages[i].name) || iequal(name, g_languages[i].extension)) {
+			*lang = g_languages[i].lang;
+			return 1;
+		}
+	}
+	if (iequal(name, "rs")) { *lang = LANG_RUST; return 1; }
+	if (iequal(name, "py")) { *lang = LANG_PYTHON; return 1; }
+	if (iequal(name, "cs") || iequal(name, "c#")) { *lang = LANG_CSHARP; return 1; }
+	return 0;
+}
+
+static int language_of_file(const char* path, lang_t* lang) {
+	const char* dot = strrchr(base_name(path), '.');
+	return dot && language_named(dot + 1, lang);
+}
+
+/*
+ * A string literal: C and C++ (octal escapes, no trigraphs), and the others
+ * with \xHH (C#: \u00HH; Rust byte strings: every byte above 127 escaped too).
+ */
+static void buf_literal(buffer_t* b, const char* s, lang_t lang) {
+	if (lang == LANG_C || lang == LANG_CPP) { buf_cstring(b, s); return; }
+	buf_puts(b, lang == LANG_RUST ? "b\"" : "\"");
+	for (; *s; s++) {
+		unsigned char c = (unsigned char)*s;
+		if (c == '"' || c == '\\') { char e[3] = { '\\', (char)c, 0 }; buf_puts(b, e); }
+		else if (c == '\n') buf_puts(b, "\\n");
+		else if (c == '\r') buf_puts(b, "\\r");
+		else if (c == '\t') buf_puts(b, "\\t");
+		else if (c < 0x20 || c == 0x7F || (lang == LANG_RUST && c >= 0x80)) buf_printf(b, lang == LANG_CSHARP ? "\\u%04X" : "\\x%02X", c);
+		else { char e[2] = { (char)c, 0 }; buf_puts(b, e); }
+	}
+	buf_puts(b, lang == LANG_RUST ? "\\0\"" : "\"");
+}
+
+/* A Rust literal is a pointer: b"...\0".as_ptr() as *const c_char */
+static void buf_rust_ptr(buffer_t* b, const char* s) {
+	buf_literal(b, s, LANG_RUST);
+	buf_puts(b, ".as_ptr() as *const ::std::os::raw::c_char");
+}
+
+/*
+ * The scripts on the lines they have in the source, the other lines left
+ * empty: what the compiler of the language reports is at the right line of
+ * the .xml file. `first_free` is where a line of our own may go (before the
+ * first script), or 0.
+ */
+static void emit_scripts_in_place(buffer_t* out, const parser_t* ps, const char* first_line) {
+	int i;
+	if (first_line) {
+		buf_puts(out, first_line);
+		/* a script that starts on the first line: ours shares it, the lines stay those of the file */
+		buf_puts(out, ps->script_count && ps->scripts[0].line <= 1 ? "; " : "\n");
+	}
+	for (i = 0; i < ps->script_count; i++) {
+		while (out->lines + 1 < ps->scripts[i].line) buf_puts(out, "\n");
+		buf_puts(out, ps->scripts[i].code);
+	}
+	buf_puts(out, "\n");
+}
+
+/* ---- C and C++ ---- */
+
+static void emit_c_like(buffer_t* out, const parser_t* ps, lang_t lang, const char* unit, const char* source_path, const char* out_path, int is_window) {
+	int i;
+	buf_printf(out, "/* Generated by ravenc from %s: edit it, not this file. */\n", source_path);
+	buf_puts(out, "#include <Raven.h>\n\n");
+	if (lang == LANG_CPP) {
+		buf_puts(out, "#include <map>\n#include <memory>\n#include <string>\n\n");
+		/* {f} takes void f(Rid, const char*, void*), void f(Rid, const char*), or anything callable like it */
+		buf_puts(out,
+			"namespace ravenc_detail {\n"
+			"inline void bind(const char* name, void (*f)(Rid, const char*, void*)) { Raction_bind(name, f, nullptr); }\n"
+			"inline void bind(const char* name, void (*f)(Rid, const char*)) {\n"
+			"\tRaction_bind(name, [](Rid s, const char* a, void* u) { reinterpret_cast<void (*)(Rid, const char*)>(u)(s, a); }, reinterpret_cast<void*>(f));\n"
+			"}\n"
+			"template <class F> inline void bind(const char* name, F f) {\n"
+			"\t/* one copy per action, freed when the program ends (or when the action is bound again) */\n"
+			"\tstatic std::map<std::string, std::unique_ptr<F>> kept;\n"
+			"\tstd::unique_ptr<F>& slot = kept[name];\n"
+			"\tslot.reset(new F(f));\n"
+			"\tRaction_bind(name, [](Rid s, const char* a, void* u) { (*static_cast<F*>(u))(s, a); }, slot.get());\n"
+			"}\n"
+			"}\n\n");
+	}
+	if (g_name_count) {
+		buf_puts(out, "/* the widgets that have a Name, filled by the create function */\n");
+		buf_puts(out, "static struct {\n");
+		for (i = 0; i < g_name_count; i++) buf_printf(out, "\tRid %s;\n", g_names[i]);
+		buf_puts(out, "} ui;\n\n");
+	}
+	if (ps->root) buf_printf(out, "Rid %s_create(void);\n\n", unit);
+
+	for (i = 0; i < ps->script_count; i++) {
+		line_directive(out, ps->scripts[i].line, source_path);
+		buf_puts(out, ps->scripts[i].code);
+		buf_puts(out, "\n");
+		line_directive(out, out->lines + 2, out_path);
+	}
+	if (!ps->root) return;
+
+	buf_puts(out, "\n/* ---- the interface ---- */\n\n");
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		attribute_t* a;
+		if (!n->attribute_count) continue;
+		buf_printf(out, "static const char* const ravenc_a%d[] = { ", i);
+		for (a = n->attributes; a; a = a->next) {
+			buf_cstring(out, a->name);
+			buf_puts(out, ", ");
+			buf_cstring(out, a->value);
+			buf_puts(out, a->next ? ", " : " ");
+		}
+		buf_puts(out, "};\n");
+	}
+	buf_printf(out, "\nstatic const RXmlCompiledNode ravenc_nodes[%d] = {\n", g_count);
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		buf_puts(out, "\t{ ");
+		buf_cstring(out, n->tag);
+		buf_puts(out, ", ");
+		buf_cstring(out, n->text);
+		if (n->attribute_count) buf_printf(out, ", ravenc_a%d, %d", i, n->attribute_count);
+		else buf_puts(out, ", 0, 0");
+		buf_printf(out, ", %d, %d },\n", n->parent ? n->parent->index : -1, n->line);
+	}
+	buf_puts(out, "};\n\n");
+
+	buf_printf(out, "Rid %s_create(void) {\n\tRid root;\n", unit);
+	for (i = 0; i < g_binding_count; i++) {
+		/* (a missing or mistyped function is reported on the line of its element) */
+		line_directive(out, g_bindings[i].line, source_path);
+		buf_puts(out, lang == LANG_CPP ? "\travenc_detail::bind(" : "\tRaction_bind(");
+		buf_cstring(out, g_bindings[i].action);
+		buf_printf(out, lang == LANG_CPP ? ", %s);\n" : ", %s, NULL);\n", g_bindings[i].function);
+	}
+	if (g_binding_count) line_directive(out, out->lines + 2, out_path);
+	buf_printf(out, "\troot = %s(ravenc_nodes, %d, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled", g_count);
+	buf_cstring(out, source_path);
+	buf_puts(out, ");\n");
+	for (i = 0; i < g_name_count; i++) {
+		buf_printf(out, "\tui.%s = root != R_INVALID_ID ? Rwidget_find(root, ", g_names[i]);
+		buf_cstring(out, g_names[i]);
+		buf_puts(out, ") : R_INVALID_ID;\n");
+	}
+	buf_puts(out, "\treturn root;\n}\n");
+}
+
+/* ---- Rust ---- */
+
+static void emit_rust(buffer_t* out, const parser_t* ps, const char* unit, const char* source_path, int is_window) {
+	int i;
+	emit_scripts_in_place(out, ps, NULL);
+	buf_printf(out, "\n// ---- generated by ravenc from %s: edit it, not this file ----\n\n", source_path);
+	buf_puts(out, "/// The widgets that have a Name (filled by the create function).\n#[allow(dead_code)]\n#[derive(Clone, Copy, Debug)]\npub struct RavencUi {\n");
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "    pub %s: ::raven::Rid,\n", g_names[i]);
+	buf_puts(out, "}\n\nstatic RAVENC_UI: ::std::sync::Mutex<RavencUi> = ::std::sync::Mutex::new(RavencUi {");
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "%s %s: ::raven::R_INVALID_ID", i ? "," : "", g_names[i]);
+	buf_puts(out, " });\n\n/// The widgets of the interface: `ui().status`.\n#[allow(dead_code)]\npub fn ui() -> RavencUi {\n    *RAVENC_UI.lock().unwrap()\n}\n\n");
+	if (!ps->root) return;
+	buf_printf(out, "/// Builds the interface of %s (no XML is read: the table below is it).\n#[allow(dead_code, unused_unsafe)]\npub fn %s_create() -> ::raven::Rid {\n", base_name(source_path), unit);
+	for (i = 0; i < g_binding_count; i++) {
+		buf_puts(out, "    ::raven::action_bind(");
+		buf_literal(out, g_bindings[i].action, LANG_C);
+		buf_printf(out, ", |sender, action| %s(sender, action));\n", g_bindings[i].function);
+	}
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		attribute_t* a;
+		if (!n->attribute_count) continue;
+		buf_printf(out, "    let a%d: [*const ::std::os::raw::c_char; %d] = [", i, n->attribute_count * 2);
+		for (a = n->attributes; a; a = a->next) {
+			buf_rust_ptr(out, a->name);
+			buf_puts(out, ", ");
+			buf_rust_ptr(out, a->value);
+			if (a->next) buf_puts(out, ", ");
+		}
+		buf_puts(out, "];\n");
+	}
+	buf_printf(out, "    let nodes: [::raven::RXmlCompiledNode; %d] = [\n", g_count);
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		buf_puts(out, "        ::raven::RXmlCompiledNode { tag: ");
+		buf_rust_ptr(out, n->tag);
+		buf_puts(out, ", text: ");
+		buf_rust_ptr(out, n->text);
+		if (n->attribute_count) buf_printf(out, ", attributes: a%d.as_ptr(), attribute_count: %d", i, n->attribute_count);
+		else buf_puts(out, ", attributes: ::std::ptr::null(), attribute_count: 0");
+		buf_printf(out, ", parent: %d, line: %d },\n", n->parent ? n->parent->index : -1, n->line);
+	}
+	buf_printf(out, "    ];\n    let root = unsafe { ::raven::%s(nodes.as_ptr(), %d, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled", g_count);
+	buf_rust_ptr(out, source_path);
+	buf_puts(out, ") };\n");
+	if (g_name_count) {
+		buf_puts(out, "    if root != ::raven::R_INVALID_ID {\n        let mut ui = RAVENC_UI.lock().unwrap();\n");
+		for (i = 0; i < g_name_count; i++) buf_printf(out, "        ui.%s = ::raven::widget_find(root, \"%s\");\n", g_names[i], g_names[i]);
+		buf_puts(out, "    }\n");
+	}
+	buf_puts(out, "    root\n}\n");
+}
+
+/* ---- Python ---- */
+
+static void emit_python(buffer_t* out, const parser_t* ps, const char* unit, const char* source_path, int is_window) {
+	int i;
+	/* (the functions of the scripts are found when create runs: it can come first) */
+	buf_printf(out, "# -*- coding: utf-8 -*-\n# Generated by ravenc from %s: edit it, not this file.\n", source_path);
+	buf_puts(out, "import ctypes as _ravenc_ctypes\nimport raven as _ravenc_raven\n\n\nclass _RavencUi:\n    \"\"\"The widgets that have a Name (filled by the create function).\"\"\"\n");
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "    %s = _ravenc_raven.R_INVALID_ID\n", g_names[i]);
+	if (!g_name_count) buf_puts(out, "    pass\n");
+	buf_puts(out, "\n\nui = _RavencUi()\n\n\n");
+	if (ps->root) {
+		buf_printf(out, "def %s_create():\n    \"\"\"Builds the interface of %s.\"\"\"\n", unit, base_name(source_path));
+		buf_puts(out, "    R = _ravenc_raven\n    keep = []\n\n"
+			"    def s(text):\n        data = text.encode(\"utf-8\")\n        keep.append(data)\n        return data\n\n"
+			"    def a(*texts):\n        array = (_ravenc_ctypes.c_char_p * len(texts))(*[s(t) for t in texts])\n        keep.append(array)\n"
+			"        return _ravenc_ctypes.cast(array, _ravenc_ctypes.POINTER(_ravenc_ctypes.c_char_p))\n\n");
+		for (i = 0; i < g_binding_count; i++) {
+			buf_puts(out, "    R.Raction_bind(");
+			buf_literal(out, g_bindings[i].action, LANG_PYTHON);
+			buf_printf(out, ", lambda sender, action, user_data: %s(sender, action))\n", g_bindings[i].function);
+		}
+		buf_printf(out, "    nodes = (R.RXmlCompiledNode * %d)()\n", g_count);
+		for (i = 0; i < g_count; i++) {
+			node_t* n = g_table[i];
+			attribute_t* a;
+			buf_printf(out, "    nodes[%d] = R.RXmlCompiledNode(s(", i);
+			buf_literal(out, n->tag, LANG_PYTHON);
+			buf_puts(out, "), s(");
+			buf_literal(out, n->text, LANG_PYTHON);
+			buf_puts(out, "), ");
+			if (n->attribute_count) {
+				buf_puts(out, "a(");
+				for (a = n->attributes; a; a = a->next) {
+					buf_literal(out, a->name, LANG_PYTHON);
+					buf_puts(out, ", ");
+					buf_literal(out, a->value, LANG_PYTHON);
+					if (a->next) buf_puts(out, ", ");
+				}
+				buf_puts(out, ")");
+			} else {
+				buf_puts(out, "None");
+			}
+			buf_printf(out, ", %d, %d, %d)\n", n->attribute_count, n->parent ? n->parent->index : -1, n->line);
+		}
+		buf_printf(out, "    root = R.%s(nodes, %d, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled", g_count);
+		buf_literal(out, source_path, LANG_PYTHON);
+		buf_puts(out, ")\n    if root != R.R_INVALID_ID:\n");
+		for (i = 0; i < g_name_count; i++) buf_printf(out, "        ui.%s = R.Rwidget_find(root, \"%s\")\n", g_names[i], g_names[i]);
+		buf_puts(out, "        pass\n    return root\n\n\n");
+	}
+	buf_puts(out, "# ---- the scripts ----\n");
+	for (i = 0; i < ps->script_count; i++) {
+		buf_printf(out, "# %s, line %d\n", base_name(source_path), ps->scripts[i].line);
+		buf_puts(out, ps->scripts[i].code);
+		buf_puts(out, "\n");
+	}
+}
+
+/* ---- Go ---- */
+
+static void emit_go(buffer_t* out, const parser_t* ps, const char* unit, const char* source_path, int is_window) {
+	static const char import_line[] = "import ravenc_raven \"raven/raven\"";
+	int i, has_package = 0;
+	/* a script that names its package: the import goes on the same line, after it */
+	if (ps->script_count) {
+		const char* p = ps->scripts[0].code;
+		while (*p && (isspace((unsigned char)*p))) p++;
+		has_package = !strncmp(p, "package ", 8);
+	}
+	if (has_package) {
+		parser_t copy = *ps;
+		script_t first = ps->scripts[0];
+		const char* p = first.code;
+		const char* end;
+		buffer_t code = { 0 };
+		while (*p && isspace((unsigned char)*p)) p++;
+		end = strchr(p, '\n');
+		if (!end) end = p + strlen(p);
+		buf_add(&code, first.code, (size_t)(end - first.code));
+		buf_puts(&code, "; ");
+		buf_puts(&code, import_line);
+		buf_puts(&code, end);
+		copy.scripts = (script_t*)xalloc(sizeof(script_t) * (size_t)ps->script_count);
+		memcpy(copy.scripts, ps->scripts, sizeof(script_t) * (size_t)ps->script_count);
+		copy.scripts[0].code = code.data;
+		emit_scripts_in_place(out, &copy, NULL);
+	} else {
+		char first[160];
+		snprintf(first, sizeof(first), "package main; %s", import_line);
+		/* (on the first line when the scripts leave it free: their lines stay those of the file) */
+		emit_scripts_in_place(out, ps, first);
+	}
+	buf_printf(out, "\n// ---- generated by ravenc from %s: edit it, not this file ----\n\n", source_path);
+	buf_puts(out, "// ui holds the widgets that have a Name (filled by the create function).\nvar ui struct {\n");
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "\t%s ravenc_raven.ID\n", g_names[i]);
+	buf_puts(out, "}\n\n");
+	if (!ps->root) return;
+	buf_printf(out, "// %s_create builds the interface of %s.\nfunc %s_create() ravenc_raven.ID {\n", unit, base_name(source_path), unit);
+	for (i = 0; i < g_binding_count; i++) {
+		buf_puts(out, "\travenc_raven.ActionBind(");
+		buf_literal(out, g_bindings[i].action, LANG_GO);
+		buf_printf(out, ", %s)\n", g_bindings[i].function);
+	}
+	buf_puts(out, "\tnodes := []ravenc_raven.CompiledNode{\n");
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		attribute_t* a;
+		buf_puts(out, "\t\t{Tag: ");
+		buf_literal(out, n->tag, LANG_GO);
+		buf_puts(out, ", Text: ");
+		buf_literal(out, n->text, LANG_GO);
+		if (n->attribute_count) {
+			buf_puts(out, ", Attributes: []string{");
+			for (a = n->attributes; a; a = a->next) {
+				buf_literal(out, a->name, LANG_GO);
+				buf_puts(out, ", ");
+				buf_literal(out, a->value, LANG_GO);
+				if (a->next) buf_puts(out, ", ");
+			}
+			buf_puts(out, "}");
+		}
+		buf_printf(out, ", Parent: %d, Line: %d},\n", n->parent ? n->parent->index : -1, n->line);
+	}
+	buf_printf(out, "\t}\n\troot := ravenc_raven.CreateCompiled(nodes, %s, ", is_window ? "true" : "false");
+	buf_literal(out, source_path, LANG_GO);
+	buf_puts(out, ")\n");
+	if (g_name_count) {
+		buf_puts(out, "\tif root != ravenc_raven.R_INVALID_ID {\n");
+		for (i = 0; i < g_name_count; i++) buf_printf(out, "\t\tui.%s = ravenc_raven.WidgetFind(root, \"%s\")\n", g_names[i], g_names[i]);
+		buf_puts(out, "\t}\n");
+	}
+	buf_puts(out, "\treturn root\n}\n");
+}
+
+/* ---- C# ---- */
+
+static void pascal(char* out, size_t size, const char* unit) {
+	size_t n = 0;
+	int up = 1;
+	for (; *unit && n + 1 < size; unit++) {
+		if (*unit == '_') { up = 1; continue; }
+		out[n++] = up ? (char)toupper((unsigned char)*unit) : *unit;
+		up = 0;
+	}
+	out[n] = 0;
+}
+
+static void emit_csharp(buffer_t* out, const parser_t* ps, const char* unit, const char* source_path, int is_window) {
+	char cls[160];
+	int i;
+	pascal(cls, sizeof(cls) - 3, unit);
+	strcat(cls, "Ui");
+	emit_scripts_in_place(out, ps, NULL);
+	buf_printf(out, "\n// ---- generated by ravenc from %s: edit it, not this file ----\n\n", source_path);
+	buf_printf(out, "/// <summary>The interface of %s: Create() builds it; the widgets that have a Name are its fields.</summary>\n", base_name(source_path));
+	buf_printf(out, "public static partial class %s\n{\n", cls);
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "    public static uint %s = 0xFFFFFFFF;\n", g_names[i]);
+	if (ps->root) {
+		buf_puts(out, "\n    public static uint Create()\n    {\n");
+		for (i = 0; i < g_binding_count; i++) {
+			const char* f = g_bindings[i].function;
+			buf_puts(out, "        global::Raven.R.Raction_bind(");
+			buf_literal(out, g_bindings[i].action, LANG_CSHARP);
+			buf_printf(out, ", global::Raven.R.Keep<global::Raven.RActionCallback>((sender, action, user) => %s(sender, "
+				"global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8(action) ?? \"\")), global::System.IntPtr.Zero);\n", f);
+		}
+		buf_puts(out, "        var memory = new global::System.Collections.Generic.List<global::System.IntPtr>();\n"
+			"        global::System.IntPtr S(string text) { var p = global::System.Runtime.InteropServices.Marshal.StringToCoTaskMemUTF8(text); memory.Add(p); return p; }\n"
+			"        global::System.IntPtr A(params string[] texts)\n        {\n"
+			"            var p = global::System.Runtime.InteropServices.Marshal.AllocCoTaskMem(global::System.IntPtr.Size * texts.Length);\n"
+			"            memory.Add(p);\n"
+			"            for (int k = 0; k < texts.Length; k++) global::System.Runtime.InteropServices.Marshal.WriteIntPtr(p, k * global::System.IntPtr.Size, S(texts[k]));\n"
+			"            return p;\n        }\n");
+		buf_printf(out, "        var nodes = new global::Raven.RXmlCompiledNode[%d];\n", g_count);
+		for (i = 0; i < g_count; i++) {
+			node_t* n = g_table[i];
+			attribute_t* a;
+			buf_printf(out, "        nodes[%d].tag = S(", i);
+			buf_literal(out, n->tag, LANG_CSHARP);
+			buf_printf(out, "); nodes[%d].text = S(", i);
+			buf_literal(out, n->text, LANG_CSHARP);
+			buf_puts(out, ");");
+			if (n->attribute_count) {
+				buf_printf(out, " nodes[%d].attributes = A(", i);
+				for (a = n->attributes; a; a = a->next) {
+					buf_literal(out, a->name, LANG_CSHARP);
+					buf_puts(out, ", ");
+					buf_literal(out, a->value, LANG_CSHARP);
+					if (a->next) buf_puts(out, ", ");
+				}
+				buf_puts(out, ");");
+			}
+			buf_printf(out, " nodes[%d].attribute_count = %d; nodes[%d].parent = %d; nodes[%d].line = %d;\n", i, n->attribute_count, i,
+				n->parent ? n->parent->index : -1, i, n->line);
+		}
+		buf_printf(out, "        uint root = global::Raven.R.%s(ref nodes[0], %d, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled", g_count);
+		buf_literal(out, source_path, LANG_CSHARP);
+		buf_puts(out, ");\n        foreach (var p in memory) global::System.Runtime.InteropServices.Marshal.FreeCoTaskMem(p);\n");
+		if (g_name_count) {
+			buf_puts(out, "        if (root != 0xFFFFFFFF)\n        {\n");
+			for (i = 0; i < g_name_count; i++) buf_printf(out, "            %s = global::Raven.R.Rwidget_find(root, \"%s\");\n", g_names[i], g_names[i]);
+			buf_puts(out, "        }\n");
+		}
+		buf_puts(out, "        return root;\n    }\n");
+	}
+	buf_puts(out, "}\n");
+}
+
+/* ---- Zig ---- */
+
+static void emit_zig(buffer_t* out, const parser_t* ps, const char* unit, const char* source_path, int is_window) {
+	int i;
+	emit_scripts_in_place(out, ps, NULL);
+	buf_printf(out, "\n// ---- generated by ravenc from %s: edit it, not this file ----\n\n", source_path);
+	buf_puts(out, "const ravenc_r = @import(\"raven\");\n\n/// The widgets that have a Name (filled by the create function).\npub const RavencUi = struct {\n");
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "    %s: ravenc_r.Rid = ravenc_r.R_INVALID_ID,\n", g_names[i]);
+	buf_puts(out, "};\npub var ui: RavencUi = .{};\n\n");
+	if (!ps->root) return;
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		attribute_t* a;
+		if (!n->attribute_count) continue;
+		buf_printf(out, "const ravenc_a%d = [_]?[*:0]const u8{ ", i);
+		for (a = n->attributes; a; a = a->next) {
+			buf_literal(out, a->name, LANG_ZIG);
+			buf_puts(out, ", ");
+			buf_literal(out, a->value, LANG_ZIG);
+			if (a->next) buf_puts(out, ", ");
+		}
+		buf_puts(out, " };\n");
+	}
+	buf_puts(out, "const ravenc_nodes = [_]ravenc_r.RXmlCompiledNode{\n");
+	for (i = 0; i < g_count; i++) {
+		node_t* n = g_table[i];
+		buf_puts(out, "    .{ .tag = ");
+		buf_literal(out, n->tag, LANG_ZIG);
+		buf_puts(out, ", .text = ");
+		buf_literal(out, n->text, LANG_ZIG);
+		if (n->attribute_count) buf_printf(out, ", .attributes = &ravenc_a%d, .attribute_count = %d", i, n->attribute_count);
+		buf_printf(out, ", .parent = %d, .line = %d },\n", n->parent ? n->parent->index : -1, n->line);
+	}
+	buf_printf(out, "};\n\n/// Builds the interface of %s.\npub fn %s_create() ravenc_r.Rid {\n", base_name(source_path), unit);
+	for (i = 0; i < g_binding_count; i++) {
+		buf_puts(out, "    ravenc_r.Raction_bind(");
+		buf_literal(out, g_bindings[i].action, LANG_ZIG);
+		buf_printf(out, ", &%s, null);\n", g_bindings[i].function);
+	}
+	buf_printf(out, "    const root = ravenc_r.%s(&ravenc_nodes[0], ravenc_nodes.len, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled");
+	buf_literal(out, source_path, LANG_ZIG);
+	buf_puts(out, ");\n");
+	if (g_name_count) {
+		buf_puts(out, "    if (root != ravenc_r.R_INVALID_ID) {\n");
+		for (i = 0; i < g_name_count; i++) buf_printf(out, "        ui.%s = ravenc_r.Rwidget_find(root, \"%s\");\n", g_names[i], g_names[i]);
+		buf_puts(out, "    }\n");
+	}
+	buf_puts(out, "    return root;\n}\n");
+}
+
+/* ---- Lua (LuaJIT) ---- */
+
+static void emit_lua(buffer_t* out, const parser_t* ps, const char* unit, const char* source_path, int is_window) {
+	int i;
+	buf_printf(out, "-- Generated by ravenc from %s: edit it, not this file.\n", source_path);
+	buf_puts(out, "local ravenc_raven = require(\"raven\")\nlocal ravenc_ffi = ravenc_raven.ffi\nlocal ravenc_kept = {}\n\n");
+	buf_puts(out, "-- the widgets that have a Name (filled by the create function)\nui = {\n");
+	for (i = 0; i < g_name_count; i++) buf_printf(out, "\t%s = ravenc_raven.R_INVALID_ID,\n", g_names[i]);
+	buf_puts(out, "}\n\n");
+	if (ps->root) {
+		/* (the functions named in {} are looked for when create runs: global functions, or fields of a global table) */
+		buf_printf(out, "-- builds the interface of %s\nfunction %s_create()\n\tlocal R, ffi = ravenc_raven, ravenc_ffi\n", base_name(source_path), unit);
+		buf_puts(out, "\tlocal keep = {}\n\tlocal function a(t)\n\t\tlocal array = ffi.new(\"const char*[?]\", #t, t)\n\t\tkeep[#keep + 1] = array\n\t\treturn array\n\tend\n");
+		for (i = 0; i < g_binding_count; i++) {
+			buf_printf(out, "\tlocal callback%d = ffi.cast(\"RActionCallback\", function(sender, action, user_data) %s(sender, ffi.string(action)) end)\n", i,
+				g_bindings[i].function);
+			buf_printf(out, "\travenc_kept[#ravenc_kept + 1] = callback%d\n\tR.Raction_bind(", i);
+			buf_literal(out, g_bindings[i].action, LANG_LUA);
+			buf_printf(out, ", callback%d, nil)\n", i);
+		}
+		buf_printf(out, "\tlocal nodes = ffi.new(\"RXmlCompiledNode[?]\", %d)\n", g_count);
+		for (i = 0; i < g_count; i++) {
+			node_t* n = g_table[i];
+			attribute_t* a;
+			buf_printf(out, "\tnodes[%d].tag = ", i);
+			buf_literal(out, n->tag, LANG_LUA);
+			buf_printf(out, "; nodes[%d].text = ", i);
+			buf_literal(out, n->text, LANG_LUA);
+			if (n->attribute_count) {
+				buf_printf(out, "; nodes[%d].attributes = a({ ", i);
+				for (a = n->attributes; a; a = a->next) {
+					buf_literal(out, a->name, LANG_LUA);
+					buf_puts(out, ", ");
+					buf_literal(out, a->value, LANG_LUA);
+					if (a->next) buf_puts(out, ", ");
+				}
+				buf_puts(out, " })");
+			}
+			buf_printf(out, "; nodes[%d].attribute_count = %d; nodes[%d].parent = %d; nodes[%d].line = %d\n", i, n->attribute_count, i,
+				n->parent ? n->parent->index : -1, i, n->line);
+		}
+		buf_printf(out, "\tlocal root = R.%s(nodes, %d, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled", g_count);
+		buf_literal(out, source_path, LANG_LUA);
+		buf_puts(out, ")\n\tif root ~= R.R_INVALID_ID then\n");
+		for (i = 0; i < g_name_count; i++) buf_printf(out, "\t\tui.%s = R.Rwidget_find(root, \"%s\")\n", g_names[i], g_names[i]);
+		buf_puts(out, "\tend\n\treturn root\nend\n\n");
+	}
+	buf_puts(out, "-- ---- the scripts ----\n");
+	for (i = 0; i < ps->script_count; i++) {
+		buf_printf(out, "-- %s, line %d\n", base_name(source_path), ps->scripts[i].line);
+		buf_puts(out, ps->scripts[i].code);
+		buf_puts(out, "\n");
+	}
+}
+
 static int usage(void) {
 	fprintf(stderr,
-		"ravenc: compiles an .xmlc file (Raven XML + C) into one C file\n"
-		"usage: ravenc <file.xmlc> -o <file.c> [--name NAME]\n"
-		"  --name NAME   the function is NAME_create (default: the file name)\n");
+		"ravenc: compiles an interface written in Raven XML with its code into one source file\n"
+		"usage: ravenc <file> -o <output> [--lang LANGUAGE] [--name NAME]\n"
+		"  the language comes from the extension of the file:\n"
+		"    .xmlc (C)  .xmlc++ .xmlcpp (C++)  .xmlrs (Rust)  .xmlpy (Python)\n"
+		"    .xmlgo (Go)  .xmlcs (C#)  .xmlzig (Zig)  .xmllua (LuaJIT)\n"
+		"  --lang LANGUAGE   c, cpp, rust, python, go, csharp, zig or lua, whatever the extension\n"
+		"  --name NAME       the function is NAME_create (default: the file name)\n");
 	return 2;
 }
 
 int main(int argc, char** argv) {
-	const char *input = NULL, *output = NULL, *name = NULL;
+	const char *input = NULL, *output = NULL, *name = NULL, *lang_name = NULL;
 	parser_t ps;
 	buffer_t out = { 0 };
 	char* source;
@@ -538,22 +1110,28 @@ int main(int argc, char** argv) {
 	char* unit;
 	size_t size = 0;
 	int i, is_window;
+	lang_t lang = LANG_C;
 	FILE* f;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-o") && i + 1 < argc) output = argv[++i];
 		else if (!strcmp(argv[i], "--name") && i + 1 < argc) name = argv[++i];
+		else if (!strcmp(argv[i], "--lang") && i + 1 < argc) lang_name = argv[++i];
 		else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) return usage();
 		else if (argv[i][0] == '-') return usage();
 		else if (!input) input = argv[i];
 		else return usage();
 	}
 	if (!input || !output) return usage();
+	if (lang_name ? !language_named(lang_name, &lang) : !language_of_file(input, &lang)) {
+		if (lang_name) { fprintf(stderr, "ravenc: unknown language %s\n", lang_name); return 2; }
+		lang = LANG_C;
+	}
 	g_path = input;
 	source = read_file(input, &size);
 	if (!source) { fprintf(stderr, "ravenc: cannot read %s\n", input); return 1; }
 	unit = name ? xstrndup(name, strlen(name)) : unit_name(input);
-	if (!is_identifier(unit)) { fprintf(stderr, "ravenc: --name must be a C identifier\n"); return 2; }
+	if (!is_identifier(unit)) { fprintf(stderr, "ravenc: --name must be an identifier\n"); return 2; }
 
 	memset(&ps, 0, sizeof(ps));
 	ps.p = source;
@@ -566,70 +1144,15 @@ int main(int argc, char** argv) {
 
 	source_path = forward_slashes(input);
 	out_path = forward_slashes(output);
-
-	buf_printf(&out, "/* Generated by ravenc from %s: edit the .xmlc, not this file. */\n", source_path);
-	buf_puts(&out, "#include <Raven.h>\n\n");
-	if (g_name_count) {
-		buf_puts(&out, "/* the widgets that have a Name, filled by the create function */\n");
-		buf_puts(&out, "static struct {\n");
-		for (i = 0; i < g_name_count; i++) buf_printf(&out, "\tRid %s;\n", g_names[i]);
-		buf_puts(&out, "} ui;\n\n");
-	}
-	if (ps.root) buf_printf(&out, "Rid %s_create(void);\n\n", unit);
-
-	for (i = 0; i < ps.script_count; i++) {
-		line_directive(&out, ps.scripts[i].line, source_path);
-		buf_puts(&out, ps.scripts[i].code);
-		buf_puts(&out, "\n");
-		line_directive(&out, out.lines + 2, out_path);
-	}
-
-	if (ps.root) {
-		buf_puts(&out, "\n/* ---- the interface ---- */\n\n");
-		for (i = 0; i < g_count; i++) {
-			node_t* n = g_table[i];
-			attribute_t* a;
-			if (!n->attribute_count) continue;
-			buf_printf(&out, "static const char* const ravenc_a%d[] = { ", i);
-			for (a = n->attributes; a; a = a->next) {
-				buf_cstring(&out, a->name);
-				buf_puts(&out, ", ");
-				buf_cstring(&out, a->value);
-				buf_puts(&out, a->next ? ", " : " ");
-			}
-			buf_puts(&out, "};\n");
-		}
-		buf_printf(&out, "\nstatic const RXmlCompiledNode ravenc_nodes[%d] = {\n", g_count);
-		for (i = 0; i < g_count; i++) {
-			node_t* n = g_table[i];
-			buf_puts(&out, "\t{ ");
-			buf_cstring(&out, n->tag);
-			buf_puts(&out, ", ");
-			buf_cstring(&out, n->text);
-			if (n->attribute_count) buf_printf(&out, ", ravenc_a%d, %d", i, n->attribute_count);
-			else buf_puts(&out, ", 0, 0");
-			buf_printf(&out, ", %d, %d },\n", n->parent ? n->parent->index : -1, n->line);
-		}
-		buf_puts(&out, "};\n\n");
-
-		buf_printf(&out, "Rid %s_create(void) {\n\tRid root;\n", unit);
-		for (i = 0; i < g_binding_count; i++) {
-			/* (a missing or mistyped function is reported on the line of its element) */
-			line_directive(&out, g_bindings[i].line, source_path);
-			buf_printf(&out, "\tRaction_bind(");
-			buf_cstring(&out, g_bindings[i].action);
-			buf_printf(&out, ", %s, NULL);\n", g_bindings[i].function);
-		}
-		if (g_binding_count) line_directive(&out, out.lines + 2, out_path);
-		buf_printf(&out, "\troot = %s(ravenc_nodes, %d, ", is_window ? "Rwindow_create_from_compiled" : "Rwidget_create_from_compiled", g_count);
-		buf_cstring(&out, source_path);
-		buf_puts(&out, ");\n");
-		for (i = 0; i < g_name_count; i++) {
-			buf_printf(&out, "\tui.%s = root ? Rwidget_find(root, ", g_names[i]);
-			buf_cstring(&out, g_names[i]);
-			buf_puts(&out, ") : R_INVALID_ID;\n");
-		}
-		buf_puts(&out, "\treturn root;\n}\n");
+	switch (lang) {
+		case LANG_C:
+		case LANG_CPP: emit_c_like(&out, &ps, lang, unit, source_path, out_path, is_window); break;
+		case LANG_RUST: emit_rust(&out, &ps, unit, source_path, is_window); break;
+		case LANG_PYTHON: emit_python(&out, &ps, unit, source_path, is_window); break;
+		case LANG_GO: emit_go(&out, &ps, unit, source_path, is_window); break;
+		case LANG_CSHARP: emit_csharp(&out, &ps, unit, source_path, is_window); break;
+		case LANG_ZIG: emit_zig(&out, &ps, unit, source_path, is_window); break;
+		case LANG_LUA: emit_lua(&out, &ps, unit, source_path, is_window); break;
 	}
 
 	f = fopen(output, "wb");

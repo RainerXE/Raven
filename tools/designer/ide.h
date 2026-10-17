@@ -1,0 +1,205 @@
+/**
+ * Raven Designer - ide.h
+ * What the parts of the designer share. main.c is the visual editor of an
+ * interface; the other files make it an IDE around a CMake project:
+ *
+ *   os.c        folders, files and programs (CMake, the compiler, the program)
+ *   project.c   the project: its folder, the Explorer, New project, settings
+ *   editors.c   code editors (C, CMake, any text) in tabs, and completion
+ *   xmlc.c      .xmlc files: their <script> blocks and their interface
+ *   build.c     configure, build, run, the Output panel and the build problems
+ *   strings.c   the Translations panel (CSV tables) and the language of the preview
+ */
+
+#ifndef RAVEN_IDE_H
+#define RAVEN_IDE_H
+
+#include <Raven.h>
+
+#include <stdarg.h>
+#include <stddef.h>
+
+/* ---- os.c ---- */
+
+typedef struct ide_entry_t {
+	char name[256];
+	int is_dir;
+} ide_entry_t;
+
+/** The entries of a folder, folders first then by name; free with free(). Returns the count, -1 when it cannot be read. */
+int  ide_list_dir(const char* path, ide_entry_t** entries);
+int  ide_is_dir(const char* path);
+int  ide_file_exists(const char* path);
+/** Makes a folder and the folders above it. */
+int  ide_make_dirs(const char* path);
+/** Seconds since 1970 of the last change of a file, 0 when missing. */
+double ide_file_time(const char* path);
+/** The folder of the program itself, with no slash at the end. */
+const char* ide_exe_dir(void);
+/** "a/b" + "c" -> "a/b/c" (malloc). */
+char* ide_join(const char* a, const char* b);
+/** The part after the last slash. */
+const char* ide_basename(const char* path);
+/** The extension, lowercase, without the dot ("" when none). */
+const char* ide_extension(const char* path);
+/** Same file names, whatever the slashes (and the case on Windows). */
+int  ide_same_path(const char* a, const char* b);
+/** A copy with forward slashes. */
+char* ide_normalize(const char* path);
+
+typedef struct ide_process_t ide_process_t;
+/** Starts a program, its standard output and errors merged in one pipe. NULL when it cannot start. */
+ide_process_t* ide_process_start(const char* const* argv, const char* directory);
+/** What the program wrote since the last call (never waits). Returns the bytes read, 0 when nothing, -1 at the end. */
+int  ide_process_read(ide_process_t* process, char* buffer, int size);
+/** R_TRUE once the program has ended; its exit code then. */
+int  ide_process_done(ide_process_t* process, int* exit_code);
+void ide_process_kill(ide_process_t* process);
+void ide_process_free(ide_process_t* process);
+/** Puts a folder first in the PATH of the programs started from now on. */
+void ide_prepend_path(const char* folder);
+/** R_TRUE when a program of that name is found in the PATH. */
+int  ide_find_program(const char* name, char* out, size_t size);
+
+/* ---- main.c (the visual editor) ---- */
+
+extern Rid g_ide_window;
+extern Rid g_ide_dock;
+/** The dock panel the code editors share tabs with. */
+extern Rid g_ide_center;
+void ide_status(const char* format, ...);
+/** Opens an interface in the visual editor: the text of a .xml, or of the interface part of a .xmlc. */
+void designer_load_interface(const char* text, const char* path, int is_xmlc);
+/** The text the visual editor holds now (what is written in its XML panel). */
+const char* designer_get_interface_text(void);
+/** The file the visual editor shows, or NULL. */
+const char* designer_get_path(void);
+int  designer_is_modified(void);
+void designer_set_modified(int modified);
+/** The Name attributes of the interface (for ui.<name> in the scripts). */
+int  designer_get_names(const char** names, int max);
+/** Opens a .xml file in the visual editor; goes to a line of its XML panel. */
+void designer_open_file(const char* path);
+void designer_go_to_line(int line);
+/** Builds the preview again (after the translations or the language changed). */
+void designer_refresh_preview(void);
+/** The frame of the preview: the strings panel sets its direction. */
+Rid  designer_get_frame(void);
+/** Saves what the visual editor holds into its file (for .xmlc: with its scripts). */
+int  designer_save(void);
+
+/* ---- project.c ---- */
+
+typedef struct ide_settings_t {
+	char build_type[32];      /* Debug, Release... */
+	char raven_prefix[1024];  /* where find_package(raven) looks: the Raven package */
+	char license_file[1024];  /* -DRAVEN_LICENSE_FILE */
+	char generator[128];      /* "" : the default of CMake */
+	char run_arguments[512];
+} ide_settings_t;
+
+extern char* g_project_dir;    /* NULL when no project is open */
+extern ide_settings_t g_settings;
+
+void project_init(void);
+void project_shutdown(void);
+int  project_open(const char* folder);
+/** Creates a project in a language ("C", "C++", "Rust", "Python", "Go", "C#", "Zig", "Lua") and opens it. */
+int  project_create(const char* parent_folder, const char* name, const char* language);
+void project_refresh_explorer(void);
+void project_save_settings(void);
+/** Opens any file of the project where it belongs: the visual editor, a code editor or the Translations panel. */
+void ide_open_file(const char* path, int line);
+/** The name of the first add_executable of the CMakeLists.txt of the project. */
+int  project_target_name(char* out, size_t size);
+void project_new(void);
+void project_settings_dialog(void);
+
+/* ---- editors.c ---- */
+
+void editors_init(void);
+void editors_shutdown(void);
+/** Opens a file in a code editor tab (or shows it), and goes to a line (1-based, 0: stays). */
+Rid  editors_open(const char* path, int line);
+/** Opens a piece of text with a name (a script of a .xmlc), written back through `save`. */
+typedef int (*ide_save_callback)(Rid editor, void* user_data);
+Rid  editors_open_virtual(const char* title, const char* key, const char* text, const char* language, ide_save_callback save, void* user_data);
+Rid  editors_find(const char* key);
+int  editors_save_all(void);
+/** Saves the editor the keyboard is in: R_TRUE / R_FALSE, -1 when it is not in a code editor. */
+int  editors_save_focused(void);
+int  editors_any_modified(void);
+/** Puts the build problems on the editors that show their files. */
+void editors_clear_markers(void);
+void editors_add_marker(const char* path, int line, int column, int error, const char* message);
+void editors_set_modified(Rid editor, int modified);
+/** Completion shared with the XML panel of the visual editor. */
+void completion_attach(Rid editor, int xml);
+void completion_load_raven_api(void);
+
+/* ---- xmlc.c ---- */
+
+/** Opens a .xmlc: its interface in the visual editor, each <script> in a C tab. */
+int  xmlc_open(const char* path);
+/** Writes the .xmlc back from the visual editor and the script tabs. */
+int  xmlc_save(void);
+int  xmlc_is_open(void);
+const char* xmlc_path(void);
+void xmlc_close(void);
+/** The line of the interface in the file (to turn a line of the XML panel into a line of the file). */
+int  xmlc_interface_line(void);
+/** Script tab and line of a line of the .xmlc file, for the errors of the compiler. */
+int  xmlc_locate(int file_line, Rid* editor, int* editor_line);
+
+/* ---- build.c ---- */
+
+void build_init(void);
+void build_shutdown(void);
+int  build_is_running(void);
+
+/* ---- strings.c ---- */
+
+void strings_init(void);
+void strings_shutdown(void);
+/** Reads the CSV tables of the project (after it was opened, or a table saved). */
+void strings_reload(void);
+/** Opens a table in the Translations panel. */
+void strings_open(const char* path);
+int  strings_any_modified(void);
+int  strings_save(void);
+/** The language of the preview ("" : the first column). */
+void strings_set_preview_language(const char* code);
+/** Writes a cell (scripts of the tests). */
+int  strings_set_cell(const char* key, int column, const char* text);
+/** The keys of the tables (completion of @keys). */
+int  strings_key_count(void);
+const char* strings_key(int index);
+
+/* ---- the languages of the interfaces with code (.xmlc, .xmlrs...) ---- */
+
+typedef struct ide_language_t {
+	const char* extension;   /* "xmlrs" */
+	const char* name;        /* "Rust": what New project shows */
+	const char* editor;      /* the language of the script tabs */
+} ide_language_t;
+/** The language of an interface file with code, or NULL for any other file (a plain .xml included). */
+const ide_language_t* ide_interface_language(const char* path);
+const ide_language_t* ide_language_at(int index);
+int  ide_language_count(void);
+/** Sets a variable of the environment of the programs started from now on. */
+void ide_set_env(const char* name, const char* value);
+
+/* ---- small things ---- */
+
+char* ide_strdup(const char* text);
+int   ide_iequal(const char* a, const char* b);
+/** Appends to a growing buffer. */
+typedef struct ide_buffer_t {
+	char* data;
+	size_t size, cap;
+} ide_buffer_t;
+void ide_buffer_add(ide_buffer_t* buffer, const char* text, size_t length);
+void ide_buffer_printf(ide_buffer_t* buffer, const char* format, ...);
+void ide_buffer_free(ide_buffer_t* buffer);
+
+#endif

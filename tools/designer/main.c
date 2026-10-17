@@ -1,7 +1,12 @@
 /**
- * Raven Designer - edits the XML of an interface, visually.
+ * Raven Designer - the IDE of Raven: projects built with CMake, interfaces
+ * edited visually (.xml and .xmlc, the interface with its C), code editors
+ * with completion, translations, build and run.
  *
- *   raven_designer [file.xml]
+ *   raven_designer [project folder | file.xml | file.xmlc]
+ *
+ * The other files: ide.h says what each one does (project, editors, xmlc,
+ * build, strings, os). This one is the visual editor of an interface.
  *
  * The window shows the same document five ways, all kept in step:
  *
@@ -27,7 +32,7 @@
  *   --capture x.ppm    saves the last frame
  */
 
-#include <Raven.h>
+#include "ide.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -40,12 +45,12 @@
 
 /* (in pieces: a C compiler is only required to accept texts of 4095 characters) */
 static const char* const DESIGNER_XML[] = {
-"<Window Title=\"Raven Designer\" Width=\"1380\" Height=\"860\" MinWidth=\"900\" MinHeight=\"560\" CustomHeader=\"true\">"
+"<Window Title=\"Raven IDE\" Width=\"1480\" Height=\"900\" MinWidth=\"960\" MinHeight=\"600\" CustomHeader=\"true\">"
 "  <Widget Name=\"ToolButton\" Text=\"\" Tip=\"\" Do=\"\">"
 "    <Button Text=\"{Text}\" Style=\"Flat\" Tooltip=\"{Tip}\" OnClicked=\"{Do}\" Metric.PaddingX=\"8\"/>"
 "  </Widget>"
 "  <VBox>"
-"    <HeaderBar Name=\"header\" Title=\"Raven Designer\">"
+"    <HeaderBar Name=\"header\" Title=\"Raven IDE\">"
 "      <MenuBar>"
 "        <Menu Text=\"File\">"
 "          <Menu Text=\"New\">"
@@ -57,6 +62,7 @@ static const char* const DESIGNER_XML[] = {
 "          <Separator/>"
 "          <MenuItem Text=\"Save\" Shortcut=\"Ctrl+S\" OnClicked=\"file.save\"/>"
 "          <MenuItem Text=\"Save as...\" Shortcut=\"Ctrl+Shift+S\" OnClicked=\"file.save_as\"/>"
+"          <MenuItem Text=\"Save all\" Shortcut=\"Ctrl+Alt+S\" OnClicked=\"file.save_all\"/>"
 "          <Separator/>"
 "          <MenuItem Text=\"Quit\" Shortcut=\"Ctrl+Q\" OnClicked=\"file.quit\"/>"
 "        </Menu>",
@@ -90,19 +96,39 @@ static const char* const DESIGNER_XML[] = {
 "          <MenuItem Name=\"theme.glass_light\" Text=\"Light glass\" Checkable=\"true\" OnClicked=\"view.theme.glass_light\"/>"
 "          <Separator/>"
 "          <MenuItem Name=\"menu.interact\" Text=\"Use the preview\" Shortcut=\"F6\" Checkable=\"true\" OnClicked=\"view.interact\"/>"
-"          <MenuItem Text=\"Run in a window\" Shortcut=\"F5\" OnClicked=\"view.run\"/>"
+"          <MenuItem Text=\"Preview in a window\" Shortcut=\"F7\" OnClicked=\"view.run\"/>"
 "          <Separator/>"
 "          <MenuItem Text=\"Reset the panels\" OnClicked=\"view.reset\"/>"
+"        </Menu>",
+"        <Menu Text=\"Project\">"
+"          <MenuItem Text=\"New project...\" Shortcut=\"Ctrl+Shift+N\" OnClicked=\"project.new\"/>"
+"          <MenuItem Text=\"Open folder...\" Shortcut=\"Ctrl+Shift+O\" OnClicked=\"project.open\"/>"
+"          <MenuItem Text=\"Refresh the Explorer\" OnClicked=\"project.refresh\"/>"
+"          <Separator/>"
+"          <MenuItem Text=\"Build settings...\" OnClicked=\"project.settings\"/>"
+"        </Menu>"
+"        <Menu Text=\"Build\">"
+"          <MenuItem Text=\"Build\" Shortcut=\"Ctrl+B\" OnClicked=\"build.build\"/>"
+"          <MenuItem Text=\"Build and run\" Shortcut=\"F5\" OnClicked=\"build.run\"/>"
+"          <MenuItem Text=\"Stop\" Shortcut=\"Ctrl+F5\" OnClicked=\"build.stop\"/>"
+"          <Separator/>"
+"          <MenuItem Text=\"Configure (CMake)\" OnClicked=\"build.configure\"/>"
+"          <MenuItem Text=\"Rebuild everything\" OnClicked=\"build.rebuild\"/>"
+"          <MenuItem Text=\"Clean\" OnClicked=\"build.clean\"/>"
 "        </Menu>"
 "      </MenuBar>"
-"      <Button Text=\"Run\" Style=\"Primary\" OnClicked=\"view.run\" Tooltip=\"Opens the interface in a window of its own (F5)\""
-"        Slot.HAlign=\"Right\" Slot.VAlign=\"Center\" Slot.Padding=\"8,0\" Metric.ControlHeight=\"26\"/>"
+"      <HBox Spacing=\"6\" Slot.HAlign=\"Right\" Slot.VAlign=\"Center\" Slot.Padding=\"8,0\">"
+"        <Button Text=\"Build\" OnClicked=\"build.build\" Tooltip=\"Builds the project with CMake (Ctrl+B)\" Metric.ControlHeight=\"26\"/>"
+"        <Button Text=\"Stop\" OnClicked=\"build.stop\" Tooltip=\"Stops the build or the program (Ctrl+F5)\" Metric.ControlHeight=\"26\"/>"
+"        <Button Text=\"Run\" Style=\"Primary\" OnClicked=\"build.run\" Tooltip=\"Builds and runs the project (F5); without a project, opens the interface in a window\" Metric.ControlHeight=\"26\"/>"
+"      </HBox>"
 "    </HeaderBar>",
 "    <DockArea Name=\"dock\" Slot.Fill=\"1\">"
 "      <VBox Name=\"panel.preview\" Slot.Title=\"Preview\" Slot.Closable=\"false\">"
 "        <HBox Spacing=\"6\" Slot.Padding=\"8,6\">"
 "          <Checkbox Name=\"interact\" Text=\"Use the preview\" Style=\"Switch\" OnChanged=\"view.interact.switch\""
 "            Tooltip=\"On: the preview reacts as the interface will. Off: a click selects.\" Slot.VAlign=\"Center\"/>"
+"          <ComboBox Name=\"preview.language\" Width=\"200\" Tooltip=\"The language of the preview: the tables of the project, right to left included\"/>"
 "          <Spacer Slot.Fill=\"1\"/>"
 "          <Label Name=\"stage.size\" Opacity=\"0.6\" Slot.VAlign=\"Center\"/>"
 "        </HBox>"
@@ -111,12 +137,21 @@ static const char* const DESIGNER_XML[] = {
 "          <Overlay Name=\"stage\" Slot.Padding=\"28\" Slot.HAlign=\"Center\"/>"
 "        </ScrollBox>"
 "      </VBox>"
-"      <VBox Name=\"panel.widgets\" Slot.Title=\"Widgets\" Slot.Dock=\"Left\" Slot.DockSize=\"0.2\" Slot.Closable=\"false\">"
+"      <VBox Name=\"panel.explorer\" Slot.Title=\"Explorer\" Slot.Dock=\"Left\" Slot.DockSize=\"0.2\" Slot.Closable=\"false\">"
+"        <WrapBox Spacing=\"0\" Slot.Padding=\"4,2\">"
+"          <ToolButton Text=\"New project\" Tip=\"A project that builds as it is (Ctrl+Shift+N)\" Do=\"project.new\"/>"
+"          <ToolButton Text=\"Open\" Tip=\"Open a project folder (Ctrl+Shift+O)\" Do=\"project.open\"/>"
+"          <ToolButton Text=\"Refresh\" Tip=\"Read the folder again\" Do=\"project.refresh\"/>"
+"        </WrapBox>"
+"        <Separator/>"
+"        <TreeView Name=\"explorer\" Slot.Fill=\"1\" Tooltip=\"Double click: open the file\"/>"
+"      </VBox>"
+"      <VBox Name=\"panel.widgets\" Slot.Title=\"Widgets\" Slot.Dock=\"Tab\" Slot.DockTo=\"panel.explorer\" Slot.Closable=\"false\">"
 "        <TextInput Name=\"palette.filter\" Placeholder=\"Search a widget\" Slot.Padding=\"6\" OnChanged=\"palette.filter\"/>"
 "        <ListView Name=\"palette\" Slot.Fill=\"1\" OnActivated=\"palette.add\" Tooltip=\"Double click to add inside the selected element\"/>"
 "        <Button Text=\"Add to the selection\" OnClicked=\"palette.add\" Slot.Padding=\"6\"/>"
 "      </VBox>",
-"      <VBox Name=\"panel.tree\" Slot.Title=\"Tree\" Slot.Dock=\"Bottom\" Slot.DockTo=\"panel.widgets\" Slot.DockSize=\"0.5\" Slot.Closable=\"false\">"
+"      <VBox Name=\"panel.tree\" Slot.Title=\"Tree\" Slot.Dock=\"Bottom\" Slot.DockTo=\"panel.explorer\" Slot.DockSize=\"0.45\" Slot.Closable=\"false\">"
 "        <WrapBox Spacing=\"0\" Slot.Padding=\"4,2\">"
 "          <ToolButton Text=\"Up\" Tip=\"Before the previous element (Alt+Up)\" Do=\"edit.up\"/>"
 "          <ToolButton Text=\"Down\" Tip=\"After the next element (Alt+Down)\" Do=\"edit.down\"/>"
@@ -141,6 +176,23 @@ static const char* const DESIGNER_XML[] = {
 "      <TextEditor Name=\"source\" Language=\"XML\" LineNumbers=\"true\" Slot.Title=\"XML\" Slot.Dock=\"Bottom\" Slot.DockTo=\"panel.preview\""
 "        Slot.DockSize=\"0.36\" Slot.Closable=\"false\"/>"
 "      <ListView Name=\"problems\" Slot.Title=\"Problems\" Slot.Dock=\"Tab\" Slot.DockTo=\"source\" Slot.Closable=\"false\" OnActivated=\"problems.go\"/>"
+"      <TextEditor Name=\"output\" Slot.Title=\"Output\" Slot.Dock=\"Tab\" Slot.DockTo=\"source\" Slot.Closable=\"false\"/>"
+"      <ListView Name=\"build.problems\" Slot.Title=\"Build\" Slot.Dock=\"Tab\" Slot.DockTo=\"source\" Slot.Closable=\"false\" Tooltip=\"Errors and warnings of the last build: double click opens the file at the line\"/>",
+"      <VBox Name=\"panel.strings\" Slot.Title=\"Translations\" Slot.Dock=\"Tab\" Slot.DockTo=\"source\" Slot.Closable=\"false\">"
+"        <HBox Spacing=\"6\" Slot.Padding=\"6,4\">"
+"          <ComboBox Name=\"strings.file\" Width=\"170\" Tooltip=\"The CSV tables of the project\"/>"
+"          <TextInput Name=\"strings.filter\" Placeholder=\"Search a key or a text\" OnChanged=\"strings.filter\" Slot.Fill=\"1\"/>"
+"          <ToolButton Text=\"Add key\" Tip=\"A new row\" Do=\"strings.add_key\"/>"
+"          <TextInput Name=\"strings.language\" Placeholder=\"de, ar...\" Width=\"80\"/>"
+"          <ToolButton Text=\"Add language\" Tip=\"A new column, for the code typed on its left\" Do=\"strings.add_language\"/>"
+"          <ToolButton Text=\"New table\" Tip=\"Creates strings.csv in the project\" Do=\"strings.add_table\"/>"
+"          <Button Text=\"Save\" Style=\"Primary\" OnClicked=\"strings.save\"/>"
+"        </HBox>"
+"        <Separator/>"
+"        <ScrollBox Slot.Fill=\"1\">"
+"          <VBox Name=\"strings.grid\" Spacing=\"4\" Slot.Padding=\"8,6\"/>"
+"        </ScrollBox>"
+"      </VBox>"
 "    </DockArea>"
 "    <Separator/>"
 "    <HBox Spacing=\"12\" Slot.Padding=\"10,4\">"
@@ -346,6 +398,13 @@ static void rebuild_all(int keep_inspector);
 static void select_node(Rid node, int reveal);
 static int load_text(const char* text, int record);
 
+/* what the other parts of the IDE see (ide.h) */
+Rid g_ide_window = R_INVALID_ID;
+Rid g_ide_dock = R_INVALID_ID;
+Rid g_ide_center = R_INVALID_ID;
+/* the interface shown is the one of an .xmlc: saving goes through xmlc.c */
+static int g_is_xmlc = 0;
+
 /* ---------------------------------------------------------------------------
  *  Small things
  * ------------------------------------------------------------------------- */
@@ -359,6 +418,15 @@ static char* copy_text(const char* text) {
 
 static void set_status(const char* format, ...) {
 	char text[320];
+	va_list args;
+	va_start(args, format);
+	vsnprintf(text, sizeof(text), format, args);
+	va_end(args);
+	Rlabel_set_text(g.status, text);
+}
+
+void ide_status(const char* format, ...) {
+	char text[700];
 	va_list args;
 	va_start(args, format);
 	vsnprintf(text, sizeof(text), format, args);
@@ -405,7 +473,8 @@ static void update_title(void) {
 	const char* slash = strrchr(name, '/');
 	const char* backslash = strrchr(name, '\\');
 	if (backslash && (!slash || backslash > slash)) slash = backslash;
-	snprintf(title, sizeof(title), "%s%s - Raven Designer", slash ? slash + 1 : name, g.modified ? " *" : "");
+	if (g_project_dir) snprintf(title, sizeof(title), "%s%s - %s - Raven IDE", slash ? slash + 1 : name, g.modified ? " *" : "", ide_basename(g_project_dir));
+	else snprintf(title, sizeof(title), "%s%s - Raven IDE", slash ? slash + 1 : name, g.modified ? " *" : "");
 	Rwindow_set_title(g.window, title);
 	Rheader_bar_set_title(Rwidget_find(g.window, "header"), title);
 }
@@ -1284,8 +1353,9 @@ static void action_history(Rid sender, const char* action, void* user_data) {
  * ------------------------------------------------------------------------- */
 
 static int confirm_discard(void) {
-	if (!g.modified || g.quitting) return R_TRUE;
-	return Rmessage_box(g.window, "Unsaved changes", "The document has changes that were not saved. Discard them?", R_MESSAGE_OK_CANCEL)
+	if (g.quitting) return R_TRUE;
+	if (!g.modified && !editors_any_modified() && !strings_any_modified()) return R_TRUE;
+	return Rmessage_box(g.window, "Unsaved changes", "Some files have changes that were not saved. Discard them?", R_MESSAGE_OK_CANCEL)
 		== R_MESSAGE_RESULT_OK;
 }
 
@@ -1308,6 +1378,19 @@ static void new_document(const char* text, const char* path) {
 	palette_fill();
 }
 
+/* the paths written in a file (images, fonts, includes) start from its folder */
+static void base_path_of(const char* path) {
+	char* folder = copy_text(path);
+	char* slash = strrchr(folder, '/');
+	char* backslash = strrchr(folder, '\\');
+	if (backslash && (!slash || backslash > slash)) slash = backslash;
+	if (slash) {
+		*slash = '\0';
+		Rxml_set_base_path(folder);
+	}
+	free(folder);
+}
+
 static void open_file(const char* path) {
 	size_t size = 0;
 	char* text = Rfile_read(path, &size);
@@ -1315,18 +1398,9 @@ static void open_file(const char* path) {
 		set_status("Cannot read %s", path);
 		return;
 	}
-	/* the paths written in the file (images, fonts, includes) start from its folder */
-	{
-		char* folder = copy_text(path);
-		char* slash = strrchr(folder, '/');
-		char* backslash = strrchr(folder, '\\');
-		if (backslash && (!slash || backslash > slash)) slash = backslash;
-		if (slash) {
-			*slash = '\0';
-			Rxml_set_base_path(folder);
-		}
-		free(folder);
-	}
+	base_path_of(path);
+	g_is_xmlc = 0;
+	Rdock_area_set_panel_title(g.dock, g.source, "XML");
 	new_document(text, path);
 	Rmemory_free(text);
 	if (!g.broken) set_status("Opened %s", path);
@@ -1335,6 +1409,15 @@ static void open_file(const char* path) {
 static int save_file(int ask) {
 	static const RFileFilter filters[] = { { "XML", "*.xml" }, { "All files", "*" } };
 	const char* text;
+	/* an .xmlc is written with its scripts */
+	if (g_is_xmlc && !ask) {
+		int ok = xmlc_save();
+		if (ok) {
+			g.modified = R_FALSE;
+			update_title();
+		}
+		return ok;
+	}
 	if (ask || !g.path) {
 		RFileDialogDesc desc;
 		const char* chosen;
@@ -1350,6 +1433,11 @@ static int save_file(int ask) {
 		chosen = copy_text(chosen);
 		free(g.path);
 		g.path = (char*)chosen;
+		/* saved as a plain .xml: the scripts stay in the .xmlc */
+		if (g_is_xmlc) {
+			xmlc_close();
+			g_is_xmlc = 0;
+		}
 	}
 	/* what is saved is the text as it is written, mistakes included: nothing typed is lost */
 	text = Rtext_editor_get_text(g.source);
@@ -1364,12 +1452,17 @@ static int save_file(int ask) {
 }
 
 static void action_file(Rid sender, const char* action, void* user_data) {
-	static const RFileFilter filters[] = { { "XML", "*.xml" }, { "All files", "*" } };
+	static const RFileFilter filters[] = { { "Interfaces", "*.xml;*.xmlc;*.xmlc++;*.xmlcpp;*.xmlrs;*.xmlpy;*.xmlgo;*.xmlcs;*.xmlzig;*.xmllua" },
+		{ "XML", "*.xml" }, { "XML with code", "*.xmlc;*.xmlc++;*.xmlcpp;*.xmlrs;*.xmlpy;*.xmlgo;*.xmlcs;*.xmlzig;*.xmllua" }, { "All files", "*" } };
 	(void)sender;
 	(void)user_data;
 	if (strncmp(action, "file.new.", 9) == 0) {
 		const char* kind = action + 9;
 		if (!confirm_discard()) return;
+		if (g_is_xmlc) {
+			xmlc_close();
+			g_is_xmlc = 0;
+		}
 		new_document(strcmp(kind, "panel") == 0 ? TEMPLATE_PANEL : strcmp(kind, "form") == 0 ? TEMPLATE_FORM : TEMPLATE_WINDOW, NULL);
 		set_status("New document.");
 	} else if (strcmp(action, "file.open") == 0) {
@@ -1380,13 +1473,23 @@ static void action_file(Rid sender, const char* action, void* user_data) {
 		desc.parent = g.window;
 		desc.title = "Open an interface";
 		desc.filters = filters;
-		desc.filter_count = 2;
+		desc.filter_count = 4;
 		chosen = Rfile_dialog_open(&desc);
-		if (chosen) open_file(chosen);
+		if (chosen) {
+			char* path = copy_text(chosen);
+			ide_open_file(path, 0);
+			free(path);
+		}
 	} else if (strcmp(action, "file.save") == 0) {
-		save_file(R_FALSE);
+		/* the code editor the keyboard is in, else the interface */
+		if (editors_save_focused() < 0) save_file(R_FALSE);
 	} else if (strcmp(action, "file.save_as") == 0) {
 		save_file(R_TRUE);
+	} else if (strcmp(action, "file.save_all") == 0) {
+		if (g.modified && (g.path || g_is_xmlc)) save_file(R_FALSE);
+		editors_save_all();
+		strings_save();
+		set_status("Everything is saved.");
 	} else if (strcmp(action, "file.quit") == 0) {
 		if (confirm_discard()) Rquit(0);
 	}
@@ -1403,14 +1506,96 @@ static int on_close(Rid window, void* user_data) {
 static int on_drop(Rid target, const RDropEvent* event, void* user_data) {
 	(void)target;
 	(void)user_data;
-	/* files dropped on the window are opened; a text is added as XML */
+	/* a folder dropped on the window is a project; files are opened; a text is added as XML */
 	if (event->phase != R_DROP_DROPPED) return R_TRUE;
 	if (event->path_count > 0) {
-		if (confirm_discard()) open_file(event->paths[0]);
+		if (ide_is_dir(event->paths[0])) project_open(event->paths[0]);
+		else ide_open_file(event->paths[0], 0);
 	} else if (event->text && event->text[0]) {
 		insert_xml(event->text);
 	}
 	return R_TRUE;
+}
+
+/* ---------------------------------------------------------------------------
+ *  What the rest of the IDE asks the visual editor (ide.h)
+ * ------------------------------------------------------------------------- */
+
+void designer_load_interface(const char* text, const char* path, int is_xmlc) {
+	if (path) base_path_of(path);
+	g_is_xmlc = is_xmlc;
+	/* (the panel says that it holds the interface part of the file) */
+	Rdock_area_set_panel_title(g.dock, g.source, is_xmlc ? "Interface (XML)" : "XML");
+	new_document(text, path);
+	if (!g.broken && path) set_status("Opened %s", path);
+}
+
+void designer_open_file(const char* path) {
+	open_file(path);
+}
+
+const char* designer_get_interface_text(void) {
+	return Rtext_editor_get_text(g.source);
+}
+
+const char* designer_get_path(void) {
+	return g.path;
+}
+
+int designer_is_modified(void) {
+	return g.modified;
+}
+
+void designer_set_modified(int modified) {
+	g.modified = modified;
+	update_title();
+}
+
+int designer_save(void) {
+	if (!g.path && !g_is_xmlc) return save_file(R_TRUE);
+	return save_file(R_FALSE);
+}
+
+void designer_go_to_line(int line) {
+	if (line <= 0) return;
+	Rdock_area_open_panel(g.dock, g.source);
+	Rtext_editor_set_cursor(g.source, line - 1, 0);
+	Rtext_editor_scroll_to_line(g.source, line - 1);
+	Rwidget_focus(g.source);
+}
+
+static void collect_names(Rid node, const char** names, int max, int* count) {
+	int i, n;
+	const char* name;
+	if (node == R_INVALID_ID || Rxml_node_is_comment(node)) return;
+	/* the body of a <Widget> declaration is a template */
+	if (same_text(Rxml_node_get_tag(node), "Widget")) return;
+	name = Rxml_node_get_attribute(node, "Name");
+	if (name && *count < max) {
+		const char* p;
+		int valid = (name[0] >= 'a' && name[0] <= 'z') || (name[0] >= 'A' && name[0] <= 'Z') || name[0] == '_';
+		for (p = name; *p && valid; p++) valid = (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_';
+		if (valid) {
+			for (i = 0; i < *count; i++) if (!strcmp(names[i], name)) valid = 0;
+			if (valid) names[(*count)++] = name;
+		}
+	}
+	n = Rxml_node_get_child_count(node);
+	for (i = 0; i < n; i++) collect_names(Rxml_node_get_child(node, i), names, max, count);
+}
+
+int designer_get_names(const char** names, int max) {
+	int count = 0;
+	if (g.document != R_INVALID_ID) collect_names(Rxml_document_get_root(g.document), names, max, &count);
+	return count;
+}
+
+void designer_refresh_preview(void) {
+	if (g.document != R_INVALID_ID && !g.broken) rebuild_preview();
+}
+
+Rid designer_get_frame(void) {
+	return g.frame;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1508,6 +1693,16 @@ static void run_frames(int count) {
  *   path I/J/K     selects an element by its indices from the root ("" = the root)
  *   set NAME VALUE sets an attribute of the selection ('-' removes it)
  *   expect TEXT    stops with an error unless the XML contains TEXT ('~' stands for a space)
+ *   project DIR NAME LANGUAGE   creates the project DIR/NAME (C, C++, Rust, Python, Go, C#, Zig, Lua) and opens it
+ *   prefix PATH    the folder of the Raven package (Build settings)
+ *   open PATH      opens a file as the Explorer does, or a project folder
+ *   expectfile PATH TEXT   stops unless the file contains TEXT
+ *   cell KEY COLUMN TEXT   writes a cell of the Translations panel
+ *   language CODE  the language of the preview ('-': the first one)
+ *   expectlabel NAME TEXT  stops unless the label NAME of the preview shows TEXT
+ *   wait SECONDS   runs frames until the build and the program are done
+ *   expectoutput TEXT  stops unless the Output panel contains TEXT
+ *   expectissue TEXT   stops unless a row of the Build panel contains TEXT
  */
 static int designer_script(char* script) {
 	char* token = strtok(script, " ");
@@ -1552,6 +1747,84 @@ static int designer_script(char* script) {
 				fprintf(stderr, "raven_designer: expected the XML to contain: %s\n---\n%s---\n", text, Rtext_editor_get_text(g.source));
 				return R_FALSE;
 			}
+		} else if (strcmp(token, "project") == 0) {
+			char* folder = strtok(NULL, " ");
+			char* name = strtok(NULL, " ");
+			char* language = strtok(NULL, " ");
+			if (!project_create(folder, name, language && strcmp(language, "-") ? language : "C")) {
+				fprintf(stderr, "raven_designer: cannot create the project %s in %s\n", name, folder);
+				return R_FALSE;
+			}
+		} else if (strcmp(token, "prefix") == 0) {
+			snprintf(g_settings.raven_prefix, sizeof(g_settings.raven_prefix), "%s", strtok(NULL, " "));
+		} else if (strcmp(token, "open") == 0) {
+			char* path = strtok(NULL, " ");
+			if (ide_is_dir(path)) project_open(path);
+			else ide_open_file(path, 0);
+		} else if (strcmp(token, "expectfile") == 0) {
+			char* path = strtok(NULL, " ");
+			char* text = strtok(NULL, " ");
+			char* cursor;
+			size_t size = 0;
+			char* content = Rfile_read(path, &size);
+			for (cursor = text; *cursor; cursor++) if (*cursor == '~') *cursor = ' ';
+			if (!content || !strstr(content, text)) {
+				fprintf(stderr, "raven_designer: expected %s to contain: %s\n---\n%s---\n", path, text, content ? content : "(cannot read it)");
+				if (content) Rmemory_free(content);
+				return R_FALSE;
+			}
+			Rmemory_free(content);
+		} else if (strcmp(token, "cell") == 0) {
+			char* key = strtok(NULL, " ");
+			int column = atoi(strtok(NULL, " "));
+			char* text = strtok(NULL, " ");
+			char* cursor;
+			for (cursor = text; *cursor; cursor++) if (*cursor == '~') *cursor = ' ';
+			if (!strings_set_cell(key, column, text)) {
+				fprintf(stderr, "raven_designer: no key %s in the table\n", key);
+				return R_FALSE;
+			}
+		} else if (strcmp(token, "language") == 0) {
+			char* code = strtok(NULL, " ");
+			strings_set_preview_language(strcmp(code, "-") == 0 ? "" : code);
+		} else if (strcmp(token, "wait") == 0) {
+			double until = Rget_time() + atof(strtok(NULL, " "));
+			while (build_is_running() && Rget_time() < until && Ris_running()) {
+				Rwindow_request_redraw(g.window);
+				Rwait_frame(0.02);
+			}
+		} else if (strcmp(token, "expectoutput") == 0) {
+			char* text = strtok(NULL, " ");
+			char* cursor;
+			const char* output = Rtext_editor_get_text(Rwidget_find(g.window, "output"));
+			for (cursor = text; *cursor; cursor++) if (*cursor == '~') *cursor = ' ';
+			if (!strstr(output, text)) {
+				fprintf(stderr, "raven_designer: expected the Output to contain: %s\n---\n%s---\n", text, output);
+				return R_FALSE;
+			}
+		} else if (strcmp(token, "expectissue") == 0) {
+			char* text = strtok(NULL, " ");
+			char* cursor;
+			Rid list = Rwidget_find(g.window, "build.problems");
+			int k, found = 0;
+			for (cursor = text; *cursor; cursor++) if (*cursor == '~') *cursor = ' ';
+			for (k = 0; k < Rlist_view_get_item_count(list); k++) if (strstr(Rlist_view_get_item_text(list, k), text)) found = 1;
+			if (!found) {
+				fprintf(stderr, "raven_designer: no build problem contains: %s\n", text);
+				for (k = 0; k < Rlist_view_get_item_count(list); k++) fprintf(stderr, "  %s\n", Rlist_view_get_item_text(list, k));
+				return R_FALSE;
+			}
+		} else if (strcmp(token, "expectlabel") == 0) {
+			char* name = strtok(NULL, " ");
+			char* text = strtok(NULL, " ");
+			char* cursor;
+			Rid label = g.preview != R_INVALID_ID ? Rwidget_find(g.preview, name) : R_INVALID_ID;
+			for (cursor = text; *cursor; cursor++) if (*cursor == '~') *cursor = ' ';
+			if (label == R_INVALID_ID || strcmp(Rlabel_get_text(label), text) != 0) {
+				fprintf(stderr, "raven_designer: expected the label %s to show \"%s\", it shows \"%s\"\n", name, text,
+					label != R_INVALID_ID ? Rlabel_get_text(label) : "(no such label)");
+				return R_FALSE;
+			}
 		} else {
 			fprintf(stderr, "raven_designer: unknown script command '%s'\n", token);
 			return R_FALSE;
@@ -1582,7 +1855,7 @@ static int build_interface(void) {
 		"edit.delete", "edit.duplicate", "edit.up", "edit.down", "edit.out", "edit.in", "edit.unwrap", "edit.copy", "edit.paste",
 		"edit.wrap.VBox", "edit.wrap.HBox", "edit.wrap.Border", "edit.wrap.ScrollBox", "edit.wrap.Overlay"
 	};
-	static const char* const files[] = { "file.new.window", "file.new.panel", "file.new.form", "file.open", "file.save", "file.save_as", "file.quit" };
+	static const char* const files[] = { "file.new.window", "file.new.panel", "file.new.form", "file.open", "file.save", "file.save_as", "file.save_all", "file.quit" };
 	static const char* const views[] = {
 		"view.theme.dark", "view.theme.light", "view.theme.glass_dark", "view.theme.glass_light", "view.interact", "view.interact.switch",
 		"view.run", "view.reset"
@@ -1627,6 +1900,9 @@ static int build_interface(void) {
 	g.path_label = Rwidget_find(g.window, "path");
 	g.stage = Rwidget_find(g.window, "stage");
 	g.interact_switch = Rwidget_find(g.window, "interact");
+	g_ide_window = g.window;
+	g_ide_dock = g.dock;
+	g_ide_center = Rwidget_find(g.window, "panel.preview");
 	Rdock_area_show_panel(g.dock, g.source);
 	/* the arrangement the panels start with, for "Reset the panels" */
 	Rwidget_set_user_handle(g.dock, copy_text(Rdock_area_save_layout(g.dock)));
@@ -1665,6 +1941,14 @@ static int build_interface(void) {
 	g.preview = R_INVALID_ID;
 	g.run_window = R_INVALID_ID;
 	g.parse_timer = R_INVALID_ID;
+
+	/* the IDE around the visual editor */
+	completion_attach(g.source, R_TRUE);
+	editors_init();
+	build_init();
+	strings_init();
+	project_init();
+	Rdock_area_show_panel(g.dock, g.source);
 	return R_TRUE;
 }
 
@@ -1677,7 +1961,7 @@ int main(int argc, char** argv) {
 
 	memset(&desc, 0, sizeof(desc));
 	desc.backend = R_BACKEND_VULKAN;
-	desc.app_name = "Raven Designer";
+	desc.app_name = "Raven IDE";
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--null") == 0) {
 			desc.backend = R_BACKEND_NULL;
@@ -1691,7 +1975,7 @@ int main(int argc, char** argv) {
 		} else if (strcmp(argv[i], "--capture") == 0 && i + 1 < argc) {
 			capture_path = argv[++i];
 		} else if (argv[i][0] == '-') {
-			fprintf(stderr, "usage: raven_designer [file.xml] [--null | --headless] [--frames N] [--script \"...\"] [--capture file.ppm]\n");
+			fprintf(stderr, "usage: raven_designer [project folder | file.xml | file.xmlc] [--null | --headless] [--frames N] [--script \"...\"] [--capture file.ppm]\n");
 			return 2;
 		} else {
 			file = argv[i];
@@ -1707,12 +1991,15 @@ int main(int argc, char** argv) {
 		Rset_animation_time_step(1.0 / 60.0);
 		g.quitting = R_TRUE;
 	}
+	/* the IDE reads from left to right whatever the language of the preview (the preview has its own direction) */
+	Rset_layout_direction(R_DIRECTION_LTR);
 	if (!build_interface()) {
 		Rshutdown();
 		return 1;
 	}
 	new_document(TEMPLATE_WINDOW, NULL);
-	if (file) open_file(file);
+	if (file && ide_is_dir(file)) project_open(file);
+	else if (file) ide_open_file(file, 0);
 
 	if (script) ok = designer_script(script);
 	if (frames >= 0) {
@@ -1722,6 +2009,11 @@ int main(int argc, char** argv) {
 		while (Rwait_frame(-1.0)) {}
 	}
 
+	build_shutdown();
+	if (xmlc_is_open()) xmlc_close();
+	strings_shutdown();
+	editors_shutdown();
+	project_shutdown();
 	history_clear();
 	for (i = 0; i < g.palette_count; i++) free(g.palette_tags[i]);
 	free(g.palette_tags);
