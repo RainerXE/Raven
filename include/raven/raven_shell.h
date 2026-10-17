@@ -146,6 +146,13 @@ extern "C" {
 	RAVEN_API void Rdock_area_close_panel(Rid area, Rid panel);
 
 	RAVEN_API void Rdock_area_set_panel_title(Rid area, Rid panel, const char* title);
+	/**
+	 * @brief Icon drawn before the title of the tab of a panel (and on the chip while it is dragged).
+	 * @param texture Texture of the icon, R_INVALID_ID removes it.
+	 * @param u0,v0,u1,v1 Region of the texture (0, 0, 1, 1 : all of it).
+	 * @param tint    R_TRUE: the texture is a mask drawn in the text color of the tab (monochrome icons).
+	 */
+	RAVEN_API void Rdock_area_set_panel_icon(Rid area, Rid panel, Rid texture, float u0, float v0, float u1, float v1, int tint);
 	/** @brief R_FALSE removes the close button of the tab of a panel. Panels can be closed by default. */
 	RAVEN_API void Rdock_area_set_panel_closable(Rid area, Rid panel, int closable);
 	/**

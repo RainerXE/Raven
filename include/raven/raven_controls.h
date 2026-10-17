@@ -358,6 +358,12 @@ extern "C" {
 	RAVEN_API void Rmenu_item_set_shortcut(Rid item, RKey key, Ruint modifiers);
 	RAVEN_API void Rmenu_item_set_checkable(Rid item, int checkable);
 	RAVEN_API void Rmenu_item_set_checked(Rid item, int checked);
+	/**
+	 * @brief Icon drawn before the text of a menu item (after the check mark column).
+	 * @param texture R_INVALID_ID removes it. u0, v0, u1, v1 : region of the texture.
+	 * @param tint    R_TRUE: the texture is a mask drawn in the text color (monochrome icons).
+	 */
+	RAVEN_API void Rmenu_item_set_icon(Rid item, Rid texture, float u0, float v0, float u1, float v1, int tint);
 	RAVEN_API int Rmenu_item_is_checked(Rid item);
 	typedef void (*RMenuItemClickedCallback)(Rid item, void* user_data);
 	RAVEN_API void Rmenu_item_set_clicked_callback(Rid item, RMenuItemClickedCallback callback, void* user_data);

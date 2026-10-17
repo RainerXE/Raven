@@ -405,6 +405,31 @@ extern "C" {
 	 * links: the application decides whether nodes can be deleted.
 	 */
 	RAVEN_API void Rnode_graph_set_removed_callback(Rid graph, RNodeGraphItemCallback callback, void* user_data);
+	/** @brief Called when the user double-clicks a node (to open what it stands for). */
+	RAVEN_API void Rnode_graph_set_activated_callback(Rid graph, RNodeGraphItemCallback callback, void* user_data);
+	/**
+	 * @brief Right click: `node` is the node under the pointer (selected first),
+	 * or 0 on the empty canvas; x, y are in the widget (Rnode_graph_to_canvas).
+	 * Without this callback the right button does nothing.
+	 */
+	typedef void (*RNodeGraphContextCallback)(Rid graph, int node, float x, float y, void* user_data);
+	RAVEN_API void Rnode_graph_set_context_callback(Rid graph, RNodeGraphContextCallback callback, void* user_data);
+
+	/* ---- more for editors ---- */
+
+	/**
+	 * @brief R_TRUE: this input keeps every link made to it (a state that several
+	 * transitions enter) instead of one. Pulling a wire from it starts a new one.
+	 */
+	RAVEN_API void Rnode_graph_set_pin_multiple(Rid graph, int pin, int multiple);
+	/** @brief R_TRUE: the node is running (live debug) : a soft ring breathes around it. */
+	RAVEN_API void Rnode_graph_set_node_active(Rid graph, int node, int active);
+	/** @brief Color of that ring (the success color of the theme by default). */
+	RAVEN_API void Rnode_graph_set_node_active_color(Rid graph, int node, float r, float g, float b);
+	/** @brief R_FALSE: the Delete key does not remove this node (the root of a tree, the output of a graph). */
+	RAVEN_API void Rnode_graph_set_node_deletable(Rid graph, int node, int deletable);
+	/** @brief A short text in a pill on the top right corner of the node ("1", "!"...); NULL or "" removes it. */
+	RAVEN_API void Rnode_graph_set_node_badge(Rid graph, int node, const char* text);
 
 #ifdef __cplusplus
 } /* extern "C" */
