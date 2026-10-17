@@ -438,6 +438,12 @@ extern "C" {
 	/** @brief Deepest widget under the cursor, or R_INVALID_ID. */
 	RAVEN_API Rid Rwindow_get_hovered_widget(Rid window);
 	RAVEN_API void Rwindow_get_mouse_position(Rid window, float* x, float* y);
+	/**
+	 * @brief Where the watermark of the license-free edition is drawn in the
+	 * window (logical units). R_FALSE, and zeros, in the Release edition.
+	 * It never takes the mouse; this is for layouts and tests that read pixels.
+	 */
+	RAVEN_API int Rwindow_get_watermark_rect(Rid window, float* x, float* y, float* width, float* height);
 
 	/**
 	 * Inject input as if it came from the OS. Positions are in logical units.

@@ -32,6 +32,15 @@ option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SD
 option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator or glslc)" OFF)
 option(RAVEN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(RAVEN_MSVC_STATIC_RUNTIME "Visual C++: link the C runtime statically (/MT) instead of using its DLL (/MD)" OFF)
+# The edition: LicenseFree (the default) shows a small watermark in every
+# window; Release (with a license: $20 once for individuals, $200/month for
+# companies, https://oscar-soirey.github.io/Raven/license.html) shows none.
+# Nothing else differs. Not to be confused with CMAKE_BUILD_TYPE.
+set(RAVEN_EDITION "LicenseFree" CACHE STRING "LicenseFree (watermark) or Release (licensed, no watermark)")
+set_property(CACHE RAVEN_EDITION PROPERTY STRINGS LicenseFree Release)
+if(NOT RAVEN_EDITION STREQUAL "LicenseFree" AND NOT RAVEN_EDITION STREQUAL "Release")
+	message(FATAL_ERROR "RAVEN_EDITION must be LicenseFree or Release (it is \"${RAVEN_EDITION}\")")
+endif()
 set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11, cocoa or null")
 set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 cocoa null)
 
@@ -157,6 +166,7 @@ set(RAVEN_WIDGET_SOURCES
 	src/widget/widget.c
 	src/widget/widget.h
 	src/widget/window.c
+	src/widget/watermark.c
 )
 
 set(RAVEN_WIDGETS_SOURCES
@@ -302,6 +312,13 @@ endif()
 
 if(RAVEN_WITH_STB_IMAGE)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_WITH_STB_IMAGE)
+endif()
+
+if(RAVEN_EDITION STREQUAL "Release")
+	list(APPEND RAVEN_DEFINITIONS RAVEN_EDITION_RELEASE)
+	message(STATUS "Raven: Release edition (licensed, no watermark)")
+else()
+	message(STATUS "Raven: license-free edition (windows show a watermark; a license removes it: https://oscar-soirey.github.io/Raven/license.html)")
 endif()
 
 # ---------------------------------------------------------------------------

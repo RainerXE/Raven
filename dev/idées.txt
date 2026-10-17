@@ -1,11 +1,4 @@
-//faire un IDE complet avec
-//intégration native HRL
-release android et ios (ca doit rester cross platform), donc propose moi des trucs pour faire ca
+intégration native HRL
 editeur bevy avec l'api Rust
-webgl pour visualiser l'app dans un navigateur
-license commerciale
-themes tres personalisables
-update automatique en temps réel des xml chargés depuis le disque (pas embeded et pas en memory bien sur)
-
-widgets:
-background blur (blur différent entre natif, glassy, etc...)
+fusionner les libs raven et ravenweb
+update le not implemented yet dans le readme

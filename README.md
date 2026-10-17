@@ -43,6 +43,11 @@ A lightweight, multithreaded GUI library in C for editors and tools.
   **bindings** for C++, Python, Rust, Go, C#, Zig and LuaJIT.
 - **One header**: `#include <Raven.h>`.
 
+> **Raven is free — with a watermark.** Use it for anything; what you make
+> with it is yours. A license removes the watermark: **$20 once** for
+> individuals, **$200/month** for companies.
+> [See the license page](https://oscar-soirey.github.io/Raven/license.html).
+
 ![The studio example](docs/images/studio_glass.png)
 
 *`examples/studio`: a graph of nodes with widgets inside them, a color picker and a timeline, with the dark glass theme.*
@@ -95,6 +100,59 @@ The same window in XML (`Rwindow_create_from_xml_file("hello.xml")`):
 </Window>
 ```
 
+## License
+
+**Raven is free to use, for anything.** Whatever you build with Raven is
+yours, with a license or without one: sell it, ship it to clients, keep its
+source closed, use it at work. No royalties, no revenue share, no permission to
+ask.
+
+The only difference is a watermark. The default build (the **license-free
+edition**) draws a small note in the bottom right corner of every window:
+
+```
+Made with Raven · free edition
+No watermark: license $20 once (individuals) · $200/month (companies) · oscar-soirey.github.io/Raven
+```
+
+It never takes the mouse (what is under it still gets the clicks), but it is
+on every window, and a watermark on a tool you're proud of would be a shame.
+A license gives you the **Release edition**, which is the same library without
+the watermark: not one feature is held back in the free edition.
+
+| | Price | For |
+|---|---|---|
+| License-free edition | free | everyone; every window shows the watermark |
+| Personal license | **$20, once** | one person: freelancers, indie developers, students, hobbyists |
+| Company license | **$200 / month** | a company and all its developers; cancel any time |
+
+Buy a license on [the Raven site](https://oscar-soirey.github.io/Raven/license.html)
+(payments by Stripe). For a company license, fill in the short form there
+first (it is sent to oscarsoirey.contact@gmail.com), then subscribe. Questions:
+oscarsoirey.contact@gmail.com.
+
+### The two editions
+
+The edition is chosen when Raven is built, with `RAVEN_EDITION` (not to be
+confused with `CMAKE_BUILD_TYPE`: a Debug build can be either edition):
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release                          # license-free (watermark)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DRAVEN_EDITION=Release  # licensed: no watermark
+```
+
+```bat
+generate-cmake.bat --edition release
+build.bat --edition release
+dist.bat --edition release
+```
+
+The presets have both too: `linux`, `msvc`, `mingw` (and `-shared`) are
+license-free; `linux-release`, `msvc-release`, `mingw-release` (and
+`-shared-release`) are the Release edition. A program can ask which one it runs
+on with `Ris_license_free()`, and where the watermark is with
+`Rwindow_get_watermark_rect()`.
+
 ## Status
 
 Version 0.1. Raven was developed on one Linux machine without a GPU. What
@@ -134,7 +192,8 @@ The programs are written to `build/bin` (`build\bin\Release` with Visual
 Studio), next to `raven.dll` in a shared build.
 
 With CMake 3.21 or newer, presets do the same: `cmake --preset linux` (or
-`msvc`, `msvc-shared`, `mingw`, `mingw-shared`, `linux-shared`, `dev`), then
+`msvc`, `msvc-shared`, `mingw`, `mingw-shared`, `linux-shared`, `dev`, and
+`linux-release`, `msvc-release`... for the Release edition), then
 `cmake --build --preset linux` and `ctest --preset linux`.
 
 On Windows, two scripts work from the folder of Raven:
@@ -145,6 +204,7 @@ generate-cmake.bat --open     :: ... and opens it; F5 starts the editor example
 build.bat                     :: Release build (generates the build tree if needed)
 build.bat debug --test        :: Debug build, then the tests
 build.bat --run glass         :: builds, then starts an example
+build.bat --edition release   :: the Release edition (licensed, no watermark)
 ```
 
 `generate-cmake.bat --help` and `build.bat --help` list their options
@@ -153,6 +213,7 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 
 | Option | Default | |
 |---|---|---|
+| `RAVEN_EDITION` | `LicenseFree` | `LicenseFree`: every window shows a watermark; `Release`: no watermark, with a license (see [License](#license)) |
 | `RAVEN_BUILD_SHARED` | `OFF` | shared library instead of static |
 | `RAVEN_BUILD_EXAMPLES` | `ON` when top level | |
 | `RAVEN_BUILD_TESTS` | `ON` when top level | tests, tests of the bindings, `raven_benchmark` |
@@ -183,12 +244,13 @@ one archive per compiler.
 
 ```bat
 dist.bat              :: Visual C++ and MinGW-w64, whichever are installed
-dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc.zip
-dist.bat mingw        :: dist\raven-0.1.0-windows-x64-mingw.zip  (gcc and mingw32-make in the PATH)
+dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc-license-free.zip
+dist.bat mingw        :: dist\raven-0.1.0-windows-x64-mingw-license-free.zip  (gcc and mingw32-make in the PATH)
+dist.bat --edition release   :: ...-msvc-release.zip, ...-mingw-release.zip: no watermark (licensed)
 ```
 
 ```
-raven-0.1.0-windows-x64-msvc\
+raven-0.1.0-windows-x64-msvc-license-free\
     include\                 Raven.h, raven\*.h
     bin\raven.dll            and raven_designer.exe
     lib\raven.lib            to link with raven.dll        (MinGW: libraven.dll.a)

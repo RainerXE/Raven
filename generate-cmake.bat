@@ -10,6 +10,9 @@ rem    --generator NAME    CMake generator                 (default: the newest
 rem                        Visual Studio that is installed)
 rem    --arch NAME         x64, Win32 or ARM64             (Visual Studio only)
 rem    --shared            build raven.dll instead of a static library
+rem    --edition NAME      license-free (default: every window shows a watermark)
+rem                        or release (licensed: no watermark, see
+rem                        https://oscar-soirey.github.io/Raven/license.html)
 rem    --no-examples       do not build the examples
 rem    --no-tests          do not build the tests
 rem    --no-vulkan         leave the Vulkan backend out
@@ -20,6 +23,7 @@ rem
 rem  Examples:
 rem    generate-cmake.bat
 rem    generate-cmake.bat --shared --open
+rem    generate-cmake.bat --edition release
 rem    generate-cmake.bat --generator Ninja -- -DCMAKE_BUILD_TYPE=Debug
 rem
 rem  The Vulkan SDK is not required: without it the Vulkan headers are fetched
@@ -34,6 +38,7 @@ set "BUILD_DIR=%ROOT%\build"
 set "GENERATOR="
 set "ARCH="
 set "SHARED=OFF"
+set "EDITION=LicenseFree"
 set "EXAMPLES=ON"
 set "TESTS=ON"
 set "VULKAN=ON"
@@ -49,6 +54,7 @@ if /I "%~1"=="--build-dir"   ( set "BUILD_DIR=%~f2" & shift & shift & goto parse
 if /I "%~1"=="--generator"   ( set "GENERATOR=%~2" & shift & shift & goto parse )
 if /I "%~1"=="--arch"        ( set "ARCH=%~2" & shift & shift & goto parse )
 if /I "%~1"=="--shared"      ( set "SHARED=ON" & shift & goto parse )
+if /I "%~1"=="--edition"     ( set "EDITION_ARG=%~2" & shift & shift & goto edition )
 if /I "%~1"=="--no-examples" ( set "EXAMPLES=OFF" & shift & goto parse )
 if /I "%~1"=="--no-tests"    ( set "TESTS=OFF" & shift & goto parse )
 if /I "%~1"=="--no-vulkan"   ( set "VULKAN=OFF" & shift & goto parse )
@@ -60,6 +66,15 @@ if /I "%~1"=="-h"            goto usage
 if "%~1"=="--"               goto extra
 echo [raven] unknown option: %~1
 echo         ^(arguments for cmake go after "--"^)
+echo.
+goto usage
+
+:edition
+if /I "%EDITION_ARG%"=="release"      ( set "EDITION=Release" & goto parse )
+if /I "%EDITION_ARG%"=="license-free" ( set "EDITION=LicenseFree" & goto parse )
+if /I "%EDITION_ARG%"=="licensefree"  ( set "EDITION=LicenseFree" & goto parse )
+if /I "%EDITION_ARG%"=="free"         ( set "EDITION=LicenseFree" & goto parse )
+echo [raven] unknown edition: %EDITION_ARG% ^(license-free or release^)
 echo.
 goto usage
 
@@ -90,13 +105,17 @@ set "GENERATOR_ARGS="
 if defined GENERATOR set GENERATOR_ARGS=-G "%GENERATOR%"
 if defined ARCH set GENERATOR_ARGS=%GENERATOR_ARGS% -A %ARCH%
 
-echo [raven] generating "%BUILD_DIR%"
-cmake -S "%ROOT%" -B "%BUILD_DIR%" %GENERATOR_ARGS% -DRAVEN_BUILD_SHARED=%SHARED% -DRAVEN_BUILD_EXAMPLES=%EXAMPLES% -DRAVEN_BUILD_TESTS=%TESTS% -DRAVEN_BACKEND_VULKAN=%VULKAN% %EXTRA%
+echo [raven] generating "%BUILD_DIR%" (%EDITION% edition)
+cmake -S "%ROOT%" -B "%BUILD_DIR%" %GENERATOR_ARGS% -DRAVEN_BUILD_SHARED=%SHARED% -DRAVEN_EDITION=%EDITION% -DRAVEN_BUILD_EXAMPLES=%EXAMPLES% -DRAVEN_BUILD_TESTS=%TESTS% -DRAVEN_BACKEND_VULKAN=%VULKAN% %EXTRA%
 if errorlevel 1 goto failed
 
 echo.
 echo [raven] build tree generated in "%BUILD_DIR%".
 echo         Build it with build.bat, or open the solution it contains.
+if /I "%EDITION%"=="LicenseFree" (
+	echo         License-free edition: every window shows a watermark. A license removes it:
+	echo         $20 once for individuals, $200/month for companies, https://oscar-soirey.github.io/Raven/license.html
+)
 if "%OPEN%"=="1" cmake --open "%BUILD_DIR%"
 exit /b 0
 
@@ -113,6 +132,7 @@ echo   --build-dir DIR     build tree, "build" by default
 echo   --generator NAME    CMake generator, the newest Visual Studio by default
 echo   --arch NAME         x64, Win32 or ARM64, for the Visual Studio generators
 echo   --shared            build raven.dll instead of a static library
+echo   --edition NAME      license-free (default, watermark) or release (licensed, no watermark)
 echo   --no-examples       do not build the examples
 echo   --no-tests          do not build the tests
 echo   --no-vulkan         leave the Vulkan backend out

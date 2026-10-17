@@ -13,6 +13,14 @@
 			"installDir": "${sourceDir}/build/${presetName}/install"
 		},
 		{
+			"name": "licensed",
+			"hidden": true,
+			"description": "The Release edition: no watermark (needs a license, https://oscar-soirey.github.io/Raven/license.html)",
+			"cacheVariables": {
+				"RAVEN_EDITION": "Release"
+			}
+		},
+		{
 			"name": "msvc",
 			"displayName": "Visual C++ (the newest Visual Studio installed), static library",
 			"inherits": "base",
@@ -29,6 +37,16 @@
 			"cacheVariables": {
 				"RAVEN_BUILD_SHARED": "ON"
 			}
+		},
+		{
+			"name": "msvc-release",
+			"displayName": "Visual C++, static library, Release edition (licensed, no watermark)",
+			"inherits": ["licensed", "msvc"]
+		},
+		{
+			"name": "msvc-shared-release",
+			"displayName": "Visual C++, raven.dll, Release edition (licensed, no watermark)",
+			"inherits": ["licensed", "msvc-shared"]
 		},
 		{
 			"name": "mingw",
@@ -54,6 +72,16 @@
 			}
 		},
 		{
+			"name": "mingw-release",
+			"displayName": "MinGW-w64 (gcc), static library, Release edition (licensed, no watermark)",
+			"inherits": ["licensed", "mingw"]
+		},
+		{
+			"name": "mingw-shared-release",
+			"displayName": "MinGW-w64 (gcc), raven.dll, Release edition (licensed, no watermark)",
+			"inherits": ["licensed", "mingw-shared"]
+		},
+		{
 			"name": "linux",
 			"displayName": "Linux, static library",
 			"inherits": "base",
@@ -74,6 +102,16 @@
 			"cacheVariables": {
 				"RAVEN_BUILD_SHARED": "ON"
 			}
+		},
+		{
+			"name": "linux-release",
+			"displayName": "Linux, static library, Release edition (licensed, no watermark)",
+			"inherits": ["licensed", "linux"]
+		},
+		{
+			"name": "linux-shared-release",
+			"displayName": "Linux, libraven.so, Release edition (licensed, no watermark)",
+			"inherits": ["licensed", "linux-shared"]
 		},
 		{
 			"name": "dev",
@@ -97,6 +135,16 @@
 			"configuration": "Release"
 		},
 		{
+			"name": "msvc-release",
+			"configurePreset": "msvc-release",
+			"configuration": "Release"
+		},
+		{
+			"name": "msvc-shared-release",
+			"configurePreset": "msvc-shared-release",
+			"configuration": "Release"
+		},
+		{
 			"name": "mingw",
 			"configurePreset": "mingw"
 		},
@@ -105,12 +153,28 @@
 			"configurePreset": "mingw-shared"
 		},
 		{
+			"name": "mingw-release",
+			"configurePreset": "mingw-release"
+		},
+		{
+			"name": "mingw-shared-release",
+			"configurePreset": "mingw-shared-release"
+		},
+		{
 			"name": "linux",
 			"configurePreset": "linux"
 		},
 		{
 			"name": "linux-shared",
 			"configurePreset": "linux-shared"
+		},
+		{
+			"name": "linux-release",
+			"configurePreset": "linux-release"
+		},
+		{
+			"name": "linux-shared-release",
+			"configurePreset": "linux-shared-release"
 		},
 		{
 			"name": "dev",
@@ -143,6 +207,13 @@
 		{
 			"name": "linux-shared",
 			"configurePreset": "linux-shared",
+			"output": {
+				"outputOnFailure": true
+			}
+		},
+		{
+			"name": "linux-release",
+			"configurePreset": "linux-release",
 			"output": {
 				"outputOnFailure": true
 			}
