@@ -110,6 +110,10 @@ typedef enum RWidgetType{
 	/** Grid of tiles (an icon over a name), virtualized. Slate: STileView. */
 	R_WIDGET_TILE_VIEW,
 
+	/* ---- raven_tools.h ---- */
+	/** Blocks that snap into each other, in the style of Scratch. */
+	R_WIDGET_BLOCK_EDITOR,
+
 	R_WIDGET_LAST_
 }RWidgetType;
 

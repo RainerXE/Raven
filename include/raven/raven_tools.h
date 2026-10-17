@@ -5,6 +5,7 @@
  *   R_WIDGET_COLOR_PICKER   chooses a color
  *   R_WIDGET_TIMELINE       tracks of clips and keys along a time ruler (a sequencer)
  *   R_WIDGET_NODE_GRAPH     nodes linked by wires
+ *   R_WIDGET_BLOCK_EDITOR   blocks that snap into each other (Scratch)
  *
  * Each of them holds a small model (a color; tracks, clips and keys; nodes,
  * pins and links) that the application fills and reads through the
@@ -430,6 +431,103 @@ extern "C" {
 	RAVEN_API void Rnode_graph_set_node_deletable(Rid graph, int node, int deletable);
 	/** @brief A short text in a pill on the top right corner of the node ("1", "!"...); NULL or "" removes it. */
 	RAVEN_API void Rnode_graph_set_node_badge(Rid graph, int node, const char* text);
+
+	/* ============================================================================
+	 *  Block editor
+	 *
+	 *  Programs made of blocks that snap into each other, in the style of
+	 *  Scratch: a palette on the left (one block of each kind, by category),
+	 *  the scripts on a canvas that pans (drag the background, middle button)
+	 *  and zooms (Ctrl + wheel).
+	 *
+	 *  A kind has a label: words and slots. %n a number, %s a text, %b a
+	 *  condition, %r any value; {text} right after a slot is its default;
+	 *  | separates the sections of a C block (each one is followed by a
+	 *  mouth): "repeat %n{10}", "if %b then|else", "%n + %n".
+	 *
+	 *  Blocks are named by integers (> 0). A block hangs under another one
+	 *  (R_BLOCK_NEXT), in a mouth of a C block (R_BLOCK_BODY, index = the
+	 *  mouth) or in a value slot (R_BLOCK_INPUT, index = the slot), or is
+	 *  the top of a script of its own.
+	 *
+	 *  The user drags a block with what is under it; the place it would go
+	 *  opens and shows its shadow; dropped on the palette, it is deleted.
+	 *  A click on a script fires the clicked callback (to run it); the
+	 *  application makes the running blocks glow.
+	 * ============================================================================ */
+
+	typedef enum RBlockShape {
+		/** A step: snaps under another one, others snap under it. */
+		R_BLOCK_STATEMENT = 0x0700,
+		/** Starts a script ("when the game starts"): nothing goes above it. */
+		R_BLOCK_HAT,
+		/** Ends a script ("stop"): nothing goes under it. */
+		R_BLOCK_CAP,
+		/** Wraps stacks in its mouths ("repeat", "if ... else"). */
+		R_BLOCK_C,
+		/** A rounded value that goes into a slot. */
+		R_BLOCK_REPORTER,
+		/** A hexagonal condition that goes into a %b slot (or a %r one). */
+		R_BLOCK_BOOLEAN
+	} RBlockShape;
+
+	typedef enum RBlockPlace {
+		R_BLOCK_NEXT = 0x0710,
+		R_BLOCK_BODY,
+		R_BLOCK_INPUT
+	} RBlockPlace;
+
+	/** @brief A block changed (0: several, or one was deleted), or a script was clicked (its top block). */
+	typedef void (*RBlockEditorCallback)(Rid editor, int block, void* user_data);
+	/** @brief Right click: on a block (0 on the canvas), at x, y in the widget. */
+	typedef void (*RBlockEditorContextCallback)(Rid editor, int block, float x, float y, void* user_data);
+
+	RAVEN_API Rid Rblock_editor_create(void);
+	/** @brief A kind of block, and its block in the palette. Returns its index, -1 on an error. */
+	RAVEN_API int Rblock_editor_add_kind(Rid editor, const char* name, const char* label, RBlockShape shape, const char* category);
+	/** @brief Color of the blocks of a category (Raven picks one from its name otherwise). */
+	RAVEN_API void Rblock_editor_set_category_color(Rid editor, const char* category, float r, float g, float b);
+	RAVEN_API void Rblock_editor_set_palette_visible(Rid editor, int visible);
+
+	/** @brief A new block, the top of a script of its own at x, y (canvas units). Returns it, 0 on an error. */
+	RAVEN_API int Rblock_editor_add_block(Rid editor, const char* kind, float x, float y);
+	/** @brief Removes a block and everything that hangs under it. */
+	RAVEN_API void Rblock_editor_remove_block(Rid editor, int block);
+	RAVEN_API void Rblock_editor_clear(Rid editor);
+	/** @brief Puts a block (with what is under it) at a place of another one. R_FALSE when it does not fit there. */
+	RAVEN_API int Rblock_editor_attach(Rid editor, int block, int target, RBlockPlace place, int index);
+	/** @brief Takes a block (with what is under it) out: a script of its own at x, y. */
+	RAVEN_API void Rblock_editor_detach(Rid editor, int block, float x, float y);
+
+	RAVEN_API int Rblock_editor_get_script_count(Rid editor);
+	/** @brief The top block of a script. */
+	RAVEN_API int Rblock_editor_get_script(Rid editor, int index);
+	RAVEN_API const char* Rblock_editor_get_kind(Rid editor, int block);
+	/** @brief The block under it, 0 if none. */
+	RAVEN_API int Rblock_editor_get_next(Rid editor, int block);
+	RAVEN_API int Rblock_editor_get_mouth_count(Rid editor, int block);
+	/** @brief The first block in a mouth of a C block, 0 if empty. */
+	RAVEN_API int Rblock_editor_get_body(Rid editor, int block, int mouth);
+	RAVEN_API int Rblock_editor_get_slot_count(Rid editor, int block);
+	/** @brief The value block in a slot, 0 if the slot holds a typed value. */
+	RAVEN_API int Rblock_editor_get_input(Rid editor, int block, int slot);
+	/** @brief The typed value of a slot. */
+	RAVEN_API const char* Rblock_editor_get_value(Rid editor, int block, int slot);
+	RAVEN_API void Rblock_editor_set_value(Rid editor, int block, int slot, const char* value);
+	/** @brief Where a block hangs: the block it hangs from (0: the top of a script). */
+	RAVEN_API int Rblock_editor_get_parent(Rid editor, int block, RBlockPlace* place, int* index);
+	RAVEN_API void Rblock_editor_get_position(Rid editor, int block, float* x, float* y);
+	/** @brief R_TRUE: the block is running: a halo breathes around it. */
+	RAVEN_API void Rblock_editor_set_block_glow(Rid editor, int block, int glow);
+
+	/** @brief Every script as text (valid until the next call). */
+	RAVEN_API const char* Rblock_editor_save(Rid editor);
+	/** @brief Replaces the scripts with those of a text from Rblock_editor_save. */
+	RAVEN_API int Rblock_editor_load(Rid editor, const char* text);
+
+	RAVEN_API void Rblock_editor_set_changed_callback(Rid editor, RBlockEditorCallback callback, void* user_data);
+	RAVEN_API void Rblock_editor_set_clicked_callback(Rid editor, RBlockEditorCallback callback, void* user_data);
+	RAVEN_API void Rblock_editor_set_context_callback(Rid editor, RBlockEditorContextCallback callback, void* user_data);
 
 #ifdef __cplusplus
 } /* extern "C" */
