@@ -1,7 +1,8 @@
 # Tests.
 #
 #   test_layout, test_widgets, test_xml, test_threads, test_memory, test_animation,
-#   test_text_editor, test_shell, test_dialogs, test_themes, test_markdown, test_tools
+#   test_text_editor, test_shell, test_dialogs, test_themes, test_markdown, test_tools,
+#   test_locale
 #       run headless (null platform + null backend): no display and no GPU are
 #       needed, so they run on any build machine.
 #   test_render
@@ -42,6 +43,7 @@ raven_add_test(test_dialogs)
 raven_add_test(test_themes)
 raven_add_test(test_markdown)
 raven_add_test(test_tools)
+raven_add_test(test_locale)
 
 if(RAVEN_BACKEND_VULKAN)
 	raven_add_test(test_render)

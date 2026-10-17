@@ -127,6 +127,7 @@ extern "C" {
 
 	RAVEN_API Rid Rcheckbox_create(const char* text);
 	RAVEN_API void Rcheckbox_set_text(Rid checkbox, const char* text);
+	RAVEN_API const char* Rcheckbox_get_text(Rid checkbox);
 	RAVEN_API void Rcheckbox_set_checked(Rid checkbox, int checked);
 	RAVEN_API int Rcheckbox_is_checked(Rid checkbox);
 	RAVEN_API void Rcheckbox_set_style(Rid checkbox, RCheckboxStyle style);
@@ -141,6 +142,8 @@ extern "C" {
 	RAVEN_API void Rslider_set_range(Rid slider, float minimum, float maximum);
 	RAVEN_API void Rslider_set_value(Rid slider, float value);
 	RAVEN_API float Rslider_get_value(Rid slider);
+	/** @brief The range given with Rslider_set_range and the step (NULL for what is not wanted). */
+	RAVEN_API void Rslider_get_range(Rid slider, float* minimum, float* maximum, float* step);
 	/** @brief Snaps the value to multiples of `step`. 0 = continuous (default). */
 	RAVEN_API void Rslider_set_step(Rid slider, float step);
 	RAVEN_API void Rslider_set_orientation(Rid slider, ROrientation orientation);
@@ -180,6 +183,8 @@ extern "C" {
 	/** @brief Dimmed text shown while the input is empty. */
 	RAVEN_API void Rtext_input_set_placeholder(Rid text_input, const char* text);
 	RAVEN_API void Rtext_input_set_password(Rid text_input, int password);
+	RAVEN_API int Rtext_input_is_password(Rid text_input);
+	RAVEN_API int Rtext_input_is_read_only(Rid text_input);
 	RAVEN_API void Rtext_input_set_read_only(Rid text_input, int read_only);
 	/** @brief Maximum number of characters. 0 = no limit (default). */
 	RAVEN_API void Rtext_input_set_max_length(Rid text_input, int max_length);
@@ -198,6 +203,8 @@ extern "C" {
 	RAVEN_API void Rspin_box_set_range(Rid spin_box, double minimum, double maximum);
 	RAVEN_API void Rspin_box_set_value(Rid spin_box, double value);
 	RAVEN_API double Rspin_box_get_value(Rid spin_box);
+	/** @brief The range and the step (NULL for what is not wanted). */
+	RAVEN_API void Rspin_box_get_range(Rid spin_box, double* minimum, double* maximum, double* step);
 	RAVEN_API void Rspin_box_set_step(Rid spin_box, double step);
 	/** @brief Digits shown after the decimal point. Default: 2. */
 	RAVEN_API void Rspin_box_set_decimals(Rid spin_box, int decimals);
@@ -351,6 +358,7 @@ extern "C" {
 	RAVEN_API Rid Rmenu_add_separator(Rid menu);
 
 	RAVEN_API void Rmenu_item_set_text(Rid item, const char* text);
+	RAVEN_API const char* Rmenu_item_get_text(Rid item);
 	/**
 	 * @brief Shows a shortcut next to the item and triggers the item when the
 	 * keys are pressed in the window of its menu bar.

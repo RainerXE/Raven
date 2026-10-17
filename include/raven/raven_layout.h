@@ -197,10 +197,40 @@ extern "C" {
 	/* EXPANDER */
 
 	RAVEN_API void Rexpander_set_title(Rid expander, const char* title);
+	RAVEN_API const char* Rexpander_get_title(Rid expander);
 	RAVEN_API void Rexpander_set_expanded(Rid expander, int expanded);
 	RAVEN_API int Rexpander_is_expanded(Rid expander);
 	typedef void (*RExpanderChangedCallback)(Rid expander, int expanded, void* user_data);
 	RAVEN_API void Rexpander_set_changed_callback(Rid expander, RExpanderChangedCallback callback, void* user_data);
+
+	/* ============================================================================
+	 *  Direction
+	 *
+	 *  A right-to-left layout is a mirror of the left-to-right one: rows start
+	 *  on the right, texts are aligned to the right, the first column of a grid
+	 *  is on the right. By default (R_DIRECTION_AUTO) the windows follow the
+	 *  language (Rlocale_set_language: Arabic, Hebrew, Persian, Urdu...). The
+	 *  surfaces of their own (canvas, node graph, timeline, text editor,
+	 *  viewport) are not mirrored inside. In XML: Direction="RTL|LTR|Inherit".
+	 * ============================================================================ */
+
+	typedef enum RDirection {
+		/** A widget: the direction of its parent (the default). */
+		R_DIRECTION_INHERIT = 0,
+		R_DIRECTION_LTR = 0x0720,
+		R_DIRECTION_RTL,
+		/** The windows: the direction of the language. */
+		R_DIRECTION_AUTO
+	} RDirection;
+
+	/** @brief Direction of every window: R_DIRECTION_AUTO (the default), _LTR or _RTL. */
+	RAVEN_API void Rset_layout_direction(RDirection direction);
+	/** @brief The direction the windows use now: R_DIRECTION_LTR or _RTL. */
+	RAVEN_API RDirection Rget_layout_direction(void);
+	/** @brief Direction of a part of a window: R_DIRECTION_INHERIT, _LTR or _RTL. */
+	RAVEN_API void Rwidget_set_direction(Rid widget, RDirection direction);
+	/** @brief The direction the widget is laid out in: R_DIRECTION_LTR or _RTL. */
+	RAVEN_API RDirection Rwidget_get_direction(Rid widget);
 
 #ifdef __cplusplus
 } /* extern "C" */

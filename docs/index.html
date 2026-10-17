@@ -5,28 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Raven — A GUI library in C</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./raven.css">
-<script src="./raven-glass.js" defer></script>
 <style>
-/* tokens propres à l'intro (le reste vient de raven.css) */
-:root{--glass:rgba(255,255,255,.10);--rim:rgba(255,255,255,.30);--blob:.6;--att:var(--warn);--str:var(--ok);--vg:.55}
-:root[data-theme=light]{--glass:rgba(255,255,255,.42);--rim:rgba(255,255,255,.95);--sh:rgba(50,70,140,.3);--blob:.5;--vg:.12}
-html{font-size:max(min(1.1vw,2vh),6px)}
-body{font-weight:400;line-height:normal;transition:background .6s,color .6s}
-.blobs{position:absolute;inset:-8%;opacity:var(--blob);pointer-events:none;transform:translateY(calc(var(--u,0)*-8rem)) scaleX(var(--fl,1))}
-.blobs i{position:absolute;border-radius:50%;filter:blur(7rem);animation:driftR 14s ease-in-out infinite alternate}
+:root{--bg:#000;--fg:#f5f5f7;--mut:#86868b;--glass:rgba(255,255,255,.10);--rim:rgba(255,255,255,.30);--sh:rgba(0,0,0,.6);--blob:.6;--tag:#7aa7ff;--att:#ffb454;--str:#8be28b;--vg:.55}
+:root[data-theme=light]{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.42);--rim:rgba(255,255,255,.95);--sh:rgba(50,70,140,.3);--blob:.5;--tag:#2f5fd0;--att:#b86a00;--str:#1f8a3b;--vg:.12}
+*{box-sizing:border-box;margin:0}
+html{font-size:max(min(1.1vw,2vh),6px);background:var(--bg)}
+body{background:var(--bg);color:var(--fg);font-family:"Inter",-apple-system,"SF Pro Display","Segoe UI",system-ui,sans-serif;transition:background .6s,color .6s;-webkit-font-smoothing:antialiased}
+.blobs{position:fixed;inset:0;opacity:0;transition:opacity 1.2s;pointer-events:none}
+.glassy .blobs{opacity:var(--blob)}
+.blobs i{position:absolute;border-radius:50%;filter:blur(7rem);animation:drift 14s ease-in-out infinite alternate}
 .blobs i:nth-child(1){width:46rem;height:46rem;left:8%;top:6%;background:#4f7dff}
 .blobs i:nth-child(2){width:40rem;height:40rem;right:6%;top:18%;background:#ff4f9a;animation-delay:-5s}
 .blobs i:nth-child(3){width:36rem;height:36rem;left:38%;bottom:-8%;background:#ffb040;animation-delay:-9s}
-@keyframes driftR{to{transform:translate(8rem,-5rem) scale(1.15)}}
-.scene{will-change:opacity,transform;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;pointer-events:none;overflow:hidden}
-.cam{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3rem;text-align:center}
+@keyframes drift{to{transform:translate(8rem,-5rem) scale(1.15)}}
+.scene{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;perspective:110rem;opacity:0;visibility:hidden;pointer-events:none;overflow:hidden}
+.cam{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3rem;text-align:center}
 .cam{animation:var(--mv) 1s cubic-bezier(.25,.1,.25,1) both paused;animation-delay:calc(-1s*var(--u,0))}
-@keyframes lowang{from{transform:translateY(5rem) scale(.94)}to{transform:scale(1.03)}}
-@keyframes top{from{transform:translateY(-5rem) scale(.95)}to{transform:scale(1.02)}}
-@keyframes sweep{from{transform:translateX(6rem) scale(.96)}to{transform:translateX(-6rem) scale(1.03)}}
-@keyframes push{from{transform:scale(.88)}to{transform:scale(1.06)}}
-@keyframes pull{from{transform:scale(1.14)}to{transform:scale(1)}}
+@keyframes orbitA{from{transform:rotateY(-34deg) rotateX(8deg) translateZ(-8rem)}to{transform:rotateY(14deg) rotateX(-4deg) translateZ(12rem)}}
+@keyframes lowang{from{transform:rotateX(46deg) translateY(8rem) scale(.9)}to{transform:rotateX(4deg) scale(1.05)}}
+@keyframes top{from{transform:rotateX(64deg) translateZ(-12rem) scale(.9)}to{transform:rotateX(0) scale(1)}}
+@keyframes sweep{from{transform:rotateY(36deg) translateX(-10rem) scale(.95)}to{transform:rotateY(-20deg) translateX(10rem) scale(1.04)}}
+@keyframes track{from{transform:rotateY(-26deg) rotateX(5deg) translateX(12rem)}to{transform:rotateY(12deg) rotateX(-2deg) translateX(-12rem)}}
+@keyframes push{from{transform:scale(.8) translateZ(-20rem)}to{transform:scale(1.14)}}
+@keyframes pull{from{transform:scale(1.3)}to{transform:scale(1)}}
 h1{font-size:min(19rem,24vw);font-weight:700;letter-spacing:-.06em;line-height:1}
 .grad{background:linear-gradient(100deg,#8fb4ff 0%,#c59bff 35%,#ff9ec4 60%,#f5f5f7 80%,#8fb4ff 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:lite 4s ease-out both paused;animation-delay:calc(-1s*var(--t,0))}
 @keyframes lite{from{background-position:100% 0}to{background-position:0 0}}
@@ -36,8 +37,7 @@ p.sub{font-size:2.4rem;color:var(--mut);font-weight:600;letter-spacing:-.02em}
 @keyframes rev{from{opacity:0;transform:scale(.94);filter:blur(1.4rem)}to{opacity:1;transform:none;filter:none}}
 @keyframes revc{from{opacity:0;transform:var(--tf)}to{opacity:1;transform:none}}
 .grad.r{animation:rev 1s cubic-bezier(.2,.8,.2,1) both paused,lite 4s ease-out both paused;animation-delay:calc(var(--i,0)*.14s + .2s - var(--t,0)*1s),calc(-1s*var(--t,0))}
-/* verre à l'échelle rem : surcharge raven.css */
-.glass{backdrop-filter:var(--rf,) blur(.6rem) saturate(1.8) brightness(1.06);-webkit-backdrop-filter:var(--rf,) blur(.6rem) saturate(1.8) brightness(1.06);box-shadow:inset 1px 1px 0 var(--rim),inset -1px -1px 0 rgba(255,255,255,.08),0 2rem 5rem var(--sh)}
+.glass{background:var(--glass);backdrop-filter:blur(2.2rem) saturate(1.8);-webkit-backdrop-filter:blur(2.2rem) saturate(1.8);border:1px solid var(--rim);box-shadow:inset 1px 1px 0 var(--rim),inset -1px -1px 0 rgba(255,255,255,.08),0 2rem 5rem var(--sh)}
 .win{width:min(50rem,90vw);padding:2.2rem;border-radius:3.2rem;display:flex;flex-direction:column;gap:2.4rem;text-align:left}
 .bar{display:flex;gap:1rem;justify-content:center}
 .cap{padding:1rem 2.2rem;border-radius:99rem;font-size:1.8rem;font-weight:600;background:var(--glass);border:1px solid var(--rim);box-shadow:inset 1px 1px 0 var(--rim)}
@@ -47,7 +47,7 @@ p.sub{font-size:2.4rem;color:var(--mut);font-weight:600;letter-spacing:-.02em}
 .row span{width:6rem;color:var(--mut)}
 .track{position:relative;flex:1;height:1rem;border-radius:9rem;background:var(--glass);border:1px solid var(--rim)}
 .fill{position:absolute;left:0;top:0;bottom:0;border-radius:9rem;background:#6e9bff;animation:slidew 5s ease-in-out infinite paused;animation-delay:calc(-1s*var(--t,0))}
-.knob{position:absolute;top:50%;width:3.6rem;height:3.6rem;margin:-1.8rem 0 0 -1.8rem;border-radius:50%;background:rgba(255,255,255,.25);backdrop-filter:var(--rf,) blur(.1rem) saturate(1.6);-webkit-backdrop-filter:var(--rf,) blur(.1rem) saturate(1.6);border:1px solid var(--rim);box-shadow:inset 2px 2px 0 var(--rim),0 .8rem 2rem var(--sh);animation:slidel 5s ease-in-out infinite paused,lens 5s ease-in-out infinite paused;animation-delay:calc(-1s*var(--t,0))}
+.knob{position:absolute;top:50%;width:3.6rem;height:3.6rem;margin:-1.8rem 0 0 -1.8rem;border-radius:50%;background:rgba(255,255,255,.25);backdrop-filter:blur(.2rem) saturate(1.6);-webkit-backdrop-filter:blur(.2rem);border:1px solid var(--rim);box-shadow:inset 2px 2px 0 var(--rim),0 .8rem 2rem var(--sh);animation:slidel 5s ease-in-out infinite paused,lens 5s ease-in-out infinite paused;animation-delay:calc(-1s*var(--t,0))}
 @keyframes slidew{0%,100%{width:12%}50%{width:80%}}
 @keyframes slidel{0%,100%{left:12%}50%{left:80%}}
 @keyframes lens{0%,100%{transform:scale(1)}12%,40%{transform:scale(1.55)}50%{transform:scale(1)}62%,90%{transform:scale(1.55)}}
@@ -62,9 +62,19 @@ p.sub{font-size:2.4rem;color:var(--mut);font-weight:600;letter-spacing:-.02em}
 .big{position:absolute;font-size:min(30vw,52vh);font-weight:700;letter-spacing:-.06em;white-space:nowrap;line-height:1;z-index:0}
 .mats{position:relative;z-index:1;display:flex;gap:2.4rem;justify-content:center}
 .mat{width:24rem;height:30rem;border-radius:3.6rem;padding:2.4rem;display:flex;align-items:flex-end;font-size:2.8rem;font-weight:700;letter-spacing:-.025em}
-.m1{backdrop-filter:var(--rf,) blur(.2rem) saturate(1.5);-webkit-backdrop-filter:var(--rf,) blur(.2rem) saturate(1.5);background:rgba(255,255,255,.06)}
+.m1{backdrop-filter:blur(.3rem) saturate(1.5);-webkit-backdrop-filter:blur(.3rem) saturate(1.5);background:rgba(255,255,255,.06)}
 .m3{background:rgba(20,28,60,.45)}
 :root[data-theme=light] .m3{background:rgba(120,150,255,.35)}
+.tools{width:min(78rem,92vw);padding:2.4rem;border-radius:3.2rem;display:flex;flex-direction:column;gap:2rem}
+.tools svg{width:100%;display:block;overflow:visible}
+.nd{fill:var(--glass);stroke:var(--rim);stroke-width:1.5}
+.nt{fill:var(--fg);font:700 16px Inter,system-ui,sans-serif;letter-spacing:-.01em}
+.pin{fill:#8fb4ff}
+.wire{fill:none;stroke:var(--fg);stroke-opacity:.75;stroke-width:2.5;stroke-linecap:round}
+.tl{position:relative;display:flex;flex-direction:column;gap:.8rem;padding-top:.4rem}
+.trk{position:relative;height:2.6rem}
+.clip{position:absolute;top:0;bottom:0;border-radius:1rem;background:rgba(120,160,255,.55);border:1px solid var(--rim)}
+.ph{position:absolute;top:-.6rem;bottom:-.6rem;width:.3rem;border-radius:9rem;background:#ff5a7a;left:calc(var(--u,0)*100%)}
 .demo{display:flex;gap:3rem;align-items:center;justify-content:center}
 .code{width:min(46rem,90vw);padding:2.6rem 3rem;border-radius:3rem;text-align:left;font:500 1.9rem/1.75 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
 .ln{opacity:0;transform:translateX(-1rem);transition:opacity .4s,transform .5s cubic-bezier(.2,.8,.2,1);white-space:pre}
@@ -94,21 +104,39 @@ p.sub{font-size:2.4rem;color:var(--mut);font-weight:600;letter-spacing:-.02em}
 @media (max-aspect-ratio:1/1){html{font-size:2.2vw}.mats,.demo{flex-direction:column}.mat{width:40rem;height:12rem;border-radius:2.4rem}.cards{flex-wrap:wrap;max-width:90vw}.card{width:19rem;height:14rem}.res{width:30rem;height:14rem}.cam{gap:2rem}.code{font-size:1.45rem;padding:2rem}}
 
 #page{position:relative;z-index:8;background:var(--bg);border-radius:36px 36px 0 0;box-shadow:0 -30px 90px rgba(0,0,0,.7);overflow:hidden;font-size:16px;line-height:1.55;padding:0 clamp(18px,4vw,40px)}
-.w{padding-top:clamp(80px,12vw,140px)}
-.hero{padding-top:clamp(100px,16vw,200px)}
+.pbg{position:absolute;inset:0;pointer-events:none}
+.pbg i{position:absolute;width:560px;height:560px;border-radius:50%;filter:blur(110px);opacity:.3;animation:drift 14s ease-in-out infinite alternate}
+.w{position:relative;max-width:1080px;margin:0 auto;padding-top:clamp(80px,12vw,140px)}
+.hero{text-align:center;padding-top:clamp(100px,16vw,200px)}
+.hero .lead{margin:20px auto 0}
 #page .hero h2{font-size:clamp(44px,8vw,104px)}
+.eb{font-size:14px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--tag);margin-bottom:14px}
 #page h2{font-size:clamp(34px,5.4vw,64px);font-weight:700;letter-spacing:-.05em;line-height:1.04}
 #page .grad{animation:none}
-.stats,.g4{display:grid;gap:16px;margin-top:40px}
+.lead{color:var(--mut);font-size:clamp(17px,2vw,22px);font-weight:600;letter-spacing:-.02em;max-width:660px;margin-top:18px}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+.btn{padding:14px 28px;border-radius:99px;font-weight:600;color:var(--fg);text-decoration:none;display:inline-block}
+.btn.p{background:rgba(120,160,255,.55)}
+.stats,.g2,.g3,.g4{display:grid;gap:16px;margin-top:40px}
 .stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
 .g4{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}
-.stat{padding:26px;border-radius:28px}
+.fc,.stat{padding:26px;border-radius:28px;text-align:left}
+.fc h3{font-size:20px;letter-spacing:-.03em;margin-bottom:8px}
+.fc p,.fc li{color:var(--mut);font-weight:500;font-size:15px}
+.fc ul{padding-left:18px;display:grid;gap:8px}
 .stat{text-align:center}.stat b{display:block;font-size:30px;letter-spacing:-.04em}.stat span{color:var(--mut);font-size:14px;font-weight:600}
+.cb{border-radius:28px;padding:24px 28px;font:500 13.5px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;text-align:left}
+#page code{font:600 13px ui-monospace,Menlo,Consolas,monospace;color:var(--tag)}
 .vw{margin-top:40px;padding:10px;border-radius:36px}.vw video{display:block;width:100%;border-radius:28px;background:#000}
 .foot{text-align:center;padding-bottom:120px}.foot .btn{margin:28px 0 18px}
+.pr{opacity:0;transform:translateY(28px);filter:blur(8px);transition:opacity .8s,transform .9s cubic-bezier(.2,.8,.2,1),filter .8s}
+.pr.in{opacity:1;transform:none;filter:none}
 </style>
 </head>
 <body>
+<div class="blobs"><i></i><i></i><i></i></div>
 <main>
 
 <section class="scene">
@@ -149,6 +177,24 @@ p.sub{font-size:2.4rem;color:var(--mut);font-weight:600;letter-spacing:-.02em}
   <div class="t r" style="--i:3">Three glasses.</div>
 </section>
 
+<section class="scene" data-g="1">
+  <div class="cam" style="--mv:track"><div class="tools glass r">
+    <svg viewBox="0 0 760 290" aria-hidden="true">
+      <path class="wire" id="w1"/><path class="wire" id="w2"/><path class="wire" id="w3"/>
+      <g><rect class="nd" x="50" y="60" width="150" height="70" rx="20"/><text class="nt" x="72" y="101">Noise</text><circle class="pin" cx="200" cy="95" r="6"/></g>
+      <g><rect class="nd" x="50" y="170" width="150" height="70" rx="20"/><text class="nt" x="72" y="211">Color</text><circle class="pin" cx="200" cy="205" r="6"/></g>
+      <g id="n2"><rect class="nd" x="330" y="100" width="150" height="90" rx="22"/><text class="nt" x="352" y="151">Blend</text><circle class="pin" cx="330" cy="130" r="6"/><circle class="pin" cx="330" cy="160" r="6"/><circle class="pin" cx="480" cy="145" r="6"/></g>
+      <g><rect class="nd" x="610" y="100" width="110" height="90" rx="22"/><text class="nt" x="632" y="151">Output</text><circle class="pin" cx="610" cy="145" r="6"/></g>
+    </svg>
+    <div class="tl">
+      <div class="trk"><i class="clip" style="left:2%;width:30%"></i><i class="clip" style="left:38%;width:24%"></i></div>
+      <div class="trk"><i class="clip" style="left:10%;width:42%"></i><i class="clip" style="left:70%;width:20%"></i></div>
+      <div class="trk"><i class="clip" style="left:0;width:18%"></i><i class="clip" style="left:44%;width:36%"></i></div>
+      <i class="ph"></i>
+    </div>
+  </div></div>
+  <div class="t r" style="--i:3">Made for tools.</div>
+</section>
 
 <section class="scene">
   <div class="cam" style="--mv:push;--dur:7s"><div class="demo">
@@ -175,14 +221,14 @@ p.sub{font-size:2.4rem;color:var(--mut);font-weight:600;letter-spacing:-.02em}
   <div class="cam" style="--mv:pull;--dur:6.4s">
     <h1 class="grad r">Raven.</h1>
     <a class="url glass r" style="--i:6" href="https://github.com/oscar-soirey/Raven">github.com/oscar-soirey/Raven</a>
-    <p class="sub r" style="--i:8">v1.0.1</p>
+    <p class="sub r" style="--i:8">v0.1</p>
   </div>
 </section>
 
 </main>
 <div id="space" aria-hidden="true"></div>
 <div id="page"><div class="pbg"><i style="left:4%;top:3%;background:#4f7dff"></i><i style="right:-4%;top:26%;background:#ff4f9a"></i><i style="left:12%;top:52%;background:#ffb040"></i><i style="right:2%;top:78%;background:#4f7dff"></i></div>
-<section class="w hero"><p class="eb">Raven · v1.0.1</p><h2 class="grad">A GUI library for editors and tools.</h2><p class="lead">Lightweight, multithreaded, written in C11 with no dependency. One header, one library, windows in XML or in C.</p><p class="cta"><a class="btn p glass" href="https://github.com/oscar-soirey/Raven">View on GitHub</a><a class="btn glass" href="./license.html">Pricing</a></p></section>
+<section class="w hero"><p class="eb">Raven · v0.1</p><h2 class="grad">A GUI library for editors and tools.</h2><p class="lead">Lightweight, multithreaded, written in C11 with no dependency. One header, one library, windows in XML or in C.</p><p class="cta"><a class="btn p glass" href="https://github.com/oscar-soirey/Raven">View on GitHub</a><a class="btn glass" href="#start">Get started</a><a class="btn glass" href="./license.html">Pricing</a></p></section>
 <section class="w"><div class="stats" id="stats"></div></section>
 <section class="w"><p class="eb">What you can do</p><h2>Everything a tool needs.</h2><div class="g3" id="feat"></div></section>
 <section class="w"><p class="eb">How it works</p><h2>A window in a few lines.</h2><p class="lead">Describe the interface in C, in XML, or both. Raven handles windows, layout, painting and the GPU.</p>
@@ -213,58 +259,67 @@ int main(void) {
 <span style="color:var(--mut)">&lt;!-- the same window, loaded with
      Rwindow_create_from_xml_file("hello.xml") --&gt;</span></pre></div></section>
 <section class="w"><p class="eb">Examples</p><h2>Fourteen programs to read.</h2><div class="g4" id="exs"></div><p class="lead">Six more in the repo: hello, components, memory, overlay and two viewport demos (Vulkan, OpenGL).</p></section>
-<section class="w"><p class="eb">Follow along</p><h2>Follow the project on GitHub.</h2><p class="lead">Releases, roadmap, issues and discussions all happen on GitHub. Star or watch the repository to follow the progress of Raven.</p><p class="cta" style="justify-content:flex-start"><a class="btn p glass" href="https://github.com/oscar-soirey/Raven">Follow on GitHub</a><a class="btn glass" href="https://github.com/oscar-soirey/Raven/releases">Releases</a><a class="btn glass" href="https://github.com/oscar-soirey/Raven/issues">Issues</a></p></section>
+<section class="w" id="start"><p class="eb">Get started</p><h2>Build it, link it.</h2><p class="lead">CMake 3.16+ and a C11 compiler. On Linux, the X11 development package (<code>libx11-dev</code>). The Vulkan headers are downloaded when no SDK is found.</p>
+<div class="g2"><pre class="cb glass">cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+cd build &amp;&amp; ctest -C Release --output-on-failure</pre><pre class="cb glass">add_subdirectory(raven)
+target_link_libraries(app PRIVATE raven::raven)</pre></div></section>
+<section class="w"><p class="eb">Status</p><h2>Version 0.1, honestly.</h2><p class="lead">Raven was developed on one Linux machine without a GPU. Here is what was checked, and what was not.</p>
+<div class="g3"><div class="fc glass"><h3 style="color:var(--str)">Verified</h3><ul><li>Layout, widgets, XML, text editor, docking, themes, animations, live reload: 12 headless test programs, about 20,800 checks.</li><li>Linux / X11 with real pointer and keyboard events.</li><li>C++, Python, Rust and Go bindings, built and run by the tests.</li></ul></div><div class="fc glass"><h3 style="color:var(--att)">Partly</h3><ul><li>Vulkan renderer and glass: pixel tests and examples on a software driver, never on a real GPU.</li><li>Run the examples in a Debug build (validation layers) before trusting it.</li><li><code>raven_web</code>: tested on Linux with Chromium only.</li></ul></div><div class="fc glass"><h3 style="color:var(--mut)">Not yet</h3><ul><li>Windows: written against the headers, never linked or run.</li><li>macOS/Cocoa backend is implemented but has not yet been built or run on a Mac; native Wayland is not implemented.</li><li>C#, Zig and LuaJIT bindings: generated, never compiled.</li></ul></div></div></section>
 <section class="w" id="license"><p class="eb">License</p><h2>Free. With a watermark.</h2><p class="lead">Use Raven for anything: what you make with it is yours, license or not. The free build shows a small note in the corner of every window; a license removes it.</p>
 <div class="g3"><div class="fc glass"><h3>Free</h3><p><b style="color:var(--fg);font-size:22px">$0</b><br>Every feature. Use it for anything, commercial included. A watermark in every window.</p></div><div class="fc glass"><h3>Personal license</h3><p><b style="color:var(--fg);font-size:22px">$20 once</b><br>For one person: freelancers, indie developers, students. No watermark, forever.</p></div><div class="fc glass"><h3>Company license</h3><p><b style="color:var(--fg);font-size:22px">$200 / month</b><br>For a company and all its developers. No watermark, cancel any time.</p></div></div>
 <p class="cta" style="justify-content:flex-start"><a class="btn p glass" href="./license.html">Get a license</a><a class="btn glass" href="./license.html#free">What's free?</a></p></section>
 <section class="w"><p class="eb">Watch</p><h2>Raven in motion.</h2><div class="vw glass"><video controls preload="metadata" playsinline src="./Raven-prensentation-video.mp4">Your browser cannot play this video.</video></div></section>
-<footer class="w foot"><h2 class="grad">Raven.</h2><a class="btn p glass" href="https://github.com/oscar-soirey/Raven">github.com/oscar-soirey/Raven</a><p style="color:var(--mut);font-weight:600">v1.0.1 · C11 · Vulkan · Win32 · X11 · <a href="./license.html" style="color:var(--tag)">License: free with a watermark, $20 / $200 per month without</a> · <a href="./account.html" style="color:var(--tag)">Account</a></p></footer></div>
+<footer class="w foot"><h2 class="grad">Raven.</h2><a class="btn p glass" href="https://github.com/oscar-soirey/Raven">github.com/oscar-soirey/Raven</a><p style="color:var(--mut);font-weight:600">v0.1 · C11 · Vulkan · Win32 · X11 · <a href="./license.html" style="color:var(--tag)">License: free with a watermark, $20 / $200 per month without</a></p></footer></div>
 <div class="hint" id="hint"><span>Scroll ↓</span></div>
 <div class="fx"></div>
 
 
 <script>
 (function(){
-  var S=[].slice.call(document.querySelectorAll('.scene')),N=S.length,OV=.1,
-      D=[5.2,6.4,6.4,6.4,7,6.4,6.4],REST=[0,.35,.4,.4,.85,.6,.55],U=S.map(function(){return 0}),
+  var S=[].slice.call(document.querySelectorAll('.scene')),N=S.length,
+      D=[5.2,6.4,6.4,6.4,6.8,7,6.4,6.4],REST=[0,.35,.4,.4,.45,.85,.6,.55],
       lns=[].slice.call(document.querySelectorAll('.ln')),res=document.getElementById('res'),
-      facts=[].slice.call(document.querySelectorAll('.fact')),
-      space=document.getElementById('space'),hint=document.getElementById('hint'),
+      facts=[].slice.call(document.querySelectorAll('.fact')),n2=document.getElementById('n2'),
+      wires=['w1','w2','w3'].map(function(i){return document.getElementById(i)}),
+      space=document.getElementById('space'),
+      hint=document.getElementById('hint'),
       rm=matchMedia('(prefers-reduced-motion:reduce)').matches,
-      per=500,pS=0,cur=0,lt=performance.now(),t0=lt;
-  /* chaque scène à verre porte ses propres blobs : elle devient le fond que le verre réfracte,
-     même pendant le fondu (un fondu sur un parent couperait sinon le backdrop-filter) */
-  S.forEach(function(s,k){
-    if(!s.querySelector('.glass'))return;
-    var b=document.createElement('div');b.className='blobs';b.style.setProperty('--fl',k%2?-1:1);
-    b.innerHTML='<i></i><i></i><i></i>';s.insertBefore(b,s.firstChild);
-  });
+      per=500,pS=0,cur=0,uc=0,glob=0,last=performance.now(),t0=last;
   function size(){per=Math.max(innerHeight*2.4,500);space.style.height=(N*per+innerHeight)+'px'}
   function goTo(k){k=Math.max(0,Math.min(N-1,k));scrollTo({top:(k+REST[k])*per,behavior:rm?'auto':'smooth'})}
   function ss(a,b,x){x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)}
+  function wire(el,x1,y1,x2,y2,k){
+    var dx=(x2-x1)*.5,s=16+10*Math.sin(glob*2+k);
+    el.setAttribute('d','M'+x1+' '+y1+' C'+(x1+dx)+' '+(y1+s)+' '+(x2-dx)+' '+(y2+s)+' '+x2+' '+y2);
+  }
   function loop(now){
-    var dt=Math.min((now-lt)/1000,.1);lt=now;
-    var target=Math.min(N,Math.max(0,scrollY/per)),intro=Math.min((now-t0)/1000,2.6);
+    var dt=Math.min((now-last)/1000,.1);last=now;glob+=dt;
+    var target=Math.min(N,Math.max(0,scrollY/per)),intro=Math.min((now-t0)/1000,2.6),
+        c=Math.min(N-1,Math.floor(pS));
     pS=rm||Math.abs(target-pS)<.0005?target:pS+(target-pS)*Math.min(1,dt*9);
-    cur=Math.min(N-1,Math.floor(pS+.15));
+    c=Math.min(N-1,Math.floor(pS));cur=c;
     S.forEach(function(s,k){
-      var p=pS-k,end=k===N-1;
-      if(p<=-OV||(!end&&p>1)){if(s.style.visibility!=='hidden'){s.style.visibility='hidden';s.style.opacity=0;s.classList.remove('on')}return}
-      /* la scène k vit sur [k-OV, k+1] : elle apparaît pendant que la précédente s'éteint */
-      var u=k?Math.min(1,Math.max(0,(p+OV)/(1+OV))):Math.min(1,Math.max(0,p)),t=u*D[k],cu=u;
+      if(k!==c){if(s.style.visibility!=='hidden'){s.style.visibility='hidden';s.style.opacity=0;s.classList.remove('on')}return}
+      var u=Math.min(1,Math.max(0,pS-k)),t=u*D[k],cu=u;
       if(k===0){t=Math.max(t,intro);var ii=.2*ss(0,2.6,intro);cu=ii+u*(1-ii)}
-      U[k]=u;
-      var fi=k?ss(-OV,0,p):1,fo=end?0:ss(1-OV,1,p);
+      uc=u;
       s.style.setProperty('--t',t.toFixed(3));s.style.setProperty('--u',cu.toFixed(4));
-      s.style.visibility='visible';
-      s.style.opacity=(fi*(1-fo)).toFixed(3);
-      s.style.transform='scale('+((.97+.03*fi)*(1+.07*fo)).toFixed(4)+')';
-      s.classList.toggle('on',p>=0&&(end||p<1));
+      s.style.visibility='visible';s.classList.add('on');
+      s.style.opacity=(k?ss(0,.04,u):1)*(k<N-1?1-ss(.94,1,u):1);
     });
+    document.body.classList.toggle('glassy',!!S[c].dataset.g);
     hint.style.opacity=1-ss(0,.04,pS);
-    lns.forEach(function(l,i){l.classList.toggle('show',U[4]>.06+i*.1)});
-    res.classList.toggle('show',U[4]>.7);
-    var f=Math.min(4,Math.floor(U[5]*5));facts.forEach(function(e,i){e.classList.toggle('cur',i===f)});
+    if(c===4){
+      var dy=16*Math.sin(glob*1.3);
+      n2.setAttribute('transform','translate(0 '+dy+')');
+      wire(wires[0],200,95,330,130+dy,0);wire(wires[1],200,205,330,160+dy,2);wire(wires[2],480,145+dy,610,145,4);
+    }
+    if(c===5){
+      lns.forEach(function(l,i){l.classList.toggle('show',uc>.06+i*.1)});
+      res.classList.toggle('show',uc>.7);
+    }
+    if(c===6){var k=Math.min(4,Math.floor(uc*5));facts.forEach(function(f,i){f.classList.toggle('cur',i===k)})}
     requestAnimationFrame(loop);
   }
   document.addEventListener('keydown',function(e){

@@ -201,6 +201,7 @@ static void test_text(void) {
 			const uint8_t* p = g_pixels + ((size_t)py * (size_t)g_width + (size_t)px) * 4;
 			float lx = (float)px / g_scale, ly = (float)py / g_scale;
 			int inside = lx >= x - 1 && ly >= y - 1 && lx < x + w + 1 && ly < y + h + 1;
+			if (in_watermark(lx, ly)) continue;
 			if (p[0] > 128) {
 				if (inside) lit_inside++;
 				else lit_outside++;
@@ -381,13 +382,19 @@ static void test_glass_theme(void) {
 }
 
 /* How much a row of pixels changes from one pixel to the next: sharp edges give a high value. */
+/* The note of the license-free edition (logical units): pixel checks leave it out. */
+static int in_watermark(float x, float y) {
+	return x >= g_wm_x - 1.0f && x <= g_wm_x + g_wm_w + 1.0f && y >= g_wm_y - 1.0f && y <= g_wm_y + g_wm_h + 1.0f;
+}
+
 static int row_contrast(float x0, float x1, float y) {
 	int total = 0;
 	float x;
 	for (x = x0; x + 1.0f < x1; x += 1.0f) {
 		const uint8_t* a = pixel_at(x, y);
-		int r = a[0], g = a[1], b = a[2];
 		const uint8_t* c = pixel_at(x + 1.0f, y);
+		int r = a[0], g = a[1], b = a[2];
+		if (in_watermark(x, y) || in_watermark(x + 1.0f, y)) continue;
 		total += abs(r - c[0]) + abs(g - c[1]) + abs(b - c[2]);
 	}
 	return total;
@@ -633,7 +640,13 @@ static void test_windows(void) {
 
 	/* each window has its own swapchain */
 	capture(second);
-	CHECK(g_width == (int)(120 * g_scale) && g_height == (int)(160 * g_scale));
+	{
+		/* the window system may make a window larger than asked (Windows has a minimum width): the swapchain follows the window */
+		int fw = 0, fh = 0;
+		Rwindow_get_framebuffer_size(second, &fw, &fh);
+		CHECK(g_width == fw && g_height == fh);
+		CHECK(g_width >= (int)(120 * g_scale) && g_height >= (int)(160 * g_scale));
+	}
 	CHECK_PIXEL(60, 80, 0, 0, 255);
 	capture(first);
 	CHECK_PIXEL(100, 50, 255, 0, 0);

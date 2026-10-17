@@ -16,8 +16,8 @@
 #
 #    dist/raven-<version>-linux-<arch>/
 #        include/                 Raven.h, raven/*.h, raven_web.h
-#        lib/                     libraven.so (+ .rvnenc), libraven_web.so, cmake/raven
-#        lib/static/              libraven.a (+ .rvnenc), libraven_web.a, cmake/raven
+#        lib/                     libraven.so (+ .rvnenc; web pages included), cmake/raven
+#        lib/static/              libraven.a (+ .rvnenc), cmake/raven
 #        bin/raven_designer, bin/raven_license_check
 #        share/raven/             README.md, docs/, bindings/
 #    dist/raven-<version>-linux-<arch>.tar.gz

@@ -242,13 +242,14 @@ static void test_theme_files(void) {
 	int count = Rtheme_get_count();
 	float r, g, bl, al;
 
-	CHECK(count == 4);
+	/* Dark, Light, two more and the two high contrast themes */
+	CHECK(count == 6);
 	CHECK_STR(Rtheme_get_name_at(0), "Dark");
-	CHECK(Rtheme_get_name_at(4) == NULL);
+	CHECK(Rtheme_get_name_at(6) == NULL);
 
 	name = Rtheme_load_from_memory(g_theme_xml, 0);
 	CHECK_STR(name, "Ember");
-	CHECK(Rtheme_get_count() == 5);
+	CHECK(Rtheme_get_count() == 7);
 	/* loading a theme does not put it on */
 	CHECK_STR(Rtheme_get_name(), "Dark");
 	CHECK(theme_color(R_COLOR_PANEL) != 0x201510FFu);

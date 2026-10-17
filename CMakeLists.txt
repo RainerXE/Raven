@@ -25,7 +25,7 @@ option(RAVEN_BUILD_SHARED "Build Raven as a shared library (raven.dll / libraven
 option(RAVEN_BUILD_EXAMPLES "Build the example programs" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_TESTS "Build the tests and the benchmark" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_TOOLS "Build the tools (the designer)" ${RAVEN_IS_TOP_LEVEL})
-option(RAVEN_BUILD_WEB "Build raven_web: the optional library that shows web pages (it drives an installed Chromium-based browser)" ${RAVEN_IS_TOP_LEVEL})
+option(RAVEN_BUILD_WEB "Compile the web pages (raven_web.h: they drive an installed Chromium-based browser) into the library" ON)
 option(RAVEN_BACKEND_VULKAN "Compile the Vulkan backend" ON)
 option(RAVEN_WITH_STB_IMAGE "Decode PNG / JPEG / BMP / TGA textures with stb_image" ON)
 option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SDK is found" ON)
@@ -107,6 +107,8 @@ set(RAVEN_PUBLIC_HEADERS
 	include/raven/raven_viewport.h
 	include/raven/raven_draw.h
 	include/raven/raven_xml.h
+	include/raven/raven_locale.h
+	include/raven/raven_accessibility.h
 	include/raven/raven_backend.h
 	include/raven/raven_vulkan.h
 )
@@ -114,6 +116,8 @@ set(RAVEN_PUBLIC_HEADERS
 set(RAVEN_CORE_SOURCES
 	src/core/base.h
 	src/core/context.c
+	src/core/locale.c
+	src/core/accessibility.c
 	src/core/context.h
 	src/core/error.c
 	src/core/file.c
@@ -144,6 +148,8 @@ set(RAVEN_RENDER_SOURCES
 	src/render/draw.c
 	src/render/draw.h
 	src/render/font.c
+	src/render/font_system.c
+	src/render/bidi.c
 	src/render/font.h
 	src/render/font_raster.c
 	src/render/image_decode.c
@@ -159,6 +165,7 @@ set(RAVEN_WIDGET_SOURCES
 	src/widget/anim.c
 	src/widget/events.c
 	src/widget/layout.c
+	src/widget/direction.c
 	src/widget/paint.c
 	src/widget/registry.c
 	src/widget/style.c
@@ -251,6 +258,7 @@ endif()
 if(RAVEN_PLATFORM_SELECTED STREQUAL "win32")
 	list(APPEND RAVEN_PLATFORM_SOURCES
 		src/platform/win32/win32_platform.c
+		src/platform/win32/win32_uia.c
 	)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_PLATFORM_WIN32)
 	list(APPEND RAVEN_LIBRARIES user32 gdi32 shell32 comdlg32 ole32)
@@ -262,6 +270,7 @@ elseif(RAVEN_PLATFORM_SELECTED STREQUAL "x11")
 	find_package(X11 REQUIRED)
 	list(APPEND RAVEN_PLATFORM_SOURCES
 		src/platform/x11/x11_platform.c
+		src/platform/atspi.c
 		src/platform/x11/x11_keys.c
 		src/platform/x11/x11_internal.h
 	)
@@ -334,7 +343,22 @@ else()
 endif()
 add_library(raven::raven ALIAS raven)
 
+# web pages (raven_web.h): compiled into the same library
+set(RAVEN_WEB_SOURCES "")
+if(RAVEN_BUILD_WEB)
+	set(RAVEN_WEB_SOURCES
+		web/include/raven_web.h
+		web/src/web_internal.h
+		web/src/web_json.c
+		web/src/web_browser.c
+		web/src/web_view.c
+		web/src/web_posix.c
+		web/src/web_win32.c
+	)
+endif()
+
 target_sources(raven PRIVATE
+	${RAVEN_WEB_SOURCES}
 	${RAVEN_PUBLIC_HEADERS}
 	${RAVEN_CORE_SOURCES}
 	${RAVEN_PLATFORM_SOURCES}
@@ -350,6 +374,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES
 target_include_directories(raven
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/web/include>
 		$<INSTALL_INTERFACE:include>
 	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/third_party

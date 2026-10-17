@@ -40,19 +40,8 @@
 
 #include <Raven.h>
 
-#if defined(_WIN32)
-	#if defined(RAVEN_WEB_BUILD_DLL)
-		#define RAVEN_WEB_API __declspec(dllexport)
-	#elif defined(RAVEN_WEB_USE_DLL)
-		#define RAVEN_WEB_API __declspec(dllimport)
-	#else
-		#define RAVEN_WEB_API
-	#endif
-#elif defined(__GNUC__) && defined(RAVEN_WEB_BUILD_DLL)
-	#define RAVEN_WEB_API __attribute__((visibility("default")))
-#else
-	#define RAVEN_WEB_API
-#endif
+/* The web functions are part of the Raven library itself (raven.dll, libraven.a...). */
+#define RAVEN_WEB_API RAVEN_API
 
 #ifdef __cplusplus
 extern "C" {

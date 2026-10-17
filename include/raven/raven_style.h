@@ -39,7 +39,14 @@ typedef enum RTheme{
 	 * Rwindow_set_clear_color).
 	 */
 	R_THEME_GLASS_DARK,
-	R_THEME_GLASS_LIGHT
+	R_THEME_GLASS_LIGHT,
+	/**
+	 * High contrast, for low vision: pure black and white, yellow (or blue)
+	 * focus and selection, thick borders, larger text (raven_accessibility.h,
+	 * Raccessibility_set_high_contrast).
+	 */
+	R_THEME_HIGH_CONTRAST_DARK,
+	R_THEME_HIGH_CONTRAST_LIGHT
 }RTheme;
 
 /**

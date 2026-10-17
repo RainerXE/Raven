@@ -16,4 +16,3 @@ signing.secret
 unlock.key
 *.raven-license
 *.rvnenc
-releases/

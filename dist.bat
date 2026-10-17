@@ -25,9 +25,9 @@ rem
 rem  Result:
 rem    dist\raven-<version>-windows-x64-msvc\
 rem        include\                 Raven.h, raven\*.h, raven_web.h
-rem        bin\raven.dll            and raven.dll.rvnenc, raven_web.dll, raven_designer.exe, raven_license_check.exe
-rem        lib\raven.lib            what a program links with to use raven.dll (raven_web.lib: raven_web.dll)
-rem        lib\static\raven.lib     the static library, raven.lib.rvnenc (and raven_web.lib)
+rem        bin\raven.dll            and raven.dll.rvnenc (web pages included), raven_designer.exe, raven_license_check.exe
+rem        lib\raven.lib            what a program links with to use raven.dll
+rem        lib\static\raven.lib     the static library, raven.lib.rvnenc
 rem        lib\cmake\raven          find_package(raven) for the DLL
 rem        lib\static\cmake\raven   find_package(raven) for the static library
 rem        share\raven\             README.md, docs\, bindings\

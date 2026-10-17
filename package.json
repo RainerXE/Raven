@@ -1,5 +1,9 @@
 {
   "name": "raven-site",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@clerk/backend": "^3.25.0",
+    "stripe": "^23.0.0"
+  }
 }

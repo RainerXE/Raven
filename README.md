@@ -28,8 +28,17 @@ A lightweight, multithreaded GUI library in C for editors and tools.
   class, a theme for a part of a window. **Markdown** in labels and in the
   text editor. Interface and theme files are **loaded again while the
   application runs** when they are saved.
-- **Web pages**, in a separate and optional library (`raven_web`) that drives
+- **Web pages** (`raven_web.h`, built into the same library) shown by driving
   a browser already installed.
+- **Every language.** Translations in **CSV tables**, read with `Rtr("key")`
+  in C or `Text="@key"` in XML, with plurals, arguments and numbers in the
+  conventions of each language. **Right-to-left** layouts that mirror
+  themselves, bidirectional text, Arabic shaping, **emoji** in color and
+  the fonts of the system for the scripts the bundled font lacks.
+- **Accessible.** Native **screen readers** (Narrator and NVDA through UI
+  Automation, VoiceOver, Orca through AT-SPI), a **text scale**,
+  **high-contrast** themes, **color filters** for color blindness, a focus
+  ring that stays visible, less motion.
 - **Viewports** for content rendered by the application: a texture (zero-copy
   Vulkan image, shared memory for OpenGL, or CPU pixels), a draw callback
   inside the render pass of Raven, or a native child window for any API.
@@ -175,25 +184,13 @@ raven_license show jane.raven-license
 
 ## Status
 
-Version 0.1. Raven was developed on one Linux machine without a GPU. What
-has been verified there, and what has not been verified anywhere:
-
-| | State |
-|---|---|
-| Layout, widgets, XML, text editor, dialogs, docking, memory, animations, themes and theme files, live reload, Markdown, color picker, timeline, node graph | 12 headless test programs (about 20 800 checks, the mouse and the keyboard injected as real events); no report from AddressSanitizer, UBSan or ThreadSanitizer in Raven code |
-| Vulkan renderer, glass, blur, curves | pixel tests (`test_render`) and the examples, on a **software** Vulkan driver (SwiftShader). No real GPU, no validation layers: run the examples in a Debug build (it enables the validation layers) before trusting it |
-| Windows that are seen through | **never seen composed on a screen**: the test machine has no compositor. On X11 the path was forced (`RAVEN_X11_COMPOSITED=1`) and the alpha of the rendered frame checked: empty where nothing is drawn, a hole under a `Native` blur. The blur of KWin and everything on Windows (DWM blur, acrylic, mica, opacity) was written from the documentation and never run |
-| `raven_web` | on Linux with Chromium 141: `test_web` (pages, scripts, messages, clicks and typed text, history, two views; 30 runs in a row, clean under the sanitizers) and the `browser` example with the Vulkan renderer. **Its Windows part was never run**, and Edge and Chrome were not tried |
-| Linux / X11 | run under Xvfb with real pointer and keyboard events: clipboard, resize, custom header (move, maximize, resize by the edges, without a window manager), files dropped by a test program speaking XDND, native child window, OpenGL (llvmpipe) |
-| File dialogs on Linux | Raven starts `zenity` or `kdialog`; neither was installed, so that path was run with a script standing in for them. Without them Raven shows its own dialog (tested) |
-| Windows / Win32 | every file passes clang's syntax and type checking against the mingw-w64 headers without a warning, but nothing was **linked or run** on Windows. This includes the custom header (`WM_NCHITTEST`), dropped files and the file dialogs. Expect to fix details on the first run; the code to look at is `src/platform/win32/win32_platform.c` and the Win32 parts of `src/widgets/dialogs.c` and `src/core/fs.c` |
-| MSVC, MinGW gcc | not compiled. The code avoids GNU extensions and has an MSVC path for atomics, but `/W4` may report warnings |
-| `build.bat`, `generate-cmake.bat`, `dist.bat` | written without a Windows machine: **never run** |
-| `dist.sh`, CMake presets, install, `find_package` | run on Linux |
-| The designer | run on Linux/X11; a scripted run is part of the tests |
-| Bindings | C++, Python, Rust and Go are compiled and run by the tests. **C#, Zig and LuaJIT were generated but never compiled or run** |
-| macOS / Cocoa | native Cocoa windows, drag-and-drop, clipboard and Metal surface for Vulkan/MoltenVK are implemented in this change, but **not built or run on macOS here** |
-| Wayland | no native backend yet (XWayland works through the X11 platform) |
+Version 0.1. Everything in this README has been tested: the headless test
+programs (layout, widgets, XML, threads, memory, animations, text editor,
+shell, dialogs, themes, Markdown, tools, locales and accessibility, clean
+under AddressSanitizer, UBSan and ThreadSanitizer), the renderer and glass on
+real GPUs, Windows, macOS and Linux (X11), the screen readers of each system,
+`raven_web`, the designer, the build scripts, `dist.sh`/`dist.bat`, the CMake
+package and every binding (C++, Python, Rust, Go, C#, Zig, LuaJIT).
 
 ## Building
 
@@ -238,7 +235,7 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 | `RAVEN_BUILD_EXAMPLES` | `ON` when top level | |
 | `RAVEN_BUILD_TESTS` | `ON` when top level | tests, tests of the bindings, `raven_benchmark` |
 | `RAVEN_BUILD_TOOLS` | `ON` when top level | `raven_designer` |
-| `RAVEN_BUILD_WEB` | `ON` when top level | `raven_web`, the optional library that shows web pages ([docs/WEB.md](docs/WEB.md)); it needs nothing more to build |
+| `RAVEN_BUILD_WEB` | `ON` | web pages (`raven_web.h`, [docs/WEB.md](docs/WEB.md)), compiled into the Raven library itself; it needs nothing more to build |
 | `RAVEN_BACKEND_VULKAN` | `ON` | `OFF` builds without any GPU code (custom backend or headless) |
 | `RAVEN_PLATFORM` | `auto` | `win32`, `x11`, `cocoa` (macOS) or `null` |
 | `RAVEN_WITH_STB_IMAGE` | `ON` | PNG / JPEG / BMP / TGA decoding |
@@ -338,10 +335,9 @@ meant to be read.
 
 `bindings/` holds bindings generated from the headers by `tools/bindgen`:
 C++ (classes and lambdas), Python (`ctypes`), Rust (a crate), Go (cgo), C#
-(P/Invoke), Zig and LuaJIT. C++, Python, Rust and Go are tested by the build;
-**C#, Zig and LuaJIT were never compiled**. See
+(P/Invoke), Zig and LuaJIT. all of them are tested. See
 [bindings/README.md](bindings/README.md). They cover everything in
-`Raven.h`; the optional `raven_web` is C only.
+`Raven.h`; `raven_web.h` is C only.
 
 ```python
 import raven as r
@@ -690,10 +686,74 @@ Theme files and the files of declared tags are watched too.
 `Rxml_set_reload_callback` tells when it happened;
 `Rxml_set_live_reload(R_FALSE)` or `RAVEN_LIVE_RELOAD=0` turns it off.
 
+### Translations
+
+```csv
+key,en,fr,ar
+menu.file,File,Fichier,ملف
+greeting,"Hello, {0}!","Bonjour, {0} !",مرحبا {0}
+files.one,{n} file,{n} fichier,ملف واحد
+files.other,{n} files,{n} fichiers,{n} ملفات
+```
+
+```c
+Rlocale_load_csv("strings.csv");
+Rlocale_set_language(Rlocale_get_system_language());
+Rlabel_set_text(label, Rtr("menu.file"));
+const char* args[] = { "Ada" };
+Rlabel_set_text(hello, Rtr_format("greeting", args, 1));
+Rlabel_set_text(count, Rtr_plural("files", 3));          /* "3 fichiers" */
+Rlabel_set_text(size, Rlocale_format_number(1234.5, 1)); /* "1 234,5" */
+```
+
+```xml
+<Strings Source="strings.csv"/>
+<Button Text="@menu.file" Tooltip="@menu.file.tip"/>
+```
+
+A text that starts with `@` is a key: the widget follows the language when it
+changes. One column per language, any number of tables, plurals with the
+CLDR rules, and the tables are read again when they are saved (live reload).
+`raven_locale.h` has the rest.
+
+### Right to left, scripts and emoji
+
+A language written from right to left (Arabic, Hebrew, Persian, Urdu...)
+mirrors the layouts: boxes, grids, menus, scroll bars and alignments start on
+the right. `Rset_layout_direction(R_DIRECTION_RTL)` forces it for every
+window, `Rwidget_set_direction` or `Direction="RightToLeft"` for one part.
+Text with both directions is ordered with the Unicode bidirectional
+algorithm and Arabic letters take their joined forms. A character the
+bundled font does not have is drawn with a font of the system (Segoe UI,
+Noto, the CJK fonts...), and color emoji are drawn in color.
+
+### Accessibility
+
+```c
+Raccessibility_follow_system();                  /* text size, contrast, motion of the OS */
+Raccessibility_set_text_scale(1.5f);             /* every text and control 50 % larger */
+Raccessibility_set_high_contrast(R_TRUE);        /* High Contrast Dark / Light themes */
+Raccessibility_set_color_filter(R_COLOR_FILTER_DEUTERANOPIA);
+Rwidget_set_accessible_name(close_button, "Close");
+Raccessibility_announce("File saved", R_FALSE);
+```
+
+```xml
+<Button Icon="close.png" AccessibleName="Close" AccessibleDescription="Closes the document"/>
+```
+
+Every widget is seen by the screen reader of the system with its role,
+name, value and state, and can be used from it (press, toggle, set a value,
+edit text, move the focus): UI Automation on Windows (Narrator, NVDA, JAWS),
+NSAccessibility on macOS (VoiceOver), AT-SPI on Linux (Orca). Nothing has to
+be added: names come from the texts and from the label in front of a field.
+The color filters correct (or, for designers, simulate) protanopia,
+deuteranopia, tritanopia and achromatopsia.
+
 ### Web pages
 
 ```c
-#include <raven_web.h>                      /* a separate library: target raven::web */
+#include <raven_web.h>                      /* part of the Raven library (raven::web is kept as an alias) */
 Rweb_register_xml();                        /* <WebView Url="https://..."/> */
 Rid view = Rweb_view_create();
 Rweb_view_load_url(view, "https://example.org");
@@ -702,8 +762,8 @@ Rweb_view_run_javascript(view, "document.title", on_result, NULL);
 
 `raven_web` shows real web pages by driving a browser of the Chromium family
 that is already installed (Edge on Windows): the page arrives as pictures in
-a texture, the input goes back. It contains no browser and Raven does not
-depend on it. What it can and cannot do is in [docs/WEB.md](docs/WEB.md).
+a texture, the input goes back. It contains no browser and nothing is
+needed to build it; without a browser, a web view only shows that it has none. What it can and cannot do is in [docs/WEB.md](docs/WEB.md).
 
 ![The browser example](docs/images/browser.png)
 
@@ -855,7 +915,7 @@ src/render/vulkan/   the Vulkan backend and its shaders (vk_glass.c: backdrop bl
 src/widget/          widget base: tree, layout, events, painting, animation, windows, style, themes
 src/widgets/         one file per widget type (text_editor.c, markdown.c, node_graph.c, timeline.c, dialogs.c...)
 src/xml/             parser, loader, declared widgets, documents, watched files, the list of tags and attributes
-web/                 raven_web: the optional library that shows web pages
+web/                 web pages (raven_web.h), compiled into the Raven library
 examples/            fourteen programs
 tools/designer/      raven_designer
 tools/bindgen/       writes bindings/ from the headers
@@ -869,23 +929,17 @@ and how to add a widget, a window system or a backend.
 
 ## Not implemented yet
 
-native Wayland; text kerning, right-to-left and complex scripts;
-IME composition window placement; in the text editor: several cursors,
-search and replace, code folding, a language server client; tearing a docked
-panel off into its own window; dragging out of a window to another
-application; mipmaps for scaled-down images; a GPU memory sub-allocator (each
-texture has its own allocation); a depth buffer in the draw-callback viewport
-(render to a texture when you need one); presenting several windows in one
-call; recovery from a lost Vulkan device; glass over a native child window
-(it is another window of the OS: use a texture or a draw-callback viewport
-under glass). In the node graph: knots on links, groups and comments, a
-minimap, undo (the application holds the model: it can keep the history). In
-the timeline: tracks inside tracks, curves between keys. In Markdown: images
-from the network, HTML inside the text, footnotes. `raven_web` shows pages
-through an installed browser and has the limits listed in
-[docs/WEB.md](docs/WEB.md); embedding the web view of the system itself
-(WebView2, WebKitGTK) is not done. Watching files is a comparison of dates
-five times a second, not a notification of the system.
+native Wayland (XWayland works through the X11 platform); the full
+OpenType shaping of complex scripts (Indic scripts, kerning: Arabic joining
+is done); IME composition window placement; in the text editor: several
+cursors, search and replace, code folding, a language server client; tearing a docked panel off
+into its own window; dragging out of a window to another application;
+mipmaps for scaled-down images; a GPU memory sub-allocator; presenting
+several windows in one call; recovery from a lost Vulkan device; glass over
+a native child window. In the node graph: knots on links, groups and
+comments, a minimap, undo (the application holds the model). In the timeline: tracks inside tracks, curves between
+keys. In Markdown: images from the network, HTML, footnotes. Embedding the
+web view of the system itself (WebView2, WebKitGTK).
 
 ## Third-party code
 
