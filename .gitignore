@@ -11,6 +11,7 @@ out/
 dev/
 src/
 bindings/
+releases/
 # license keys and licenses: never in the repository (tools/license/public.key is fine)
 signing.secret
 unlock.key
