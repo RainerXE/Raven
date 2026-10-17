@@ -137,7 +137,7 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 	<p class="lead">License or not, you can do whatever you want with the software you build with Raven: sell it, ship it to your clients, keep its source closed, use it at work. No royalties, no revenue share, no permission to ask. The only thing the license changes is the watermark — and a watermark on a tool you're proud of would be a shame.</p>
 	<div class="g3">
 		<div class="fc glass"><h3>Free edition</h3><p>The default build. Every feature, every widget, every platform. Each window shows a small note in its bottom right corner, which never takes the mouse.</p></div>
-		<div class="fc glass"><h3>Release edition</h3><p>The same library, built with <code style="white-space:nowrap">-DRAVEN_EDITION=Release</code>. No watermark. That's the only difference: not one feature is held back.</p></div>
+		<div class="fc glass"><h3>Release edition</h3><p>The same library without the watermark, unlocked by your license file when you build your program. That's the only difference: not one feature is held back.</p></div>
 		<div class="fc glass"><h3>Your software</h3><p>Commercial or not, open or closed, for one user or a million: it's yours in both editions. The license is about the watermark, not about what you're allowed to build.</p></div>
 	</div>
 </section>
@@ -231,16 +231,15 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 
 <section class="w" id="build">
 	<p class="eb">After buying</p>
-	<h2>Build the Release edition.</h2>
-	<p class="lead">The Release edition is the same code without the watermark. Build it with one option:</p>
+	<h2>Point your build to your license.</h2>
+	<p class="lead">You receive a small <code>.raven-license</code> file. Give it to CMake when you configure your program: Raven checks it right there and links the edition without the watermark. The license itself never goes into your program.</p>
 	<div class="g2">
-		<pre class="cb glass">cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DRAVEN_EDITION=Release
-cmake --build build --config Release</pre>
-		<pre class="cb glass">:: Windows
-generate-cmake.bat --edition release
-build.bat --edition release
-dist.bat --edition release</pre>
+		<pre class="cb glass">cmake -S . -B build -DRAVEN_LICENSE_FILE=path/to/you.raven-license
+cmake --build build</pre>
+		<pre class="cb glass">:: or once for every project on this machine
+setx RAVEN_LICENSE_FILE C:\path\to\you.raven-license</pre>
 	</div>
+	<p class="lead" style="font-size:16px">Your <code>CMakeLists.txt</code> doesn't change: <code>find_package(raven)</code> and <code>raven::raven</code>, as before. A company license is renewed each month; if it lapses, your program still builds, with the watermark.</p>
 </section>
 
 <section class="w" id="faq">
@@ -248,6 +247,7 @@ dist.bat --edition release</pre>
 	<h2>FAQ.</h2>
 	<div style="margin-top:36px">
 		<details class="glass"><summary>Can I sell software made with the free edition?</summary><p>Yes. Whatever you make with Raven is yours, with or without a license: you can sell it, ship it, close its source. The free edition only shows the watermark.</p></details>
+		<details class="glass"><summary>Is my license inside my program?</summary><p>No. Raven checks it when your program is configured and only uses it to unlock the library; nothing of it (name, key, signature) is copied into what you ship.</p></details>
 		<details class="glass"><summary>What exactly does the license change?</summary><p>Only the watermark. The free and the Release editions have the same features, the same performance and the same platforms.</p></details>
 		<details class="glass"><summary>Which license do I need?</summary><p>If you are one person (freelance, indie, student, hobbyist), the personal license: $20, once. If Raven is used inside a company, the company license: $200 per month, for all its developers.</p></details>
 		<details class="glass"><summary>Does the watermark get in the way?</summary><p>It's a small note in the bottom right corner of each window. It never takes the mouse: what is under it still gets the clicks. But it's there, on every window.</p></details>

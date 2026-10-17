@@ -131,27 +131,47 @@ Buy a license on [the Raven site](https://oscar-soirey.github.io/Raven/license.h
 first (it is sent to oscarsoirey.contact@gmail.com), then subscribe. Questions:
 oscarsoirey.contact@gmail.com.
 
-### The two editions
+### Using a license
 
-The edition is chosen when Raven is built, with `RAVEN_EDITION` (not to be
-confused with `CMAKE_BUILD_TYPE`: a Debug build can be either edition):
+You receive a `.raven-license` file. Give it to CMake when you configure your
+program; your `CMakeLists.txt` does not change:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release                          # license-free (watermark)
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DRAVEN_EDITION=Release  # licensed: no watermark
+cmake -S . -B build -DRAVEN_LICENSE_FILE=path/to/you.raven-license
+# or once for the machine: the environment variable RAVEN_LICENSE_FILE
 ```
 
-```bat
-generate-cmake.bat --edition release
-build.bat --edition release
-dist.bat --edition release
+`find_package(raven)` checks the license there, with `bin/raven_license_check`
+of the package: its signature (Ed25519: a license cannot be forged), and its
+date for a company license. It then decrypts the Release edition of the
+library (`<library>.rvnenc`, beside the license-free one) into your build tree,
+and `raven::raven` links with it. The license itself is never copied into
+your program. An invalid license stops the configuration with the reason; an
+expired one builds with the watermark, with a warning. `RAVEN_LICENSED` is TRUE
+after `find_package` when the Release edition is used, and a program can ask
+at run time with `Ris_license_free()`.
+
+### For the author: editions, keys and packages
+
+Raven itself is built in one edition or the other with `RAVEN_EDITION`
+(`LicenseFree` by default, or `Release`; not to be confused with
+`CMAKE_BUILD_TYPE`). The packages hold both: `dist.bat` and `dist.sh` build
+each library twice and encrypt the Release edition beside the license-free one.
+
+The keys are made once, and kept out of the repository:
+
+```sh
+raven_license keygen                 # ~/.raven-license (or $RAVEN_LICENSE_KEYS)
+                                     #   signing.secret, unlock.key: secret, back them up
+                                     #   public.key: copy it to tools/license/public.key
+raven_license issue --name "Jane Doe" --email jane@example.com --type personal -o jane.raven-license
+raven_license issue --name "ACME" --email it@acme.com --type company --expires 2026-12-05 -o acme.raven-license
+raven_license show jane.raven-license
 ```
 
-The presets have both too: `linux`, `msvc`, `mingw` (and `-shared`) are
-license-free; `linux-release`, `msvc-release`, `mingw-release` (and
-`-shared-release`) are the Release edition. A program can ask which one it runs
-on with `Ris_license_free()`, and where the watermark is with
-`Rwindow_get_watermark_rect()`.
+`raven_license` (built in `build/bin`) is never shipped; only
+`raven_license_check`, which holds the public key and can only verify. See
+`tools/license/`.
 
 ## Status
 
@@ -213,7 +233,7 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 
 | Option | Default | |
 |---|---|---|
-| `RAVEN_EDITION` | `LicenseFree` | `LicenseFree`: every window shows a watermark; `Release`: no watermark, with a license (see [License](#license)) |
+| `RAVEN_EDITION` | `LicenseFree` | `LicenseFree`: every window shows a watermark; `Release`: no watermark (for the packages, see [License](#license)) |
 | `RAVEN_BUILD_SHARED` | `OFF` | shared library instead of static |
 | `RAVEN_BUILD_EXAMPLES` | `ON` when top level | |
 | `RAVEN_BUILD_TESTS` | `ON` when top level | tests, tests of the bindings, `raven_benchmark` |
@@ -244,15 +264,14 @@ one archive per compiler.
 
 ```bat
 dist.bat              :: Visual C++ and MinGW-w64, whichever are installed
-dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc-license-free.zip
-dist.bat mingw        :: dist\raven-0.1.0-windows-x64-mingw-license-free.zip  (gcc and mingw32-make in the PATH)
-dist.bat --edition release   :: ...-msvc-release.zip, ...-mingw-release.zip: no watermark (licensed)
+dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc.zip
+dist.bat mingw        :: dist\raven-0.1.0-windows-x64-mingw.zip  (gcc and mingw32-make in the PATH)
 ```
 
 ```
-raven-0.1.0-windows-x64-msvc-license-free\
+raven-0.1.0-windows-x64-msvc\
     include\                 Raven.h, raven\*.h
-    bin\raven.dll            and raven_designer.exe
+    bin\raven.dll            raven.dll.rvnenc (the Release edition, encrypted), raven_designer.exe, raven_license_check.exe
     lib\raven.lib            to link with raven.dll        (MinGW: libraven.dll.a)
     lib\static\raven.lib     the static library            (MinGW: libraven.a)
     lib\cmake\raven          find_package(raven), DLL; lib\static\cmake\raven for the static library

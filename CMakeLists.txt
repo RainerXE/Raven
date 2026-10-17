@@ -407,6 +407,11 @@ if(RAVEN_BUILD_TOOLS)
 	add_subdirectory(tools)
 endif()
 
+# the license tools: raven_license_check ships with the packages (see tools/license)
+if(RAVEN_IS_TOP_LEVEL)
+	add_subdirectory(tools/license)
+endif()
+
 # ---------------------------------------------------------------------------
 #  Install:  find_package(raven)  +  target_link_libraries(app PRIVATE raven::raven)
 # ---------------------------------------------------------------------------
@@ -423,8 +428,10 @@ install(DIRECTORY include/raven DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES include/Raven.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT ravenTargets NAMESPACE raven:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/raven)
 
+set(RAVEN_CONFIG_BINDIR "${CMAKE_INSTALL_BINDIR}")
 configure_package_config_file(cmake/ravenConfig.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/ravenConfig.cmake"
-	INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/raven)
+	INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/raven
+	PATH_VARS RAVEN_CONFIG_BINDIR)
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion.cmake"
 	VERSION ${PROJECT_VERSION} COMPATIBILITY SameMinorVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ravenConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion.cmake"

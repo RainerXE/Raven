@@ -1,4 +1,0 @@
-intégration native HRL
-editeur bevy avec l'api Rust
-fusionner les libs raven et ravenweb
-update le not implemented yet dans le readme

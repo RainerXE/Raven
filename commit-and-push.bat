@@ -12,5 +12,10 @@ git add .
 git commit -m "%COMMIT_MSG%"
 git push
 
+cd ../bindings
+git add .
+git commit -m "%COMMIT_MSG%"
+git push
+
 endlocal
 pause
