@@ -1,8 +1,0 @@
-name = "raven-pages"
-compatibility_date = "2026-01-01"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "docs"
-
-[[r2_buckets]]
-binding = "RELEASES"
-bucket_name = "raven-releases"
