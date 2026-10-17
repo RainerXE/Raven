@@ -230,6 +230,7 @@ set(RAVEN_XML_SOURCES
 	src/xml/xml_dom.c
 	src/xml/xml_schema.c
 	src/xml/xml_loader.c
+	src/xml/xml_compiled.c
 	src/xml/xml_watch.c
 	src/xml/xml_parser.c
 )
@@ -411,6 +412,10 @@ message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SELECTED} vu
 #  Examples, tools and tests
 # ---------------------------------------------------------------------------
 
+# ravenc, the XMLC compiler, and raven_target_xmlc() (cmake/RavenXMLC.cmake)
+add_subdirectory(tools/ravenc)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RavenXMLC.cmake")
+
 if(RAVEN_BUILD_TESTS)
 	enable_testing()
 	add_subdirectory(tests)
@@ -459,7 +464,7 @@ configure_package_config_file(cmake/ravenConfig.cmake.in "${CMAKE_CURRENT_BINARY
 	PATH_VARS RAVEN_CONFIG_BINDIR)
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion.cmake"
 	VERSION ${PROJECT_VERSION} COMPATIBILITY SameMinorVersion)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ravenConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion.cmake"
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ravenConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/ravenConfigVersion.cmake" cmake/RavenXMLC.cmake
 	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/raven)
 
 # ---------------------------------------------------------------------------

@@ -686,6 +686,48 @@ Theme files and the files of declared tags are watched too.
 `Rxml_set_reload_callback` tells when it happened;
 `Rxml_set_live_reload(R_FALSE)` or `RAVEN_LIVE_RELOAD=0` turns it off.
 
+### XMLC: the interface and its C in one file
+
+```xml
+<!-- hello.xmlc -->
+<script>
+#include <stdio.h>
+static void on_ok(Rid sender, const char* action, void* user) {
+    Rlabel_set_text(ui.status, "Clicked");   /* ui.<Name>: the widgets that have a Name */
+}
+int main(void) {
+    Rinit();
+    hello_create();                          /* made by ravenc from the file name */
+    while (Rdraw_frame()) {}
+    Rshutdown();
+    return 0;
+}
+</script>
+
+<Window Title="Hello" Width="400" Height="200">
+    <VBox>
+        <Label Name="status">Not clicked</Label>
+        <Button Text="OK" OnClicked="{on_ok}"/>
+    </VBox>
+</Window>
+```
+
+```cmake
+add_executable(hello hello.xmlc)
+target_link_libraries(hello PRIVATE raven::raven)
+raven_target_xmlc(hello)          # ravenc turns every .xmlc of the target into C
+```
+
+`ravenc` (installed next to the library) turns the file into one C source:
+the `<script>` blocks are copied as they are (plain C, any header, no XML
+escaping; errors point into the `.xmlc`), and the interface becomes C tables
+that `Rwindow_create_from_compiled` builds: no XML is read at run time, and
+everything the XML of Raven does works the same. `{f}` in `Action`,
+`OnClicked`, `OnChanged`, `OnCommitted` and `OnActivated` is the C function
+`f` (an `RActionCallback`), checked by the compiler. No header is generated:
+another file declares `Rid hello_create(void);`. Plain `.xml` files are still
+loaded and interpreted at run time, with live reload.
+
 ### Translations
 
 ```csv
@@ -919,6 +961,7 @@ web/                 web pages (raven_web.h), compiled into the Raven library
 examples/            fourteen programs
 tools/designer/      raven_designer
 tools/bindgen/       writes bindings/ from the headers
+tools/ravenc/        ravenc, the XMLC compiler (cmake/RavenXMLC.cmake: raven_target_xmlc)
 bindings/            C++, Python, Rust, Go, C#, Zig, LuaJIT
 tests/  docs/  cmake/  third_party/
 build.bat  generate-cmake.bat  dist.bat  dist.sh  CMakePresets.json
