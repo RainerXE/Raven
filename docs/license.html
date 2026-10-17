@@ -6,40 +6,17 @@
 <title>Raven License — Remove the watermark</title>
 <meta name="description" content="Raven is free to use for anything. A license removes the watermark: $20 once for individuals, $200 a month for companies.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./raven.css">
+<script src="./raven-glass.js" defer></script>
+<script src="./raven-auth.js"></script>
 <style>
-:root{--bg:#000;--fg:#f5f5f7;--mut:#86868b;--glass:rgba(255,255,255,.08);--rim:rgba(255,255,255,.22);--sh:rgba(0,0,0,.6);--tag:#7aa7ff;--ok:#8be28b;--warn:#ffb454;--bad:#ff6b81;--acc:rgba(120,160,255,.55);--field:rgba(255,255,255,.06)}
-@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.55);--rim:rgba(0,0,0,.10);--sh:rgba(50,70,140,.22);--tag:#2f5fd0;--ok:#1f8a3b;--warn:#b86a00;--bad:#c92a45;--acc:rgba(90,130,255,.85);--field:rgba(0,0,0,.04)}}
-:root[data-theme=light]{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.55);--rim:rgba(0,0,0,.10);--sh:rgba(50,70,140,.22);--tag:#2f5fd0;--ok:#1f8a3b;--warn:#b86a00;--bad:#c92a45;--acc:rgba(90,130,255,.85);--field:rgba(0,0,0,.04)}
-*{box-sizing:border-box;margin:0}
-html{background:var(--bg);scroll-behavior:smooth}
-body{background:var(--bg);color:var(--fg);font:500 16px/1.6 "Inter",-apple-system,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-a{color:var(--tag)}
-.bg{position:fixed;inset:0;pointer-events:none;z-index:0}
-.bg i{position:absolute;width:560px;height:560px;border-radius:50%;filter:blur(110px);opacity:.28;animation:drift 14s ease-in-out infinite alternate}
-@keyframes drift{to{transform:translate(8rem,-5rem) scale(1.15)}}
-@media (prefers-reduced-motion:reduce){.bg i{animation:none}}
-.glass{background:var(--glass);backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid var(--rim);box-shadow:inset 1px 1px 0 var(--rim),0 20px 50px var(--sh)}
+html{scroll-behavior:smooth}
+body{overflow-x:hidden}
 nav{position:sticky;top:12px;z-index:5;max-width:1080px;margin:12px auto 0;padding:10px 12px 10px 22px;border-radius:99px;display:flex;align-items:center;gap:18px}
 nav b{font-size:18px;letter-spacing:-.03em;margin-right:auto}
 nav a{color:var(--fg);text-decoration:none;font-weight:600;font-size:14px;opacity:.8}
 nav a:hover{opacity:1}
 main{position:relative;z-index:1;padding:0 clamp(16px,4vw,40px)}
-.w{max-width:1080px;margin:0 auto;padding-top:clamp(70px,10vw,120px)}
-.hero{text-align:center;padding-top:clamp(70px,12vw,150px)}
-.eb{font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--tag);margin-bottom:14px}
-h1,h2{font-weight:700;letter-spacing:-.05em;line-height:1.04}
-h1{font-size:clamp(42px,8vw,96px)}
-h2{font-size:clamp(32px,5vw,56px)}
-.grad{background:linear-gradient(100deg,#8fb4ff 0%,#c59bff 35%,#ff9ec4 65%,#8fb4ff 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:lite 9s linear infinite}
-@keyframes lite{to{background-position:-200% 0}}
-.lead{color:var(--mut);font-size:clamp(17px,2vw,21px);font-weight:600;letter-spacing:-.02em;max-width:680px;margin-top:18px}
-.hero .lead{margin:20px auto 0}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:99px;font:600 16px "Inter",system-ui,sans-serif;color:var(--fg);text-decoration:none;border:1px solid var(--rim);background:var(--glass);cursor:pointer;transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s,background .2s}
-.btn:hover{transform:translateY(-2px) scale(1.02)}
-.btn:active{transform:scale(.96)}
-.btn.p{background:var(--acc);color:#fff}
-.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
-.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:34px}
 
 /* the watermark, as Raven draws it */
 .shot{position:relative;margin:56px auto 0;max-width:820px;height:clamp(240px,34vw,360px);border-radius:28px;overflow:hidden}
@@ -54,13 +31,6 @@ h2{font-size:clamp(32px,5vw,56px)}
 .wm span{color:#ccdbff}
 @keyframes pop{from{opacity:0;transform:scale(.7);transform-origin:right bottom}to{opacity:1;transform:none}}
 
-.g2,.g3{display:grid;gap:16px;margin-top:40px}
-.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
-.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
-.fc{padding:26px;border-radius:28px}
-.fc h3{font-size:20px;letter-spacing:-.03em;margin-bottom:8px}
-.fc p,.fc li{color:var(--mut);font-weight:500;font-size:15px}
-.fc ul{padding-left:18px;display:grid;gap:8px;margin-top:12px}
 
 .plans{display:grid;gap:16px;margin-top:40px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));align-items:stretch}
 .plan{padding:30px;border-radius:32px;display:flex;flex-direction:column;gap:14px;position:relative}
@@ -89,8 +59,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(140,170,255,.9);box-sh
 .next{display:none;margin-top:6px;padding:20px;border-radius:20px}
 .next.show{display:block;animation:pop .7s cubic-bezier(.34,1.56,.64,1) both}
 
-.cb{border-radius:24px;padding:22px 26px;font:500 13.5px/1.75 ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;margin-top:18px}
-code{font:600 13px ui-monospace,Menlo,Consolas,monospace;color:var(--tag)}
+.cb{margin-top:18px}
 details{padding:20px 24px;border-radius:22px}
 details+details{margin-top:12px}
 summary{cursor:pointer;font-weight:700;letter-spacing:-.02em;font-size:17px;list-style:none}
@@ -99,8 +68,6 @@ details[open] summary::after{transform:rotate(45deg)}
 details p{color:var(--mut);margin-top:10px}
 footer{text-align:center;padding:110px 0 120px}
 footer p{color:var(--mut);font-weight:600;margin-top:16px}
-.pr{opacity:0;transform:translateY(24px);filter:blur(8px);transition:opacity .8s,transform .9s cubic-bezier(.2,.8,.2,1),filter .8s}
-.pr.in{opacity:1;transform:none;filter:none}
 @media (max-width:640px){nav a.opt{display:none}}
 </style>
 </head>
@@ -113,6 +80,7 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 	<a class="opt" href="#free">What's free</a>
 	<a href="#pricing">Pricing</a>
 	<a class="opt" href="#faq">FAQ</a>
+	<a id="nav-acct" href="./account.html">Sign in</a>
 	<a class="btn p" style="padding:9px 18px;font-size:14px" href="#pricing">Get a license</a>
 </nav>
 
@@ -137,7 +105,7 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 	<p class="lead">License or not, you can do whatever you want with the software you build with Raven: sell it, ship it to your clients, keep its source closed, use it at work. No royalties, no revenue share, no permission to ask. The only thing the license changes is the watermark — and a watermark on a tool you're proud of would be a shame.</p>
 	<div class="g3">
 		<div class="fc glass"><h3>Free edition</h3><p>The default build. Every feature, every widget, every platform. Each window shows a small note in its bottom right corner, which never takes the mouse.</p></div>
-		<div class="fc glass"><h3>Release edition</h3><p>The same library without the watermark, unlocked by your license file when you build your program. That's the only difference: not one feature is held back.</p></div>
+		<div class="fc glass"><h3>Release edition</h3><p>The same library, precompiled, without the watermark. That's the only difference: not one feature is held back.</p></div>
 		<div class="fc glass"><h3>Your software</h3><p>Commercial or not, open or closed, for one user or a million: it's yours in both editions. The license is about the watermark, not about what you're allowed to build.</p></div>
 	</div>
 </section>
@@ -169,9 +137,7 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 				<li>Every future version</li>
 				<li>Pay once, keep it forever</li>
 			</ul>
-			<label>Your email (to receive the license)
-				<input type="email" id="ind-email" placeholder="you@example.com" autocomplete="email">
-			</label>
+			<p class="note">Your license is attached to your Raven account: you will sign in (or create one) before paying.</p>
 			<button class="btn p" id="ind-buy" type="button">Buy for $20</button>
 			<p class="note" id="ind-note"></p>
 		</div>
@@ -197,6 +163,7 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 	<h2>Company license.</h2>
 	<p class="lead">Tell us who you are. The form is sent to us by email; you can then subscribe right away.</p>
 	<div class="fc glass" style="margin-top:36px;padding:30px">
+		<div class="next glass" id="company-gate"><h3 style="margin-bottom:6px">Sign in first</h3><p style="color:var(--mut)">Your company license is attached to a Raven account. Sign in or create one, then come back here.</p><p style="margin-top:14px"><a class="btn p" href="./account.html?next=license.html%23company">Sign in or create an account</a></p></div>
 		<form id="company-form" novalidate>
 			<div class="row2">
 				<label>Company *<input name="company" required autocomplete="organization"></label>
@@ -222,32 +189,19 @@ footer p{color:var(--mut);font-weight:600;margin-top:16px}
 		</form>
 		<div class="next glass" id="company-next">
 			<h3 style="margin-bottom:6px">Thank you — we've got your request.</h3>
-			<p style="color:var(--mut)">You can subscribe now; your company license will be tied to the email you gave.</p>
+			<p style="color:var(--mut)">You can subscribe now; your company license will be attached to your Raven account.</p>
 			<p style="margin-top:14px"><button class="btn p" id="company-buy" type="button">Subscribe — $200/month</button></p>
 			<p class="note" id="company-note" style="margin-top:8px"></p>
 		</div>
 	</div>
 </section>
 
-<section class="w" id="build">
-	<p class="eb">After buying</p>
-	<h2>Point your build to your license.</h2>
-	<p class="lead">You receive a small <code>.raven-license</code> file. Give it to CMake when you configure your program: Raven checks it right there and links the edition without the watermark. The license itself never goes into your program.</p>
-	<div class="g2">
-		<pre class="cb glass">cmake -S . -B build -DRAVEN_LICENSE_FILE=path/to/you.raven-license
-cmake --build build</pre>
-		<pre class="cb glass">:: or once for every project on this machine
-setx RAVEN_LICENSE_FILE C:\path\to\you.raven-license</pre>
-	</div>
-	<p class="lead" style="font-size:16px">Your <code>CMakeLists.txt</code> doesn't change: <code>find_package(raven)</code> and <code>raven::raven</code>, as before. A company license is renewed each month; if it lapses, your program still builds, with the watermark.</p>
-</section>
-
 <section class="w" id="faq">
 	<p class="eb">Questions</p>
 	<h2>FAQ.</h2>
 	<div style="margin-top:36px">
+		<details class="glass"><summary>How do I get my license?</summary><p>Buy it while signed in to your Raven account. The license is attached to the account right after payment: open <a href="./account.html">your account</a> and download the Release edition.</p></details>
 		<details class="glass"><summary>Can I sell software made with the free edition?</summary><p>Yes. Whatever you make with Raven is yours, with or without a license: you can sell it, ship it, close its source. The free edition only shows the watermark.</p></details>
-		<details class="glass"><summary>Is my license inside my program?</summary><p>No. Raven checks it when your program is configured and only uses it to unlock the library; nothing of it (name, key, signature) is copied into what you ship.</p></details>
 		<details class="glass"><summary>What exactly does the license change?</summary><p>Only the watermark. The free and the Release editions have the same features, the same performance and the same platforms.</p></details>
 		<details class="glass"><summary>Which license do I need?</summary><p>If you are one person (freelance, indie, student, hobbyist), the personal license: $20, once. If Raven is used inside a company, the company license: $200 per month, for all its developers.</p></details>
 		<details class="glass"><summary>Does the watermark get in the way?</summary><p>It's a small note in the bottom right corner of each window. It never takes the mouse: what is under it still gets the clicks. But it's there, on every window.</p></details>
@@ -271,7 +225,7 @@ setx RAVEN_LICENSE_FILE C:\path\to\you.raven-license</pre>
  *    individual  a one-time price of $20         ("Raven personal license")
  *    company     a recurring price of $200/month ("Raven company license")
  *  In each Payment Link, set "After payment" to redirect to
- *    https://oscar-soirey.github.io/Raven/thanks.html
+ *    https://YOUR-DOMAIN/thanks.html
  *  Leave a link empty and its button says that payments open soon.
  *
  *  The company form is sent by FormSubmit (formsubmit.co) to the address
@@ -298,9 +252,7 @@ var RAVEN_LICENSE = {
 		if (params.length) url += (url.indexOf("?") < 0 ? "?" : "&") + params.join("&");
 		location.href = url;
 	}
-	function reference(kind){
-		return kind + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-	}
+	var me = null;
 	function closed(button, note){
 		button.disabled = true;
 		button.textContent = "Payments open soon";
@@ -308,20 +260,19 @@ var RAVEN_LICENSE = {
 	}
 
 	/* ---- personal license ---- */
-	var indBuy = document.getElementById("ind-buy"), indNote = document.getElementById("ind-note"), indEmail = document.getElementById("ind-email");
+	var indBuy = document.getElementById("ind-buy"), indNote = document.getElementById("ind-note");
 	if (!cfg.stripe.individual) closed(indBuy, indNote);
 	indBuy.addEventListener("click", function(){
-		var email = indEmail.value.trim();
-		if (email && !emailRe.test(email)) { indNote.textContent = "This email doesn't look right."; indEmail.focus(); return; }
+		if (!me) { location.href = "./account.html?next=" + encodeURIComponent("license.html#pricing"); return; }
 		indNote.textContent = "Opening Stripe…";
-		checkout(cfg.stripe.individual, email, reference("personal"));
+		checkout(cfg.stripe.individual, me.user.email, me.user.id);
 	});
 
 	/* ---- company license: the form, then the subscription ---- */
 	var form = document.getElementById("company-form"), send = document.getElementById("company-send"),
 		status = document.getElementById("company-status"), next = document.getElementById("company-next"),
 		compBuy = document.getElementById("company-buy"), compNote = document.getElementById("company-note"),
-		companyEmail = "", companyRef = "";
+		companyEmail = "";
 	if (!cfg.stripe.company) closed(compBuy, compNote);
 
 	form.addEventListener("submit", function(e){
@@ -335,13 +286,13 @@ var RAVEN_LICENSE = {
 		if (data.get("_honey")) return;
 
 		companyEmail = String(data.get("email")).trim();
-		companyRef = reference("company");
+		if (!me) return;
 		var payload = {
 			_subject: "Raven company license request: " + String(data.get("company")).trim(),
 			_template: "table",
 			_captcha: "false",
 			_replyto: companyEmail,
-			reference: companyRef,
+			reference: me.user.id,
 			company: String(data.get("company")).trim(),
 			name: String(data.get("name")).trim(),
 			email: companyEmail,
@@ -372,7 +323,23 @@ var RAVEN_LICENSE = {
 	});
 	compBuy.addEventListener("click", function(){
 		compNote.textContent = "Opening Stripe…";
-		checkout(cfg.stripe.company, companyEmail, companyRef);
+		checkout(cfg.stripe.company, companyEmail || me.user.email, me.user.id);
+	});
+
+	/* ---- account: who is signed in ---- */
+	var gate = document.getElementById("company-gate"), acct = document.getElementById("nav-acct");
+	form.style.display = "none";
+	RavenAuth.ready.then(function(clerk){
+		if (clerk.user) {
+			var a = clerk.user.primaryEmailAddress;
+			me = { user: { id: clerk.user.id, email: a ? a.emailAddress : "" } };
+		}
+	}).catch(function(){ me = null; }).then(function(){
+		if (me) {
+			acct.textContent = "My account";
+			if (!form.elements.email.value) form.elements.email.value = me.user.email;
+			if (!next.classList.contains("show")) form.style.display = "";
+		} else gate.classList.add("show");
 	});
 
 	/* ---- appear on scroll ---- */

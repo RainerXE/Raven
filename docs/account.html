@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your Raven account</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./raven.css">
+<script src="./raven-glass.js" defer></script>
+<script src="./raven-auth.js"></script>
+<style>
+body{overflow-x:hidden}
+nav{position:sticky;top:12px;z-index:5;max-width:1080px;margin:12px auto 0;padding:10px 12px 10px 22px;border-radius:99px;display:flex;align-items:center;gap:18px}
+nav b{font-size:18px;letter-spacing:-.03em;margin-right:auto}
+nav a{color:var(--fg);text-decoration:none;font-weight:600;font-size:14px;opacity:.8}
+nav a:hover{opacity:1}
+main{position:relative;z-index:1;padding:0 clamp(16px,4vw,40px) 120px}
+.box{max-width:480px;margin:clamp(40px,8vw,90px) auto 0;padding:34px;border-radius:32px}
+.box.wide{max-width:760px}
+.box h1{font-size:clamp(32px,6vw,48px);margin-bottom:6px}
+.box .sub{color:var(--mut);font-weight:600;margin-bottom:22px}
+#clerk-box{display:flex;justify-content:center;min-height:120px}
+.tabs{display:flex;gap:8px;margin-bottom:22px}
+.tabs .btn{flex:1;padding:10px 16px;font-size:15px}
+.tabs .btn.on{background:var(--acc);color:#fff}
+.status{min-height:22px;font-weight:600;font-size:14px}
+.status.ok{color:var(--ok)}.status.bad{color:var(--bad)}
+.note{font-size:13px;color:var(--mut)}
+.row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:14px 0;border-top:1px solid var(--rim)}
+.row:first-child{border-top:0}
+.row b{font-weight:700}
+.pill{display:inline-block;padding:3px 12px;border-radius:99px;font-size:12px;font-weight:700;background:var(--field);border:1px solid var(--rim)}
+.pill.ok{color:var(--ok)}.pill.off{color:var(--warn)}
+.sec{margin-top:30px}
+.sec h2{font-size:22px;letter-spacing:-.03em;margin-bottom:6px}
+.acts{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+@media (max-width:640px){nav a.opt{display:none}}
+</style>
+</head>
+<body>
+<div class="bg"><i style="left:4%;top:3%;background:#4f7dff"></i><i style="right:-4%;top:30%;background:#ff4f9a"></i><i style="left:16%;top:62%;background:#ffb040"></i></div>
+
+<nav class="glass">
+	<b>Raven</b>
+	<a class="opt" href="./index.html">Home</a>
+	<a href="./license.html">Pricing</a>
+	<a class="btn p" style="padding:9px 18px;font-size:14px" href="./account.html">Account</a>
+</nav>
+
+<main>
+	<div class="box glass" id="loading"><p class="sub" style="margin:0">Loading…</p></div>
+
+	<!-- not signed in -->
+	<div class="box glass" id="auth" style="display:none">
+		<h1 class="grad">Raven account</h1>
+		<p class="sub">Your license lives in your account. Sign in to download the Release edition.</p>
+		<div class="tabs">
+			<button class="btn on" id="tab-login" type="button">Sign in</button>
+			<button class="btn" id="tab-signup" type="button">Create an account</button>
+		</div>
+		<div id="clerk-box"></div>
+	</div>
+
+	<!-- signed in -->
+	<div class="box glass wide" id="dash" style="display:none">
+		<h1 class="grad">Your account</h1>
+		<p class="sub" id="who"></p>
+
+		<div class="sec">
+			<h2>License</h2>
+			<div id="lic"></div>
+		</div>
+
+		<div class="sec" id="dl-sec" style="display:none">
+			<h2>Download</h2>
+			<p class="note">The Release edition: the same library, without the watermark.</p>
+			<div id="dl"></div>
+		</div>
+
+		<div class="acts">
+			<a class="btn p" id="buy" href="./license.html#pricing" style="display:none">Get a license</a>
+			<button class="btn" id="billing" type="button" style="display:none">Manage billing</button>
+			<button class="btn" id="settings" type="button">Account settings</button>
+			<button class="btn" id="logout" type="button">Sign out</button>
+		</div>
+		<p class="status" id="dash-status" role="status" style="margin-top:14px"></p>
+	</div>
+</main>
+
+<script>
+(function(){
+	var $ = function(id){ return document.getElementById(id); };
+	var params = new URLSearchParams(location.search);
+	var next = params.get("next") || "";
+	if (!/^[\w.\-]+\.html(#[\w\-]+)?$/.test(next)) next = "";   /* only pages of this site */
+	var tries = 0, clerkRef = null;
+
+	function show(w){
+		$("loading").style.display = w === "loading" ? "" : "none";
+		$("auth").style.display = w === "auth" ? "" : "none";
+		$("dash").style.display = w === "dash" ? "" : "none";
+	}
+	function el(tag, text, cls){ var e = document.createElement(tag); if (text) e.textContent = text; if (cls) e.className = cls; return e; }
+	function size(n){ return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+	function isActive(l){ return l.status === "active"; }
+
+	/* ---- not signed in: Clerk's own sign-in / sign-up forms ---- */
+	var box = $("clerk-box"), cur = null;
+	function abs(p){ return new URL(p, location.href).href; }
+	function mount(clerk, m){
+		if (cur === "login") clerk.unmountSignIn(box);
+		if (cur === "signup") clerk.unmountSignUp(box);
+		cur = m;
+		$("tab-login").classList.toggle("on", m === "login");
+		$("tab-signup").classList.toggle("on", m === "signup");
+		var q = next ? "&next=" + encodeURIComponent(next) : "";
+		var dest = next ? abs("./" + next) : abs("./account.html");
+		if (m === "login") clerk.mountSignIn(box, { signUpUrl: abs("./account.html?signup=1" + q), forceRedirectUrl: dest });
+		else clerk.mountSignUp(box, { signInUrl: abs("./account.html" + (next ? "?next=" + encodeURIComponent(next) : "")), forceRedirectUrl: dest });
+	}
+	$("tab-login").addEventListener("click", function(){ if (clerkRef) mount(clerkRef, "login"); });
+	$("tab-signup").addEventListener("click", function(){ if (clerkRef) mount(clerkRef, "signup"); });
+
+	/* ---- signed in ---- */
+	function render(me){
+		var lic = $("lic"); lic.textContent = "";
+		var active = me.licenses.filter(isActive);
+		if (!me.licenses.length) lic.appendChild(el("div", "", "row")).appendChild(el("span", "Free edition — a watermark in every window."));
+		me.licenses.forEach(function(l){
+			var r = el("div", "", "row"), left = el("span");
+			left.appendChild(el("b", l.kind === "company" ? "Company license" : "Personal license"));
+			left.appendChild(el("span", " · " + new Date(l.created * 1000).toLocaleDateString()));
+			r.appendChild(left);
+			r.appendChild(el("span", isActive(l) ? "Active" : (l.status === "canceled" ? "Canceled" : "Inactive"), "pill " + (isActive(l) ? "ok" : "off")));
+			lic.appendChild(r);
+		});
+		/* payment just made: the webhook can take a few seconds */
+		if (params.get("paid") && !active.length) lic.appendChild(el("p", "Payment received — activating your license…", "note"));
+
+		$("buy").style.display = active.length ? "none" : "";
+		$("billing").style.display = me.billing ? "" : "none";
+
+		var dl = $("dl"); dl.textContent = "";
+		$("dl-sec").style.display = active.length ? "" : "none";
+		if (active.length && !me.files.length) dl.appendChild(el("p", "No file published yet — write to us if this looks wrong.", "note"));
+		me.files.forEach(function(f){
+			var r = el("div", "", "row"), left = el("span");
+			left.appendChild(el("b", f.name)); left.appendChild(el("span", " · " + size(f.size), "note"));
+			var a = el("a", "Download", "btn p"); a.href = "/api/download?file=" + encodeURIComponent(f.name);
+			a.style.padding = "9px 18px"; a.style.fontSize = "14px";
+			r.appendChild(left); r.appendChild(a); dl.appendChild(r);
+		});
+	}
+	function load(){
+		RavenAuth.api("me").then(function(r){
+			if (!r.ok) { $("dash-status").className = "status bad"; $("dash-status").textContent = r.j.error || "Couldn't load your license."; return; }
+			var me = r.j; me.licenses = me.licenses || []; me.files = me.files || [];
+			render(me);
+			if (params.get("paid") && !me.licenses.some(isActive) && tries++ < 15) setTimeout(load, 2000);
+		}).catch(function(){});
+	}
+
+	RavenAuth.ready.then(function(clerk){
+		clerkRef = clerk;
+		if (!clerk.user) { show("auth"); mount(clerk, params.get("signup") ? "signup" : "login"); return; }
+		var e = clerk.user.primaryEmailAddress;
+		$("who").textContent = e ? e.emailAddress : "";
+		show("dash");
+		load();
+		$("settings").addEventListener("click", function(){ clerk.openUserProfile(); });
+		$("logout").addEventListener("click", function(){ clerk.signOut({ redirectUrl: abs("./account.html") }); });
+		$("billing").addEventListener("click", function(){
+			var st = $("dash-status"); st.className = "status"; st.textContent = "Opening Stripe…";
+			RavenAuth.api("billing", { method: "POST" }).then(function(r){
+				if (r.ok && r.j.url) location.href = r.j.url;
+				else { st.className = "status bad"; st.textContent = r.j.error || "Couldn't open billing."; }
+			});
+		});
+	}).catch(function(){
+		$("loading").style.display = "";
+		$("loading").firstElementChild.textContent = "The sign-in service couldn't be loaded. Try again in a moment.";
+	});
+})();
+</script>
+</body>
+</html>
