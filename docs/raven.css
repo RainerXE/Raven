@@ -4,9 +4,9 @@
    ========================================================================== */
 
 /* ---- tokens : sombre par défaut, clair selon l'OS, forçable via data-theme ---- */
-:root{--bg:#000;--fg:#f5f5f7;--mut:#86868b;--glass:rgba(255,255,255,.08);--rim:rgba(255,255,255,.22);--sh:rgba(0,0,0,.6);--tag:#7aa7ff;--ok:#8be28b;--warn:#ffb454;--bad:#ff6b81;--acc:rgba(120,160,255,.55);--field:rgba(255,255,255,.06);--grid:rgba(255,255,255,.075)}
-@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.55);--rim:rgba(0,0,0,.10);--sh:rgba(50,70,140,.22);--tag:#2f5fd0;--ok:#1f8a3b;--warn:#b86a00;--bad:#c92a45;--acc:rgba(90,130,255,.85);--field:rgba(0,0,0,.04);--grid:rgba(0,0,0,.07)}}
-:root[data-theme=light]{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.55);--rim:rgba(0,0,0,.10);--sh:rgba(50,70,140,.22);--tag:#2f5fd0;--ok:#1f8a3b;--warn:#b86a00;--bad:#c92a45;--acc:rgba(90,130,255,.85);--field:rgba(0,0,0,.04);--grid:rgba(0,0,0,.07)}
+:root{--bg:#000;--fg:#f5f5f7;--mut:#86868b;--glass:rgba(255,255,255,.08);--rim:rgba(255,255,255,.22);--sh:rgba(0,0,0,.6);--tag:#7aa7ff;--ok:#8be28b;--warn:#ffb454;--bad:#ff6b81;--acc:rgba(120,160,255,.55);--field:rgba(255,255,255,.06);--grid:rgba(255,255,255,.15)}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.55);--rim:rgba(0,0,0,.10);--sh:rgba(50,70,140,.22);--tag:#2f5fd0;--ok:#1f8a3b;--warn:#b86a00;--bad:#c92a45;--acc:rgba(90,130,255,.85);--field:rgba(0,0,0,.04);--grid:rgba(0,0,0,.13)}}
+:root[data-theme=light]{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--glass:rgba(255,255,255,.55);--rim:rgba(0,0,0,.10);--sh:rgba(50,70,140,.22);--tag:#2f5fd0;--ok:#1f8a3b;--warn:#b86a00;--bad:#c92a45;--acc:rgba(90,130,255,.85);--field:rgba(0,0,0,.04);--grid:rgba(0,0,0,.13)}
 
 /* ---- base ---- */
 *{box-sizing:border-box;margin:0}
@@ -18,14 +18,14 @@ code{font:600 13px ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--t
 /* ---- blobs d'arrière-plan : .bg (fixe) ou .pbg (dans un conteneur) ---- */
 .bg{position:fixed;inset:0;pointer-events:none;z-index:0}
 .pbg{position:absolute;inset:0;pointer-events:none}
-.bg i,.pbg i{position:absolute;width:560px;height:560px;border-radius:50%;filter:blur(110px);opacity:.3;animation:drift 14s ease-in-out infinite alternate}
+.bg i,.pbg i{position:absolute;width:560px;height:560px;border-radius:50%;-webkit-mask:radial-gradient(closest-side,#000,transparent);mask:radial-gradient(closest-side,#000,transparent);opacity:.4;will-change:transform;animation:drift 14s ease-in-out infinite alternate}
 @keyframes drift{to{transform:translate(128px,-80px) scale(1.15)}}
 @media (prefers-reduced-motion:reduce){.bg i,.pbg i{animation:none}}
 /* grille fine par-dessus les blobs : c'est elle que le verre déforme */
 .bg::after,.pbg::after,.blobs::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/36px 36px,linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/36px 36px;-webkit-mask:radial-gradient(ellipse at 50% 40%,#000 25%,transparent 95%);mask:radial-gradient(ellipse at 50% 40%,#000 25%,transparent 95%)}
 
 /* ---- verre : réfraction (raven-glass.js pose --rf: url(#filtre), Chromium) ; ailleurs, flou seul ---- */
-.glass{background:var(--glass);backdrop-filter:var(--rf,) blur(5px) saturate(1.7) brightness(1.06);-webkit-backdrop-filter:var(--rf,) blur(5px) saturate(1.7) brightness(1.06);border:1px solid var(--rim);box-shadow:inset 1px 1px 0 var(--rim),inset 0 0 18px rgba(255,255,255,.06),0 20px 50px var(--sh)}
+.glass{background:var(--glass);backdrop-filter:var(--rf,) blur(2px) saturate(1.6);-webkit-backdrop-filter:var(--rf,) blur(2px) saturate(1.6);border:1px solid var(--rim);box-shadow:inset 1px 1px 0 var(--rim),inset 0 1px 1px rgba(255,255,255,.3),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 24px rgba(255,255,255,.07),0 2px 6px rgba(0,0,0,.14),0 24px 60px var(--sh)}
 :where(.glass){position:relative}
 /* liseré spéculaire : la lumière accroche les coins haut-gauche et bas-droit */
 .glass::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.85),rgba(255,255,255,0) 32%,rgba(255,255,255,0) 66%,rgba(255,255,255,.45));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
@@ -48,7 +48,7 @@ h2{font-size:clamp(32px,5vw,56px)}
 .g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
 
 /* ---- boutons ---- */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:99px;font:600 16px "Inter",system-ui,sans-serif;color:var(--fg);text-decoration:none;border:1px solid var(--rim);background:var(--glass);cursor:pointer;backdrop-filter:var(--rf,) blur(4px) saturate(1.6);-webkit-backdrop-filter:var(--rf,) blur(4px) saturate(1.6);transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s,background .2s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:99px;font:600 16px "Inter",system-ui,sans-serif;color:var(--fg);text-decoration:none;border:1px solid var(--rim);background:var(--glass);cursor:pointer;backdrop-filter:var(--rf,) blur(1px) saturate(1.6);-webkit-backdrop-filter:var(--rf,) blur(1px) saturate(1.6);transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s,background .2s}
 .btn:hover{transform:translateY(-2px) scale(1.02)}
 .btn:active{transform:scale(.96)}
 .btn.p{background:var(--acc);color:#fff}

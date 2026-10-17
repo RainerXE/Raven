@@ -34,6 +34,11 @@ static void capture(Rid window) {
 	CHECK(g_pixels != NULL);
 }
 
+/* The note of the license-free edition (logical units): pixel checks leave it out. */
+static int in_watermark(float x, float y) {
+	return x >= g_wm_x - 1.0f && x <= g_wm_x + g_wm_w + 1.0f && y >= g_wm_y - 1.0f && y <= g_wm_y + g_wm_h + 1.0f;
+}
+
 static const uint8_t* pixel_at(float x, float y) {
 	static const uint8_t none[4] = { 0, 0, 0, 0 };
 	int px = (int)(x * g_scale), py = (int)(y * g_scale);
@@ -382,11 +387,6 @@ static void test_glass_theme(void) {
 }
 
 /* How much a row of pixels changes from one pixel to the next: sharp edges give a high value. */
-/* The note of the license-free edition (logical units): pixel checks leave it out. */
-static int in_watermark(float x, float y) {
-	return x >= g_wm_x - 1.0f && x <= g_wm_x + g_wm_w + 1.0f && y >= g_wm_y - 1.0f && y <= g_wm_y + g_wm_h + 1.0f;
-}
-
 static int row_contrast(float x0, float x1, float y) {
 	int total = 0;
 	float x;
