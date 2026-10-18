@@ -704,7 +704,7 @@ static char* build_dir(void) {
 
 /* What the configuration depends on: when it changes, CMake is run again. */
 static void configuration_key(char* out, size_t size) {
-	snprintf(out, size, "%s|%s|%s|%s|%s", g_project_dir, g_settings.build_type, g_settings.raven_prefix, g_settings.license_file, g_settings.generator);
+	snprintf(out, size, "%s|%s|%s|%s", g_project_dir, g_settings.build_type, g_settings.raven_prefix, g_settings.generator);
 }
 
 static void add_configure(void) {
@@ -722,7 +722,6 @@ static void add_configure(void) {
 	add_arg(step, "-DCMAKE_BUILD_TYPE=%s", g_settings.build_type[0] ? g_settings.build_type : "Debug");
 	add_arg(step, "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON");
 	if (g_settings.raven_prefix[0]) add_arg(step, "-DCMAKE_PREFIX_PATH=%s", g_settings.raven_prefix);
-	if (g_settings.license_file[0]) add_arg(step, "-DRAVEN_LICENSE_FILE=%s", g_settings.license_file);
 	configuration_key(g_b.configured_with, sizeof(g_b.configured_with));
 	free(build);
 }

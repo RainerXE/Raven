@@ -16,102 +16,19 @@ endif()
 include("${CMAKE_CURRENT_LIST_DIR}/RavenXMLC.cmake")
 
 # ---------------------------------------------------------------------------
-#  License
+#  Edition
 #
-#  Without a license, raven::raven is the license-free edition: every window
-#  shows a small watermark. With one, the Release edition (no watermark):
-#
-#      cmake -DRAVEN_LICENSE_FILE=path/to/you.raven-license ...
-#      (or the environment variable RAVEN_LICENSE_FILE)
-#
-#  The license is checked here, when the program is configured, by
-#  raven_license_check (bin/ of this package). It decrypts the Release
-#  edition of the library into the build tree of the program, and
-#  raven::raven links with it. The license is never copied into the program.
-#  Buy one: https://oscar-soirey.github.io/Raven/license.html
+#  A Raven package holds one edition: the free one (every window shows a
+#  small watermark) or the paid one (no watermark). RAVEN_PAID says which.
 # ---------------------------------------------------------------------------
 
-set(RAVEN_LICENSED FALSE)
-set(_raven_license "${RAVEN_LICENSE_FILE}")
-if(NOT _raven_license AND DEFINED ENV{RAVEN_LICENSE_FILE})
-	set(_raven_license "$ENV{RAVEN_LICENSE_FILE}")
+set(RAVEN_PAID @RAVEN_PAID@)
+if(NOT RAVEN_FIND_QUIETLY)
+	if(RAVEN_PAID)
+		message(STATUS "Raven: paid edition (no watermark)")
+	else()
+		message(STATUS "Raven: free edition (every window shows a watermark)")
+	endif()
 endif()
-
-if(_raven_license)
-	get_filename_component(_raven_license "${_raven_license}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
-	if(NOT EXISTS "${_raven_license}")
-		message(FATAL_ERROR "Raven: the license file ${_raven_license} does not exist (RAVEN_LICENSE_FILE).")
-	endif()
-	# a new license file configures the program again
-	set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_raven_license}")
-
-	set(_raven_check "@PACKAGE_RAVEN_CONFIG_BINDIR@/raven_license_check")
-	if(CMAKE_HOST_WIN32)
-		string(APPEND _raven_check ".exe")
-	endif()
-	if(NOT EXISTS "${_raven_check}")
-		message(FATAL_ERROR "Raven: this package has no raven_license_check (${_raven_check}): it cannot use a license.")
-	endif()
-
-	get_target_property(_raven_configs raven::raven IMPORTED_CONFIGURATIONS)
-	if(NOT _raven_configs)
-		set(_raven_configs "")
-	endif()
-	set(_raven_unlocked 0)
-	set(_raven_message "")
-	foreach(_raven_config IN LISTS _raven_configs ITEMS "")
-		if(_raven_config)
-			string(TOUPPER "_${_raven_config}" _raven_suffix)
-		else()
-			set(_raven_suffix "")
-		endif()
-		get_target_property(_raven_location raven::raven IMPORTED_LOCATION${_raven_suffix})
-		if(NOT _raven_location OR NOT EXISTS "${_raven_location}.rvnenc")
-			continue()
-		endif()
-		get_filename_component(_raven_name "${_raven_location}" NAME)
-		set(_raven_dir "${CMAKE_BINARY_DIR}/raven-release/${_raven_config}")
-		file(MAKE_DIRECTORY "${_raven_dir}")
-		execute_process(
-			COMMAND "${_raven_check}" "${_raven_license}" "${_raven_location}.rvnenc" "${_raven_dir}/${_raven_name}.new"
-			RESULT_VARIABLE _raven_result
-			OUTPUT_VARIABLE _raven_message
-			ERROR_VARIABLE _raven_error
-			OUTPUT_STRIP_TRAILING_WHITESPACE)
-		if(_raven_result EQUAL 2)
-			# expired: back to the license-free edition, the build goes on
-			file(REMOVE "${_raven_dir}/${_raven_name}" "${_raven_dir}/${_raven_name}.new")
-			message(WARNING "Raven: ${_raven_message}\nThe program is built with the license-free edition (watermark).")
-			set(_raven_unlocked -1)
-			break()
-		elseif(NOT _raven_result EQUAL 0)
-			file(REMOVE "${_raven_dir}/${_raven_name}" "${_raven_dir}/${_raven_name}.new")
-			message(FATAL_ERROR "Raven: ${_raven_message}${_raven_error}")
-		endif()
-		# (the same library as last time: no relink)
-		execute_process(COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_raven_dir}/${_raven_name}.new" "${_raven_dir}/${_raven_name}")
-		file(REMOVE "${_raven_dir}/${_raven_name}.new")
-		set_target_properties(raven::raven PROPERTIES IMPORTED_LOCATION${_raven_suffix} "${_raven_dir}/${_raven_name}")
-		set(_raven_unlocked 1)
-	endforeach()
-
-	if(_raven_unlocked EQUAL 1)
-		set(RAVEN_LICENSED TRUE)
-		string(REGEX REPLACE "^Raven " "" _raven_message "${_raven_message}")
-		if(NOT RAVEN_FIND_QUIETLY)
-			message(STATUS "Raven: ${_raven_message} - Release edition, no watermark")
-		endif()
-	elseif(_raven_unlocked EQUAL 0)
-		message(FATAL_ERROR "Raven: this package has no Release edition to unlock (no .rvnenc beside the library).")
-	endif()
-elseif(NOT RAVEN_FIND_QUIETLY)
-	message(STATUS "Raven: license-free edition (every window shows a watermark). "
-		"A license removes it: -DRAVEN_LICENSE_FILE=<license>, https://oscar-soirey.github.io/Raven/license.html")
-endif()
-
-unset(_raven_license)
-unset(_raven_check)
-unset(_raven_configs)
-unset(_raven_unlocked)
 
 check_required_components(raven)

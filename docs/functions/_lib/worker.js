@@ -10,6 +10,8 @@
  *   RAVEN_SIGNING_SECRET   the content of signing.secret
  *   RAVEN_UNLOCK_KEY       the content of unlock.key
  *   RESEND_API_KEY         the API key of resend.com
+ *   RAVEN_RECEIPT_SECRET   (optional) long random string: signs the PDF receipt of personal licenses.
+ *                          Not set -> no receipt is attached, the license is sent anyway.
  * Variables (wrangler.toml [vars]):
  *   PRODUCT_PERSONAL       Polar product id of the $20 license
  *   PRODUCT_COMPANY        Polar product id of the $200/month license
@@ -20,6 +22,7 @@
  */
 
 import { makeLicense, isoDate } from "./license.js";
+import { makeReceiptPdf } from "./receipt.js";
 
 export default {
 	async fetch(request, env) {
@@ -72,25 +75,39 @@ export async function handleOrder(order, env, send = sendMail) {
 		expires = isoDate(new Date(end.getTime() + grace * 86400000));
 	}
 
+	const issued = new Date();
 	const license = await makeLicense({
 		name, email, type, expires,
 		signingSecretHex: env.RAVEN_SIGNING_SECRET,
-		unlockHex: env.RAVEN_UNLOCK_KEY
+		unlockHex: env.RAVEN_UNLOCK_KEY,
+		today: issued
 	});
-	await send(env, { to: email, name, type, expires, license: license.text, id: license.id });
+
+	/* Personal licenses come with a signed PDF receipt. It must never block the license: on any problem, send without. */
+	let receipt = null;
+	if (type === "personal" && env.RAVEN_RECEIPT_SECRET) {
+		try {
+			receipt = await makeReceiptPdf({ name, email, licenseId: license.id, orderId: order.id, issued, secret: env.RAVEN_RECEIPT_SECRET });
+		} catch (error) {
+			console.error("receipt failed (license sent without it)", error && error.stack ? error.stack : error);
+		}
+	}
+
+	await send(env, { to: email, name, type, expires, license: license.text, id: license.id, receipt });
 	if (env.LICENSES) await env.LICENSES.put("order:" + order.id, license.id + " " + email + " " + type + " " + expires);
 	return "sent " + type + " license " + license.id + " to " + email;
 }
 
 /* ---- the email (resend.com) ---- */
 
-async function sendMail(env, { to, name, type, expires, license, id }) {
+async function sendMail(env, { to, name, type, expires, license, id, receipt }) {
 	const renew = type === "company"
 		? "This license is valid until " + expires + ". Each monthly payment sends you a new one automatically: replace the file when it arrives."
 		: "This license never expires and works with every future version of Raven.";
 	const text =
 		"Hello " + name + ",\n\n" +
-		"Thank you for buying a Raven license! Your license file is attached (raven.raven-license).\n\n" +
+		"Thank you for buying a Raven license! Your license file is attached (raven.raven-license)." +
+		(receipt ? " Your receipt (PDF) is attached too: keep it, it is the proof of your purchase." : "") + "\n\n" +
 		"To build without the watermark:\n" +
 		"  1. Download the Raven package: https://github.com/oscar-soirey/Raven/releases\n" +
 		"  2. Keep raven.raven-license somewhere outside your project's repository.\n" +
@@ -113,9 +130,16 @@ async function sendMail(env, { to, name, type, expires, license, id }) {
 			subject: type === "company" ? "Your Raven company license (until " + expires + ")" : "Your Raven license",
 			text,
 			attachments: [{ filename: "raven.raven-license", content: btoa(unescape(encodeURIComponent(license))) }]
+				.concat(receipt ? [{ filename: "raven-receipt-" + id.slice(0, 8) + ".pdf", content: bytesToBase64(receipt) }] : [])
 		})
 	});
 	if (!response.ok) throw new Error("resend " + response.status + ": " + (await response.text()));
+}
+
+function bytesToBase64(bytes) {
+	let s = "";
+	for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+	return btoa(s);
 }
 
 /* ---- Polar webhook signature (Standard Webhooks) ---- */

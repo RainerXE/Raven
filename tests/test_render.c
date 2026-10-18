@@ -21,7 +21,7 @@
 static uint8_t* g_pixels;
 static int g_width, g_height;
 static float g_scale = 1.0f;
-/* the watermark of the license-free edition: pixels under it are not compared */
+/* the watermark of the free edition: pixels under it are not compared */
 static float g_wm_x, g_wm_y, g_wm_w, g_wm_h;
 
 /* Renders the window and keeps its pixels for the CHECK_PIXEL that follow. */
@@ -34,7 +34,7 @@ static void capture(Rid window) {
 	CHECK(g_pixels != NULL);
 }
 
-/* The note of the license-free edition (logical units): pixel checks leave it out. */
+/* The note of the free edition (logical units): pixel checks leave it out. */
 static int in_watermark(float x, float y) {
 	return x >= g_wm_x - 1.0f && x <= g_wm_x + g_wm_w + 1.0f && y >= g_wm_y - 1.0f && y <= g_wm_y + g_wm_h + 1.0f;
 }

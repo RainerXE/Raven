@@ -93,7 +93,6 @@ int  designer_save(void);
 typedef struct ide_settings_t {
 	char build_type[32];      /* Debug, Release... */
 	char raven_prefix[1024];  /* where find_package(raven) looks: the Raven package */
-	char license_file[1024];  /* -DRAVEN_LICENSE_FILE */
 	char generator[128];      /* "" : the default of CMake */
 	char run_arguments[512];
 } ide_settings_t;

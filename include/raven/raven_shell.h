@@ -115,6 +115,11 @@ extern "C" {
 	/** @param align R_HALIGN_CENTER (default) or R_HALIGN_LEFT. */
 	RAVEN_API void Rheader_bar_set_title_align(Rid bar, RHAlign align);
 	/**
+	 * @brief R_TRUE: the title sits in a dark tab hanging from the top edge of
+	 * the bar (slanted sides, round bottom corners). XML: TitleStyle="Notch".
+	 */
+	RAVEN_API void Rheader_bar_set_title_notch(Rid bar, int notch);
+	/**
 	 * @brief R_FALSE removes the background of the bar: for a header that
 	 * floats above the content (in an Overlay) or sits inside a glass panel.
 	 */

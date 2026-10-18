@@ -74,7 +74,6 @@ static void load_settings(void) {
 #define READ(field, key) if (!strcmp(line, key)) snprintf(g_settings.field, sizeof(g_settings.field), "%s", equal + 1)
 				READ(build_type, "build_type");
 				READ(raven_prefix, "raven_prefix");
-				READ(license_file, "license_file");
 				READ(generator, "generator");
 				READ(run_arguments, "run_arguments");
 #undef READ
@@ -89,8 +88,8 @@ void project_save_settings(void) {
 	ide_buffer_t out = { 0 };
 	char* path;
 	if (!g_project_dir) return;
-	ide_buffer_printf(&out, "build_type=%s\nraven_prefix=%s\nlicense_file=%s\ngenerator=%s\nrun_arguments=%s\n", g_settings.build_type,
-		g_settings.raven_prefix, g_settings.license_file, g_settings.generator, g_settings.run_arguments);
+	ide_buffer_printf(&out, "build_type=%s\nraven_prefix=%s\ngenerator=%s\nrun_arguments=%s\n", g_settings.build_type,
+		g_settings.raven_prefix, g_settings.generator, g_settings.run_arguments);
 	path = ide_join(g_project_dir, ".raven-ide");
 	Rfile_write(path, out.data, out.size);
 	free(path);
@@ -880,17 +879,6 @@ static void on_browse_folder(Rid button, void* user_data) {
 	if (chosen) Rtext_input_set_text((Rid)(size_t)user_data, chosen);
 }
 
-static void on_browse_file(Rid button, void* user_data) {
-	RFileDialogDesc desc;
-	const char* chosen;
-	(void)button;
-	memset(&desc, 0, sizeof(desc));
-	desc.parent = g_ide_window;
-	desc.title = "Choose a file";
-	chosen = Rfile_dialog_open(&desc);
-	if (chosen) Rtext_input_set_text((Rid)(size_t)user_data, chosen);
-}
-
 static const char NEW_PROJECT_XML[] =
 "<Border Padding=\"20\" Width=\"520\">"
 "  <VBox Spacing=\"12\">"
@@ -954,8 +942,6 @@ static const char SETTINGS_XML[] =
 "      <ComboBox Name=\"type\" Items=\"Debug|Release|RelWithDebInfo|MinSizeRel\" Slot.Fill=\"1\"/></HBox>"
 "    <HBox Spacing=\"8\"><Label Text=\"Raven package\" Width=\"130\" Slot.VAlign=\"Center\" Tooltip=\"The folder of the Raven package (bin/, include/, lib/): find_package(raven) looks there\"/>"
 "      <TextInput Name=\"prefix\" Slot.Fill=\"1\" Placeholder=\"the folder with bin/, include/ and lib/\"/><Button Name=\"browse.prefix\" Text=\"Browse...\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"License file\" Width=\"130\" Slot.VAlign=\"Center\" Tooltip=\"A .raven-license: builds the Release edition, without the watermark\"/>"
-"      <TextInput Name=\"license\" Slot.Fill=\"1\" Placeholder=\"none: the free edition\"/><Button Name=\"browse.license\" Text=\"Browse...\"/></HBox>"
 "    <HBox Spacing=\"8\"><Label Text=\"Generator\" Width=\"130\" Slot.VAlign=\"Center\"/>"
 "      <TextInput Name=\"generator\" Slot.Fill=\"1\" Placeholder=\"the default of CMake (Ninja, MinGW Makefiles...)\"/></HBox>"
 "    <HBox Spacing=\"8\"><Label Text=\"Run arguments\" Width=\"130\" Slot.VAlign=\"Center\"/><TextInput Name=\"arguments\" Slot.Fill=\"1\"/></HBox>"
@@ -986,13 +972,11 @@ void project_settings_dialog(void) {
 #define FIELD(name, field) Rtext_input_set_text(Rwidget_find(content, name), g_edit.field); \
 	Rtext_input_set_changed_callback(Rwidget_find(content, name), keep_setting, g_edit.field)
 	FIELD("prefix", raven_prefix);
-	FIELD("license", license_file);
 	FIELD("arguments", run_arguments);
 	Rtext_input_set_text(Rwidget_find(content, "generator"), g_edit.generator);
 	Rtext_input_set_changed_callback(Rwidget_find(content, "generator"), keep_setting, g_edit.generator);
 #undef FIELD
 	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.prefix"), on_browse_folder, (void*)(size_t)Rwidget_find(content, "prefix"));
-	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.license"), on_browse_file, (void*)(size_t)Rwidget_find(content, "license"));
 	Rbutton_set_clicked_callback(Rwidget_find(content, "cancel"), on_dialog_button, (void*)0);
 	Rbutton_set_clicked_callback(Rwidget_find(content, "ok"), on_dialog_button, (void*)1);
 	if (Rdialog_run(g_ide_window, content) != 1) return;
