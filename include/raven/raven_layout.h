@@ -194,6 +194,33 @@ extern "C" {
 	typedef void (*RTabChangedCallback)(Rid tab_view, int index, void* user_data);
 	RAVEN_API void Rtab_view_set_changed_callback(Rid tab_view, RTabChangedCallback callback, void* user_data);
 
+	/**
+	 * @brief Documents mode: the major tabs of an application (the level,
+	 * then one tab per open asset, as in Unreal): tabs on the left with an
+	 * icon and a close button (a middle click closes too), shrinking when
+	 * they do not fit, no slide between pages. XML: Documents="true".
+	 */
+	RAVEN_API void Rtab_view_set_documents(Rid tab_view, int documents);
+	RAVEN_API int Rtab_view_get_tab_count(Rid tab_view);
+	/** @brief The page of a tab, R_INVALID_ID if none. */
+	RAVEN_API Rid Rtab_view_get_tab(Rid tab_view, int index);
+	/** @brief Index of the tab of a page, -1 if none. */
+	RAVEN_API int Rtab_view_find_tab(Rid tab_view, Rid content);
+	RAVEN_API void Rtab_view_set_tab_title(Rid tab_view, Rid content, const char* title);
+	/** @brief Icon before the title (documents). R_INVALID_ID removes it; tint: a mask in the text color. */
+	RAVEN_API void Rtab_view_set_tab_icon(Rid tab_view, Rid content, Rid texture, float u0, float v0, float u1, float v1, int tint);
+	/** @brief R_FALSE: no close button (documents ; the level tab). Tabs can be closed by default. */
+	RAVEN_API void Rtab_view_set_tab_closable(Rid tab_view, Rid content, int closable);
+	/** @brief Shows the tab of a page (the changed callback is called). */
+	RAVEN_API void Rtab_view_show_tab(Rid tab_view, Rid content);
+	/**
+	 * @brief The user closes a tab (its button, a middle click). Return R_TRUE
+	 * to delete its page now, R_FALSE to keep it (the application may ask to
+	 * save, then delete the page itself with Rwidget_destroy).
+	 */
+	typedef int (*RTabCloseCallback)(Rid tab_view, int index, Rid content, void* user_data);
+	RAVEN_API void Rtab_view_set_close_callback(Rid tab_view, RTabCloseCallback callback, void* user_data);
+
 	/* EXPANDER */
 
 	RAVEN_API void Rexpander_set_title(Rid expander, const char* title);
