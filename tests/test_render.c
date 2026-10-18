@@ -334,8 +334,6 @@ static void test_glass(void) {
 static void test_glass_theme(void) {
 	Rid window;
 	const uint8_t* p;
-	int x, y, colors = 0;
-	uint8_t first[3];
 
 	/* every control is glass, and the window gets a wallpaper for it to show */
 	Rtheme_apply(R_THEME_GLASS_DARK);
@@ -356,18 +354,11 @@ static void test_glass_theme(void) {
 	capture(window);
 	CHECK(g_width == (int)(420 * g_scale) && g_height == (int)(320 * g_scale));
 
-	/* the wallpaper is not a flat color */
+	/* the background of the dark glass is a plain grey (#1C1C1C): no colors behind the glass */
 	p = pixel_at(4, 4);
-	first[0] = p[0];
-	first[1] = p[1];
-	first[2] = p[2];
-	for (y = 4; y < 320; y += 39) {
-		for (x = 4; x < 420; x += 51) {
-			p = pixel_at((float)x, (float)y);
-			if (abs((int)p[0] - first[0]) + abs((int)p[1] - first[1]) + abs((int)p[2] - first[2]) > 24) colors++;
-		}
-	}
-	CHECK(colors > 8);
+	CHECK(abs((int)p[0] - 0x1C) < 8 && abs((int)p[1] - 0x1C) < 8 && abs((int)p[2] - 0x1C) < 8);
+	p = pixel_at(410, 6);
+	CHECK(abs((int)p[0] - 0x1C) < 8 && abs((int)p[1] - 0x1C) < 8 && abs((int)p[2] - 0x1C) < 8);
 
 	/* a second frame of the same window: the offscreen images are reused */
 	Rwidget_invalidate(Rwidget_find(window, "panel"));

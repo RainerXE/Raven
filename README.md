@@ -703,9 +703,10 @@ above it, so that what is on top stays readable.
 With glass, controls are capsules that show a blurred, more vivid version of
 what is behind them; their rim bends it like a lens and catches a light
 placed at the top left; the knob of a slider turns into a clear lens while it
-is dragged. Glass needs something behind it: the glass themes give every
-window a soft colored wallpaper, `Rwindow_set_background` replaces it with an
-image. A custom widget draws glass with `Rdraw_glass`.
+is dragged. Glass needs something behind it: the glass themes put every
+window on a plain dark grey (dark) or plain white (light); `Rwindow_set_background`
+puts an image behind it instead, and a theme file can give colored blobs
+(`Wallpaper="#101020, #3040C0, #C02080"`). A custom widget draws glass with `Rdraw_glass`.
 
 How it is rendered: a frame that contains glass is drawn into an offscreen
 image; where glass begins, what has been drawn so far is copied and blurred,

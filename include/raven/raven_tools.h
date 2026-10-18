@@ -441,7 +441,8 @@ extern "C" {
 	 *  and zooms (Ctrl + wheel).
 	 *
 	 *  A kind has a label: words and slots. %n a number, %s a text, %b a
-	 *  condition, %r any value; {text} right after a slot is its default;
+	 *  condition, %r any value, %m a choice in a menu (its choices :
+	 *  Rblock_editor_set_slot_options); {text} right after a slot is its default;
 	 *  | separates the sections of a C block (each one is followed by a
 	 *  mouth): "repeat %n{10}", "if %b then|else", "%n + %n".
 	 *
@@ -452,6 +453,10 @@ extern "C" {
 	 *
 	 *  The user drags a block with what is under it; the place it would go
 	 *  opens and shows its shadow; dropped on the palette, it is deleted.
+	 *  A left click selects a block (Ctrl / Shift : adds it), a left drag on
+	 *  the canvas draws a selection rectangle, and dragging a block of the
+	 *  selection moves the whole selection; Delete removes it. A right drag
+	 *  (or middle, or Alt + left) pans, a right click opens the context menu.
 	 *  A click on a script fires the clicked callback (to run it); the
 	 *  application makes the running blocks glow.
 	 * ============================================================================ */
@@ -528,6 +533,27 @@ extern "C" {
 	RAVEN_API void Rblock_editor_set_changed_callback(Rid editor, RBlockEditorCallback callback, void* user_data);
 	RAVEN_API void Rblock_editor_set_clicked_callback(Rid editor, RBlockEditorCallback callback, void* user_data);
 	RAVEN_API void Rblock_editor_set_context_callback(Rid editor, RBlockEditorContextCallback callback, void* user_data);
+
+	/** @brief The choices of a %m slot of a kind, separated by '\n' ("" : the slot is typed in). */
+	RAVEN_API void Rblock_editor_set_slot_options(Rid editor, const char* kind, int slot, const char* options);
+	/** @brief R_FALSE: the kind is not in the palette (its blocks stay where they are). */
+	RAVEN_API void Rblock_editor_set_kind_visible(Rid editor, const char* kind, int visible);
+	/**
+	 * @brief A new label for a kind (a function that takes one more input...).
+	 * The blocks of that kind keep the values of the slots that are still there.
+	 */
+	RAVEN_API int Rblock_editor_set_kind_label(Rid editor, const char* kind, const char* label);
+	/** @brief R_FALSE: the user cannot delete the block (the entry of a function). Not saved. */
+	RAVEN_API void Rblock_editor_set_block_deletable(Rid editor, int block, int deletable);
+
+	RAVEN_API int Rblock_editor_get_selection_count(Rid editor);
+	RAVEN_API int Rblock_editor_get_selected(Rid editor, int index);
+	/** @brief Selects a block (add: R_FALSE clears the selection first ; block 0 : only clears). */
+	RAVEN_API void Rblock_editor_select(Rid editor, int block, int add);
+
+	/** @brief Pan (canvas units at the top left) and zoom. */
+	RAVEN_API void Rblock_editor_get_view(Rid editor, float* x, float* y, float* zoom);
+	RAVEN_API void Rblock_editor_set_view(Rid editor, float x, float y, float zoom);
 
 #ifdef __cplusplus
 } /* extern "C" */
