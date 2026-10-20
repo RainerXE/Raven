@@ -32,15 +32,9 @@ option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SD
 option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator or glslc)" OFF)
 option(RAVEN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(RAVEN_MSVC_STATIC_RUNTIME "Visual C++: link the C runtime statically (/MT) instead of using its DLL (/MD)" OFF)
-# The edition: LicenseFree (the default) shows a small watermark in every
-# window; Release (with a license: $20 once for individuals, $200/month for
-# companies, https://oscar-soirey.github.io/Raven/license.html) shows none.
-# Nothing else differs. Not to be confused with CMAKE_BUILD_TYPE.
-set(RAVEN_EDITION "LicenseFree" CACHE STRING "LicenseFree (watermark) or Release (licensed, no watermark)")
-set_property(CACHE RAVEN_EDITION PROPERTY STRINGS LicenseFree Release)
-if(NOT RAVEN_EDITION STREQUAL "LicenseFree" AND NOT RAVEN_EDITION STREQUAL "Release")
-	message(FATAL_ERROR "RAVEN_EDITION must be LicenseFree or Release (it is \"${RAVEN_EDITION}\")")
-endif()
+# The edition: free (the default) shows a small watermark in every window;
+# paid (-DRAVEN_PAID=ON) shows none. Nothing else differs.
+option(RAVEN_PAID "Build the paid edition: no watermark in the windows" OFF)
 set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11, cocoa or null")
 set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 cocoa null)
 
@@ -324,11 +318,11 @@ if(RAVEN_WITH_STB_IMAGE)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_WITH_STB_IMAGE)
 endif()
 
-if(RAVEN_EDITION STREQUAL "Release")
-	list(APPEND RAVEN_DEFINITIONS RAVEN_EDITION_RELEASE)
-	message(STATUS "Raven: Release edition (licensed, no watermark)")
+if(RAVEN_PAID)
+	list(APPEND RAVEN_DEFINITIONS RAVEN_PAID)
+	message(STATUS "Raven: paid edition (no watermark)")
 else()
-	message(STATUS "Raven: license-free edition (windows show a watermark; a license removes it: https://oscar-soirey.github.io/Raven/license.html)")
+	message(STATUS "Raven: free edition (every window shows a watermark; -DRAVEN_PAID=ON for the paid edition)")
 endif()
 
 # ---------------------------------------------------------------------------
@@ -437,11 +431,6 @@ if(RAVEN_BUILD_TOOLS)
 	add_subdirectory(tools)
 endif()
 
-# the license tools: raven_license_check ships with the packages (see tools/license)
-if(RAVEN_IS_TOP_LEVEL)
-	add_subdirectory(tools/license)
-endif()
-
 # ---------------------------------------------------------------------------
 #  Install:  find_package(raven)  +  target_link_libraries(app PRIVATE raven::raven)
 # ---------------------------------------------------------------------------
@@ -500,7 +489,11 @@ if(RAVEN_IS_TOP_LEVEL)
 	set(CPACK_PACKAGE_NAME "raven")
 	set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 	set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
-	set(CPACK_PACKAGE_FILE_NAME "raven-${PROJECT_VERSION}-${RAVEN_PACKAGE_SYSTEM}-${RAVEN_PACKAGE_COMPILER}-${RAVEN_PACKAGE_KIND}")
+	set(RAVEN_PACKAGE_EDITION "")
+	if(RAVEN_PAID)
+		set(RAVEN_PACKAGE_EDITION "-paid")
+	endif()
+	set(CPACK_PACKAGE_FILE_NAME "raven-${PROJECT_VERSION}-${RAVEN_PACKAGE_SYSTEM}-${RAVEN_PACKAGE_COMPILER}-${RAVEN_PACKAGE_KIND}${RAVEN_PACKAGE_EDITION}")
 	if(WIN32)
 		set(CPACK_GENERATOR "ZIP")
 	else()

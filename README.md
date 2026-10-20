@@ -62,9 +62,8 @@ A lightweight, multithreaded GUI library in C for editors and tools.
 - **One header**: `#include <Raven.h>`.
 
 > **Raven is free — with a watermark.** Use it for anything; what you make
-> with it is yours. A license removes the watermark: **$20 once** for
-> individuals, **$200/month** for companies.
-> [See the license page](https://oscar-soirey.github.io/Raven/license.html).
+> with it is yours. The paid edition is the same library without the
+> watermark. See [Editions](#editions).
 
 ![The studio example](docs/images/studio_glass.png)
 
@@ -249,7 +248,7 @@ warnings of GCC, Clang, MSVC, rustc, Go, CMake and ravenc go to **Build** and
 on the lines of the editors, brought back from the generated file to the
 line of the `.xml…`; a double click opens the file at that line. *Project >
 Build settings* sets the build type, the folder of the Raven package (found
-by itself when the IDE runs from one), a license file and the generator,
+by itself when the IDE runs from one) and the generator,
 kept in `.raven-ide` in the project.
 
 Undo and redo cover the interface; `F7` opens it in a window of its own; the
@@ -257,78 +256,32 @@ View menu switches the theme; a folder dropped on the window opens it as a
 project. The visual editor uses the public API only. The files are in
 `tools/designer/` (`ide.h` says what each one does).
 
-## License
+## Editions
 
 **Raven is free to use, for anything.** Whatever you build with Raven is
-yours, with a license or without one: sell it, ship it to clients, keep its
-source closed, use it at work. No royalties, no revenue share, no permission to
-ask.
+yours: sell it, ship it to clients, keep its source closed, use it at work.
+No royalties, no revenue share, no permission to ask.
 
-The only difference is a watermark. The default build (the **license-free
-edition**) draws a small note in the bottom right corner of every window:
+Raven is compiled in one of two editions, which differ only by a watermark:
+
+| Edition | Built with | |
+|---|---|---|
+| Free | `RAVEN_PAID=OFF` (the default) | every window shows a small note in its bottom right corner |
+| Paid | `-DRAVEN_PAID=ON` | no note |
+
+The note of the free edition:
 
 ```
 Made with Raven · free edition
-No watermark: license $20 once (individuals) · $200/month (companies) · oscar-soirey.github.io/Raven
+The paid edition has no watermark · oscar-soirey.github.io/Raven
 ```
 
-It never takes the mouse (what is under it still gets the clicks), but it is
-on every window, and a watermark on a tool you're proud of would be a shame.
-A license gives you the **Release edition**, which is the same library without
-the watermark: not one feature is held back in the free edition.
-
-| | Price | For |
-|---|---|---|
-| License-free edition | free | everyone; every window shows the watermark |
-| Personal license | **$20, once** | one person: freelancers, indie developers, students, hobbyists |
-| Company license | **$200 / month** | a company and all its developers; cancel any time |
-
-Buy a license on [the Raven site](https://oscar-soirey.github.io/Raven/license.html)
-(payments by Stripe). For a company license, fill in the short form there
-first (it is sent to oscarsoirey.contact@gmail.com), then subscribe. Questions:
-oscarsoirey.contact@gmail.com.
-
-### Using a license
-
-You receive a `.raven-license` file. Give it to CMake when you configure your
-program; your `CMakeLists.txt` does not change:
-
-```sh
-cmake -S . -B build -DRAVEN_LICENSE_FILE=path/to/you.raven-license
-# or once for the machine: the environment variable RAVEN_LICENSE_FILE
-```
-
-`find_package(raven)` checks the license there, with `bin/raven_license_check`
-of the package: its signature (Ed25519: a license cannot be forged), and its
-date for a company license. It then decrypts the Release edition of the
-library (`<library>.rvnenc`, beside the license-free one) into your build tree,
-and `raven::raven` links with it. The license itself is never copied into
-your program. An invalid license stops the configuration with the reason; an
-expired one builds with the watermark, with a warning. `RAVEN_LICENSED` is TRUE
-after `find_package` when the Release edition is used, and a program can ask
-at run time with `Ris_license_free()`.
-
-### For the author: editions, keys and packages
-
-Raven itself is built in one edition or the other with `RAVEN_EDITION`
-(`LicenseFree` by default, or `Release`; not to be confused with
-`CMAKE_BUILD_TYPE`). The packages hold both: `dist.bat` and `dist.sh` build
-each library twice and encrypt the Release edition beside the license-free one.
-
-The keys are made once, and kept out of the repository:
-
-```sh
-raven_license keygen                 # ~/.raven-license (or $RAVEN_LICENSE_KEYS)
-                                     #   signing.secret, unlock.key: secret, back them up
-                                     #   public.key: copy it to tools/license/public.key
-raven_license issue --name "Jane Doe" --email jane@example.com --type personal -o jane.raven-license
-raven_license issue --name "ACME" --email it@acme.com --type company --expires 2026-12-05 -o acme.raven-license
-raven_license show jane.raven-license
-```
-
-`raven_license` (built in `build/bin`) is never shipped; only
-`raven_license_check`, which holds the public key and can only verify. See
-`tools/license/`.
+It never takes the mouse: what is under it still gets the clicks. Not one
+feature is held back in the free edition. A program can ask which edition it
+runs with at run time with `Ris_free_edition()`; after `find_package(raven)`,
+`RAVEN_PAID` says which edition the package holds. `dist.bat` and `dist.sh`
+build one package per edition (see [Packages to give away](#packages-to-give-away)).
+Questions about the paid edition: oscarsoirey.contact@gmail.com.
 
 ## Status
 
@@ -358,7 +311,7 @@ Studio), next to `raven.dll` in a shared build.
 
 With CMake 3.21 or newer, presets do the same: `cmake --preset linux` (or
 `msvc`, `msvc-shared`, `mingw`, `mingw-shared`, `linux-shared`, `dev`, and
-`linux-release`, `msvc-release`... for the Release edition), then
+`linux-paid`, `msvc-paid`... for the paid edition), then
 `cmake --build --preset linux` and `ctest --preset linux`.
 
 On Windows, two scripts work from the folder of Raven:
@@ -369,7 +322,7 @@ generate-cmake.bat --open     :: ... and opens it; F5 starts the editor example
 build.bat                     :: Release build (generates the build tree if needed)
 build.bat debug --test        :: Debug build, then the tests
 build.bat --run glass         :: builds, then starts an example
-build.bat --edition release   :: the Release edition (licensed, no watermark)
+build.bat --paid              :: the paid edition (no watermark)
 ```
 
 `generate-cmake.bat --help` and `build.bat --help` list their options
@@ -378,7 +331,7 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 
 | Option | Default | |
 |---|---|---|
-| `RAVEN_EDITION` | `LicenseFree` | `LicenseFree`: every window shows a watermark; `Release`: no watermark (for the packages, see [License](#license)) |
+| `RAVEN_PAID` | `OFF` | `ON`: the paid edition, without the watermark (see [Editions](#editions)) |
 | `RAVEN_BUILD_SHARED` | `OFF` | shared library instead of static |
 | `RAVEN_BUILD_EXAMPLES` | `ON` when top level | |
 | `RAVEN_BUILD_TESTS` | `ON` when top level | tests, tests of the bindings, `raven_benchmark` |
@@ -405,18 +358,21 @@ target_link_libraries(app PRIVATE raven::raven)
 `dist.bat` (Windows) and `dist.sh` (Linux) build what is given to people who
 use Raven without building it: the static library and the shared one, the
 headers, the designer, the bindings and the documentation, in one folder and
-one archive per compiler.
+one archive per compiler and per edition.
 
 ```bat
-dist.bat              :: Visual C++ and MinGW-w64, whichever are installed
-dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc.zip
-dist.bat mingw        :: dist\raven-0.1.0-windows-x64-mingw.zip  (gcc and mingw32-make in the PATH)
+dist.bat              :: Visual C++ and MinGW-w64, whichever are installed, both editions
+dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc.zip and ...-msvc-paid.zip
+dist.bat mingw free   :: dist\raven-0.1.0-windows-x64-mingw.zip  (gcc and mingw32-make in the PATH)
+dist.bat msvc paid    :: dist\raven-0.1.0-windows-x64-msvc-paid.zip only
 ```
+
+`./dist.sh [free | paid | both]` does the same on Linux.
 
 ```
 raven-0.1.0-windows-x64-msvc\
     include\                 Raven.h, raven\*.h
-    bin\raven.dll            raven.dll.rvnenc (the Release edition, encrypted), raven_designer.exe, raven_license_check.exe
+    bin\raven.dll            raven_designer.exe, ravenc.exe
     lib\raven.lib            to link with raven.dll        (MinGW: libraven.dll.a)
     lib\static\raven.lib     the static library            (MinGW: libraven.a)
     lib\cmake\raven          find_package(raven), DLL; lib\static\cmake\raven for the static library

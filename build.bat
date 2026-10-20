@@ -7,10 +7,10 @@ rem
 rem    build.bat [configuration] [options]
 rem
 rem    configuration       Debug, Release (default), RelWithDebInfo or MinSizeRel
-rem    --edition NAME      license-free (watermark, the default for a new build
-rem                        tree) or release (licensed: no watermark, see
-rem                        https://oscar-soirey.github.io/Raven/license.html);
+rem    --paid              the paid edition: no watermark (RAVEN_PAID=ON);
 rem                        an existing build tree is switched to it
+rem    --free              the free edition: every window shows a watermark
+rem                        (the default for a new build tree)
 rem    --build-dir DIR     build tree                      (default: build)
 rem    --target NAME       build this target only          (raven, raven_editor, ...)
 rem    --clean             rebuild everything
@@ -22,16 +22,15 @@ rem
 rem  Examples:
 rem    build.bat
 rem    build.bat debug --test
-rem    build.bat --edition release
+rem    build.bat --paid
 rem    build.bat --run glass
 rem
 rem  The programs are written to <build tree>\bin\<configuration>.
 rem  To choose the generator or the options of the library, run
 rem  generate-cmake.bat yourself first.
 rem
-rem  The configuration (Debug, Release...) and the edition are two different
-rem  things: "release" alone is the configuration, "--edition release" removes
-rem  the watermark.
+rem  The configuration (Debug, Release...) and the edition (free, paid) are
+rem  two different things.
 rem ---------------------------------------------------------------------------
 setlocal EnableExtensions
 
@@ -40,7 +39,7 @@ if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
 set "BUILD_DIR=%ROOT%\build"
 set "CONFIG=Release"
-set "EDITION="
+set "PAID="
 set "TARGET="
 set "CLEAN=0"
 set "GENERATE=0"
@@ -55,7 +54,8 @@ if /I "%~1"=="debug"          ( set "CONFIG=Debug" & shift & goto parse )
 if /I "%~1"=="release"        ( set "CONFIG=Release" & shift & goto parse )
 if /I "%~1"=="relwithdebinfo" ( set "CONFIG=RelWithDebInfo" & shift & goto parse )
 if /I "%~1"=="minsizerel"     ( set "CONFIG=MinSizeRel" & shift & goto parse )
-if /I "%~1"=="--edition"      ( set "EDITION_ARG=%~2" & shift & shift & goto edition )
+if /I "%~1"=="--paid"         ( set "PAID=ON" & shift & goto parse )
+if /I "%~1"=="--free"         ( set "PAID=OFF" & shift & goto parse )
 if /I "%~1"=="--build-dir"    ( set "BUILD_DIR=%~f2" & shift & shift & goto parse )
 if /I "%~1"=="--target"       ( set "TARGET=%~2" & shift & shift & goto parse )
 if /I "%~1"=="--run"          ( set "RUN=%~2" & shift & shift & goto parse )
@@ -66,15 +66,6 @@ if /I "%~1"=="--no-pause"     ( set "NO_PAUSE=1" & shift & goto parse )
 if /I "%~1"=="--help"         goto usage
 if /I "%~1"=="-h"             goto usage
 echo [raven] unknown option: %~1
-echo.
-goto usage
-
-:edition
-if /I "%EDITION_ARG%"=="release"      ( set "EDITION=Release" & goto parse )
-if /I "%EDITION_ARG%"=="license-free" ( set "EDITION=LicenseFree" & goto parse )
-if /I "%EDITION_ARG%"=="licensefree"  ( set "EDITION=LicenseFree" & goto parse )
-if /I "%EDITION_ARG%"=="free"         ( set "EDITION=LicenseFree" & goto parse )
-echo [raven] unknown edition: %EDITION_ARG% ^(license-free or release^)
 echo.
 goto usage
 
@@ -91,7 +82,8 @@ if errorlevel 1 (
 
 rem ---- build tree -----------------------------------------------------------
 set "EDITION_ARGS="
-if defined EDITION set "EDITION_ARGS=--edition %EDITION%"
+if "%PAID%"=="ON" set "EDITION_ARGS=--paid"
+if "%PAID%"=="OFF" set "EDITION_ARGS=--free"
 if "%GENERATE%"=="1" goto generate
 if exist "%BUILD_DIR%\CMakeCache.txt" goto generated
 :generate
@@ -99,12 +91,12 @@ call "%ROOT%\generate-cmake.bat" --no-pause --build-dir "%BUILD_DIR%" %EDITION_A
 if errorlevel 1 goto failed
 :generated
 
-rem  An existing tree keeps its edition unless --edition asks for another one.
-if not defined EDITION goto edition_done
-findstr /B /I /C:"RAVEN_EDITION:STRING=%EDITION%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>nul
+rem  An existing tree keeps its edition unless --paid or --free asks for the other one.
+if not defined PAID goto edition_done
+findstr /B /I /C:"RAVEN_PAID:BOOL=%PAID%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>nul
 if not errorlevel 1 goto edition_done
-echo [raven] switching the build tree to the %EDITION% edition
-cmake -DRAVEN_EDITION=%EDITION% "%BUILD_DIR%"
+echo [raven] switching the build tree to RAVEN_PAID=%PAID%
+cmake -DRAVEN_PAID=%PAID% "%BUILD_DIR%"
 if errorlevel 1 goto failed
 :edition_done
 
@@ -126,9 +118,9 @@ if defined TARGET set "TARGET_ARGS=--target %TARGET%"
 set "CLEAN_ARGS="
 if "%CLEAN%"=="1" set "CLEAN_ARGS=--clean-first"
 
-set "BUILT_EDITION=LicenseFree"
-findstr /B /I /C:"RAVEN_EDITION:STRING=Release" "%BUILD_DIR%\CMakeCache.txt" >nul 2>nul
-if not errorlevel 1 set "BUILT_EDITION=Release"
+set "BUILT_EDITION=free"
+findstr /B /I /C:"RAVEN_PAID:BOOL=ON" "%BUILD_DIR%\CMakeCache.txt" >nul 2>nul
+if not errorlevel 1 set "BUILT_EDITION=paid"
 
 echo [raven] building %CONFIG%, %BUILT_EDITION% edition
 cmake --build "%BUILD_DIR%" --config %CONFIG% --parallel %TARGET_ARGS% %CLEAN_ARGS%
@@ -147,10 +139,7 @@ if not "%TEST_RESULT%"=="0" goto failed
 
 echo.
 echo [raven] build succeeded: %CONFIG%, %BUILT_EDITION% edition, programs in "%BUILD_DIR%\bin".
-if /I "%BUILT_EDITION%"=="LicenseFree" (
-	echo         License-free edition: every window shows a watermark. A license removes it:
-	echo         $20 once for individuals, $200/month for companies, https://oscar-soirey.github.io/Raven/license.html
-)
+if "%BUILT_EDITION%"=="free" echo         Free edition: every window shows a watermark ^(--paid for the paid edition^).
 
 rem ---- run ------------------------------------------------------------------
 if not defined RUN exit /b 0
@@ -174,7 +163,8 @@ exit /b 1
 echo Usage: build.bat [configuration] [options]
 echo.
 echo   configuration       Debug, Release, RelWithDebInfo or MinSizeRel; Release by default
-echo   --edition NAME      license-free (watermark) or release (licensed, no watermark)
+echo   --paid              the paid edition: no watermark
+echo   --free              the free edition: every window shows a watermark (default)
 echo   --build-dir DIR     build tree, "build" by default
 echo   --target NAME       build this target only: raven, raven_editor, ...
 echo   --clean             rebuild everything

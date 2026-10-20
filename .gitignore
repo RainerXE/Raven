@@ -11,13 +11,3 @@ out/
 dev/
 src/
 bindings/
-# license keys and licenses: never in the repository (tools/license/public.key is fine)
-signing.secret
-unlock.key
-*.raven-license
-*.rvnenc
-# the license worker
-tools/license/polar-worker/node_modules/
-tools/license/polar-worker/.wrangler/
-tools/license/polar-worker/.dev.vars
-tools/license/polar-worker/test-*.raven-license

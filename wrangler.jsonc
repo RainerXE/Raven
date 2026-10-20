@@ -1,0 +1,23 @@
+{
+	// IMPORTANT: "name" must be EXACTLY the name of your existing Worker in the Cloudflare dashboard,
+	// otherwise a second Worker is created.
+	"name": "raven-pages",
+	"main": "docs/functions/index.js",
+	"compatibility_date": "2026-09-01",
+
+	// The website. docs/.assetsignore keeps the code (docs/functions) out of the public files.
+	"assets": { "directory": "./docs", "binding": "ASSETS" },
+
+	// Not secret: fill in the two Polar product ids and your sender address.
+	// (Secrets go in the dashboard: Worker > Settings > Variables and Secrets.)
+	"vars": {
+		"PRODUCT_PERSONAL": "a6dd87b1-ccf3-4bca-8752-6cfdbe72a7f4",
+		"PRODUCT_COMPANY": "d615bb6e-da7d-4e1e-9767-43ca620a8dc5",
+		"MAIL_FROM": "Raven <license@your-domain>",
+		"MAIL_BCC": "oscarsoirey.contact@gmail.com"
+	}
+
+	// Recommended: one license per order even if Polar retries the webhook.
+	// Create a KV namespace (dashboard > Storage & Databases > KV), then uncomment with its id:
+	// "kv_namespaces": [{ "binding": "LICENSES", "id": "PASTE_THE_KV_NAMESPACE_ID" }]
+}

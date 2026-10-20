@@ -10,7 +10,6 @@ in the repository and compiled into the library.
 | Roboto Regular (Google) | `third_party/roboto/Roboto-Regular-subset.ttf`, embedded as `src/resources/default_font.c` | Apache License 2.0, see `third_party/roboto/LICENSE` | default font |
 | Roboto Mono Regular (The Roboto Mono Project Authors) | `third_party/roboto-mono/RobotoMono-Regular-subset.ttf`, embedded as `src/resources/mono_font.c` | SIL Open Font License 1.1, see `third_party/roboto-mono/LICENSE` | fixed-width font of the text editor (`Rfont_get_monospace`) |
 
-| TweetNaCl (D. J. Bernstein et al.) | `third_party/tweetnacl/` | public domain, see `third_party/tweetnacl/LICENSE` | the license tools only (`tools/license`): Ed25519 signatures, XSalsa20-Poly1305; not in the library |
 
 The two font files are subsets made with `tools/subset_font.py`: Basic Latin,
 Latin-1 Supplement, Latin Extended-A and a few punctuation marks and

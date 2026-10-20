@@ -76,7 +76,6 @@ static void load_settings(void) {
 #define READ(field, key) if (!strcmp(line, key)) snprintf(g_settings.field, sizeof(g_settings.field), "%s", equal + 1)
 				READ(build_type, "build_type");
 				READ(raven_prefix, "raven_prefix");
-				READ(license_file, "license_file");
 				READ(generator, "generator");
 				READ(run_arguments, "run_arguments");
 #undef READ
@@ -91,8 +90,8 @@ void project_save_settings(void) {
 	ide_buffer_t out = { 0 };
 	char* path;
 	if (!g_project_dir) return;
-	ide_buffer_printf(&out, "build_type=%s\nraven_prefix=%s\nlicense_file=%s\ngenerator=%s\nrun_arguments=%s\n", g_settings.build_type,
-		g_settings.raven_prefix, g_settings.license_file, g_settings.generator, g_settings.run_arguments);
+	ide_buffer_printf(&out, "build_type=%s\nraven_prefix=%s\ngenerator=%s\nrun_arguments=%s\n", g_settings.build_type,
+		g_settings.raven_prefix, g_settings.generator, g_settings.run_arguments);
 	path = ide_join(g_project_dir, ".raven-ide");
 	Rfile_write(path, out.data, out.size);
 	free(path);
@@ -905,11 +904,28 @@ int project_create(const char* parent_folder, const char* name, const char* lang
  *  Dialogs
  * ------------------------------------------------------------------------- */
 
+<<<<<<< HEAD
 /*
  * Rdialog_run deletes its content when it closes, and setting the text of an
  * input does not call its changed callback (Browse... does that): the dialogs
  * read their fields when a button is clicked, before closing.
  */
+=======
+static void on_dialog_button(Rid button, void* user_data) {
+	Rdialog_close(button, (int)(size_t)user_data);
+}
+
+static void on_browse_folder(Rid button, void* user_data) {
+	RFileDialogDesc desc;
+	const char* chosen;
+	(void)button;
+	memset(&desc, 0, sizeof(desc));
+	desc.parent = g_ide_window;
+	desc.title = "Choose a folder";
+	chosen = Rfile_dialog_select_folder(&desc);
+	if (chosen) Rtext_input_set_text((Rid)(size_t)user_data, chosen);
+}
+>>>>>>> 8ce737a1a292faea0b01fb3793a0455d4d3165c0
 
 static const char NEW_PROJECT_XML[] =
 "<Border Padding=\"24\" Width=\"600\">"
@@ -1121,6 +1137,7 @@ void project_new(void) {
 }
 
 static const char SETTINGS_XML[] =
+<<<<<<< HEAD
 "<Border Padding=\"24\" Width=\"640\">"
 "  <VBox Spacing=\"14\">"
 "    <Label Text=\"Build settings\" TextSize=\"22\"/>"
@@ -1137,6 +1154,18 @@ static const char SETTINGS_XML[] =
 "      <Label Text=\"Run arguments\" Slot.Row=\"4\" Slot.VAlign=\"Center\"/>"
 "      <TextInput Name=\"arguments\" Slot.Row=\"4\" Slot.Column=\"1\"/>"
 "    </Grid>"
+=======
+"<Border Padding=\"20\" Width=\"600\">"
+"  <VBox Spacing=\"12\">"
+"    <Label Text=\"Build settings\" TextSize=\"20\"/>"
+"    <HBox Spacing=\"8\"><Label Text=\"Build type\" Width=\"130\" Slot.VAlign=\"Center\"/>"
+"      <ComboBox Name=\"type\" Items=\"Debug|Release|RelWithDebInfo|MinSizeRel\" Slot.Fill=\"1\"/></HBox>"
+"    <HBox Spacing=\"8\"><Label Text=\"Raven package\" Width=\"130\" Slot.VAlign=\"Center\" Tooltip=\"The folder of the Raven package (bin/, include/, lib/): find_package(raven) looks there\"/>"
+"      <TextInput Name=\"prefix\" Slot.Fill=\"1\" Placeholder=\"the folder with bin/, include/ and lib/\"/><Button Name=\"browse.prefix\" Text=\"Browse...\"/></HBox>"
+"    <HBox Spacing=\"8\"><Label Text=\"Generator\" Width=\"130\" Slot.VAlign=\"Center\"/>"
+"      <TextInput Name=\"generator\" Slot.Fill=\"1\" Placeholder=\"the default of CMake (Ninja, MinGW Makefiles...)\"/></HBox>"
+"    <HBox Spacing=\"8\"><Label Text=\"Run arguments\" Width=\"130\" Slot.VAlign=\"Center\"/><TextInput Name=\"arguments\" Slot.Fill=\"1\"/></HBox>"
+>>>>>>> 8ce737a1a292faea0b01fb3793a0455d4d3165c0
 "    <HBox Spacing=\"8\" Slot.HAlign=\"Right\"><Button Name=\"cancel\" Text=\"Cancel\"/><Button Name=\"ok\" Text=\"Save\" Style=\"Primary\"/></HBox>"
 "  </VBox>"
 "</Border>";
@@ -1170,12 +1199,19 @@ void project_settings_dialog(void) {
 		: "No project is open: the Raven package is kept for the projects to come.");
 	type = Rwidget_find(content, "type");
 	for (i = 0; i < Rcombo_box_get_item_count(type); i++) if (ide_iequal(Rcombo_box_get_item_text(type, i), g_settings.build_type)) Rcombo_box_set_selected(type, i);
+<<<<<<< HEAD
 	Rtext_input_set_text(Rwidget_find(content, "prefix"), g_edit.raven_prefix);
 	Rtext_input_set_text(Rwidget_find(content, "license"), g_edit.license_file);
+=======
+	Rcombo_box_set_changed_callback(type, keep_type, NULL);
+#define FIELD(name, field) Rtext_input_set_text(Rwidget_find(content, name), g_edit.field); \
+	Rtext_input_set_changed_callback(Rwidget_find(content, name), keep_setting, g_edit.field)
+	FIELD("prefix", raven_prefix);
+	FIELD("arguments", run_arguments);
+>>>>>>> 8ce737a1a292faea0b01fb3793a0455d4d3165c0
 	Rtext_input_set_text(Rwidget_find(content, "generator"), g_edit.generator);
 	Rtext_input_set_text(Rwidget_find(content, "arguments"), g_edit.run_arguments);
 	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.prefix"), on_browse_folder, (void*)(size_t)Rwidget_find(content, "prefix"));
-	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.license"), on_browse_file, (void*)(size_t)Rwidget_find(content, "license"));
 	Rbutton_set_clicked_callback(Rwidget_find(content, "cancel"), on_dialog_button, (void*)0);
 	Rbutton_set_clicked_callback(Rwidget_find(content, "ok"), on_settings_save, NULL);
 	g_ide_dialog = content;

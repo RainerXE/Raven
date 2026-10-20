@@ -13,11 +13,11 @@
 			"installDir": "${sourceDir}/build/${presetName}/install"
 		},
 		{
-			"name": "licensed",
+			"name": "paid",
 			"hidden": true,
-			"description": "The Release edition: no watermark (needs a license, https://oscar-soirey.github.io/Raven/license.html)",
+			"description": "The paid edition: no watermark",
 			"cacheVariables": {
-				"RAVEN_EDITION": "Release"
+				"RAVEN_PAID": "ON"
 			}
 		},
 		{
@@ -39,14 +39,20 @@
 			}
 		},
 		{
-			"name": "msvc-release",
-			"displayName": "Visual C++, static library, Release edition (licensed, no watermark)",
-			"inherits": ["licensed", "msvc"]
+			"name": "msvc-paid",
+			"displayName": "Visual C++, static library, paid edition (no watermark)",
+			"inherits": [
+				"paid",
+				"msvc"
+			]
 		},
 		{
-			"name": "msvc-shared-release",
-			"displayName": "Visual C++, raven.dll, Release edition (licensed, no watermark)",
-			"inherits": ["licensed", "msvc-shared"]
+			"name": "msvc-shared-paid",
+			"displayName": "Visual C++, raven.dll, paid edition (no watermark)",
+			"inherits": [
+				"paid",
+				"msvc-shared"
+			]
 		},
 		{
 			"name": "mingw",
@@ -72,14 +78,20 @@
 			}
 		},
 		{
-			"name": "mingw-release",
-			"displayName": "MinGW-w64 (gcc), static library, Release edition (licensed, no watermark)",
-			"inherits": ["licensed", "mingw"]
+			"name": "mingw-paid",
+			"displayName": "MinGW-w64 (gcc), static library, paid edition (no watermark)",
+			"inherits": [
+				"paid",
+				"mingw"
+			]
 		},
 		{
-			"name": "mingw-shared-release",
-			"displayName": "MinGW-w64 (gcc), raven.dll, Release edition (licensed, no watermark)",
-			"inherits": ["licensed", "mingw-shared"]
+			"name": "mingw-shared-paid",
+			"displayName": "MinGW-w64 (gcc), raven.dll, paid edition (no watermark)",
+			"inherits": [
+				"paid",
+				"mingw-shared"
+			]
 		},
 		{
 			"name": "linux",
@@ -104,14 +116,20 @@
 			}
 		},
 		{
-			"name": "linux-release",
-			"displayName": "Linux, static library, Release edition (licensed, no watermark)",
-			"inherits": ["licensed", "linux"]
+			"name": "linux-paid",
+			"displayName": "Linux, static library, paid edition (no watermark)",
+			"inherits": [
+				"paid",
+				"linux"
+			]
 		},
 		{
-			"name": "linux-shared-release",
-			"displayName": "Linux, libraven.so, Release edition (licensed, no watermark)",
-			"inherits": ["licensed", "linux-shared"]
+			"name": "linux-shared-paid",
+			"displayName": "Linux, libraven.so, paid edition (no watermark)",
+			"inherits": [
+				"paid",
+				"linux-shared"
+			]
 		},
 		{
 			"name": "dev",
@@ -135,13 +153,13 @@
 			"configuration": "Release"
 		},
 		{
-			"name": "msvc-release",
-			"configurePreset": "msvc-release",
+			"name": "msvc-paid",
+			"configurePreset": "msvc-paid",
 			"configuration": "Release"
 		},
 		{
-			"name": "msvc-shared-release",
-			"configurePreset": "msvc-shared-release",
+			"name": "msvc-shared-paid",
+			"configurePreset": "msvc-shared-paid",
 			"configuration": "Release"
 		},
 		{
@@ -153,12 +171,12 @@
 			"configurePreset": "mingw-shared"
 		},
 		{
-			"name": "mingw-release",
-			"configurePreset": "mingw-release"
+			"name": "mingw-paid",
+			"configurePreset": "mingw-paid"
 		},
 		{
-			"name": "mingw-shared-release",
-			"configurePreset": "mingw-shared-release"
+			"name": "mingw-shared-paid",
+			"configurePreset": "mingw-shared-paid"
 		},
 		{
 			"name": "linux",
@@ -169,12 +187,12 @@
 			"configurePreset": "linux-shared"
 		},
 		{
-			"name": "linux-release",
-			"configurePreset": "linux-release"
+			"name": "linux-paid",
+			"configurePreset": "linux-paid"
 		},
 		{
-			"name": "linux-shared-release",
-			"configurePreset": "linux-shared-release"
+			"name": "linux-shared-paid",
+			"configurePreset": "linux-shared-paid"
 		},
 		{
 			"name": "dev",
@@ -212,8 +230,8 @@
 			}
 		},
 		{
-			"name": "linux-release",
-			"configurePreset": "linux-release",
+			"name": "linux-paid",
+			"configurePreset": "linux-paid",
 			"output": {
 				"outputOnFailure": true
 			}

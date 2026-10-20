@@ -187,13 +187,12 @@ extern "C" {
 
 	RAVEN_API int Ris_initialized(void);
 	/**
-	 * @brief R_TRUE in the license-free edition of Raven (the default build):
-	 * every window shows a small watermark in its bottom right corner. A license
-	 * ($20 once for individuals, $200/month for companies, see
-	 * https://oscar-soirey.github.io/Raven/license.html) gives the Release
-	 * edition, without it. Either way, what you make with Raven is yours.
+	 * @brief R_TRUE in the free edition of Raven (the default build): every
+	 * window shows a small watermark in its bottom right corner. R_FALSE in the
+	 * paid edition (the library built with -DRAVEN_PAID=ON), which shows none.
+	 * Nothing else differs; what you make with either one is yours.
 	 */
-	RAVEN_API int Ris_license_free(void);
+	RAVEN_API int Ris_free_edition(void);
 
 	/** @return The library version, e.g. "0.1.0". */
 	RAVEN_API const char* Rget_version(void);
