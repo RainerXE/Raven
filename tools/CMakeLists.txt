@@ -7,7 +7,7 @@
 # src/embedded; they are not needed to build.
 
 add_executable(raven_designer designer/main.c designer/ide.h designer/os.c designer/project.c designer/editors.c
-	designer/xmlc.c designer/build.c designer/strings.c)
+	designer/xmlc.c designer/build.c designer/strings.c designer/welcome.c)
 # the headers of Raven, for the completion of its API (an installed IDE reads ../include)
 target_compile_definitions(raven_designer PRIVATE "RAVEN_IDE_INCLUDE_DIR=\"${PROJECT_SOURCE_DIR}/include\"")
 target_link_libraries(raven_designer PRIVATE raven::raven)
@@ -29,7 +29,7 @@ install(TARGETS raven_designer RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # adds, moves, wraps, deletes, undoes, and checks the XML after each step.
 if(RAVEN_BUILD_TESTS)
 	add_test(NAME designer_script COMMAND raven_designer --null --frames 3 --script
-		"f 2 path 0/0 set Text Bonjour expect Bonjour pick 2 do palette.add expect <Grid~Columns do edit.duplicate do edit.up do edit.wrap.Border expect <Border> do edit.unwrap do edit.delete do edit.undo do edit.undo do edit.redo do file.new.form expect <Field~Label path 2/1 set Hint typed expect Hint=\"typed\" do edit.duplicate do edit.out do edit.in do view.theme.glass_light do view.interact do view.run f 3 do view.theme.dark do file.new.panel expect <Border~Padding f 2")
+		"do file.new.window f 2 path 0/0 set Text Bonjour expect Bonjour pick 2 do palette.add expect <Grid~Columns do edit.duplicate do edit.up do edit.wrap.Border expect <Border> do edit.unwrap do edit.delete do edit.undo do edit.undo do edit.redo do file.new.form expect <Field~Label path 2/1 set Hint typed expect Hint=\"typed\" do edit.duplicate do edit.out do edit.in do view.theme.glass_light do view.interact do view.run f 3 do view.theme.dark do file.new.panel expect <Border~Padding f 2")
 
 	# The IDE: a new project (CMakeLists.txt, main.xmlc, strings.csv), its interface and its
 	# scripts, a translation edited and shown in the preview in another language, everything saved.

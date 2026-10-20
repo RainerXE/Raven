@@ -131,10 +131,40 @@ static editor_t* create(const char* title, const char* key, const char* path, co
 	return e;
 }
 
+/*
+ * A dock area closes a panel without asking when the program does it
+ * (Rdock_area_close_panel: the scripts of an .xmlc that is closed): the
+ * editors whose widget is gone are forgotten here, before anyone looks.
+ */
+void editors_forget_closed(void) {
+	int i;
+	for (i = g_e.count - 1; i >= 0; i--) {
+		if (!Rwidget_is_valid(g_e.list[i].widget)) remove_editor(&g_e.list[i]);
+	}
+}
+
 Rid editors_find(const char* key) {
 	int i;
+	editors_forget_closed();
 	for (i = 0; i < g_e.count; i++) if (ide_same_path(g_e.list[i].key, key)) return g_e.list[i].widget;
 	return R_INVALID_ID;
+}
+
+/* A tab whose title contains a text (the scripts of the tests). */
+Rid editors_find_title(const char* text) {
+	int i;
+	editors_forget_closed();
+	for (i = 0; i < g_e.count; i++) if (strstr(g_e.list[i].title, text)) return g_e.list[i].widget;
+	return R_INVALID_ID;
+}
+
+void editors_close_all(void) {
+	editors_forget_closed();
+	while (g_e.count > 0) {
+		Rid widget = g_e.list[g_e.count - 1].widget;
+		remove_editor(&g_e.list[g_e.count - 1]);
+		if (Rwidget_is_valid(widget)) Rdock_area_close_panel(g_ide_dock, widget);
+	}
 }
 
 static void go_to_line(Rid widget, int line) {
@@ -197,6 +227,7 @@ Rid editors_open_virtual(const char* title, const char* key, const char* text, c
 
 int editors_save_all(void) {
 	int i, ok = R_TRUE;
+	editors_forget_closed();
 	for (i = 0; i < g_e.count; i++) {
 		if (g_e.list[i].modified && !save_editor(&g_e.list[i])) ok = R_FALSE;
 	}
@@ -205,6 +236,7 @@ int editors_save_all(void) {
 
 int editors_any_modified(void) {
 	int i;
+	editors_forget_closed();
 	for (i = 0; i < g_e.count; i++) if (g_e.list[i].modified) return R_TRUE;
 	return R_FALSE;
 }
@@ -213,6 +245,7 @@ int editors_any_modified(void) {
 static editor_t* focused_editor(void) {
 	Rid focus = Rwindow_get_focused_widget(g_ide_window);
 	int i;
+	editors_forget_closed();
 	for (i = 0; i < g_e.count; i++) {
 		Rid walk;
 		for (walk = focus; walk != R_INVALID_ID; walk = Rwidget_get_parent(walk)) {
@@ -232,6 +265,7 @@ int editors_save_focused(void) {
 
 void editors_clear_markers(void) {
 	int i;
+	editors_forget_closed();
 	for (i = 0; i < g_e.count; i++) Rtext_editor_clear_markers(g_e.list[i].widget);
 }
 

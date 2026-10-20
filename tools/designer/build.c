@@ -48,6 +48,10 @@ static struct {
 	/* rustc: "error[E0308]: ..." comes before the line that says where */
 	char pending_message[512];
 	int pending_error;
+	/* said in the Output once it is cleared, when the build starts */
+	char note[512];
+	/* CMake said it could not find the package of Raven */
+	int package_missing;
 } g_b;
 
 int build_is_running(void) {
@@ -271,6 +275,8 @@ static void parse_line(const char* line) {
 			break;
 		}
 	}
+	/* find_package(raven) failed: the IDE says what to do about it at the end */
+	if (strstr(line, "ravenConfig.cmake") || strstr(line, "raven-config.cmake")) g_b.package_missing = R_TRUE;
 	/* CMake Error at CMakeLists.txt:12 (add_executable): */
 	if (!strncmp(line, "CMake Error at ", 15) || !strncmp(line, "CMake Warning at ", 17)) {
 		const char* file = line + (line[6] == 'E' ? 15 : 17);
@@ -398,6 +404,12 @@ static void finish(int ok) {
 		Rdock_area_set_panel_title(g_ide_dock, g_b.issues_list, "Build");
 	}
 	if (g_b.error_count) Rdock_area_open_panel(g_ide_dock, g_b.issues_list);
+	if (!ok && g_b.package_missing) {
+		output_printf("\n[CMake did not find the Raven package. Choose its folder (the one with bin/, include/ and lib/) in Project > Build settings > "
+			"Raven package, or on the start page (File > Welcome page).]\n");
+		ide_status("The Raven package was not found: Project > Build settings > Raven package.");
+		return;
+	}
 	ide_status(ok ? "Done in %.1f s (%d warning%s)." : "Failed after %.1f s: %d error%s, see the Build panel.", seconds,
 		ok ? g_b.warning_count : g_b.error_count, (ok ? g_b.warning_count : g_b.error_count) == 1 ? "" : "s");
 }
@@ -452,10 +464,31 @@ static void begin(void) {
 	g_b.started = Rget_time();
 	g_b.step_at = 0;
 	g_b.pending.size = 0;
+	g_b.package_missing = R_FALSE;
 	clear_issues();
 	output_clear();
+	if (g_b.note[0]) {
+		output_printf("%s\n", g_b.note);
+		g_b.note[0] = 0;
+	}
 	Rdock_area_open_panel(g_ide_dock, g_b.output);
 	start_step();
+}
+
+void build_reset(void) {
+	if (g_b.process) {
+		ide_process_kill(g_b.process);
+		ide_process_free(g_b.process);
+		g_b.process = NULL;
+	}
+	if (g_b.timer != R_INVALID_ID && Rtimer_is_valid(g_b.timer)) Rtimer_destroy(g_b.timer);
+	g_b.timer = R_INVALID_ID;
+	free_steps();
+	clear_issues();
+	output_clear();
+	g_b.configured_with[0] = 0;
+	g_b.note[0] = 0;
+	Rdock_area_set_panel_title(g_ide_dock, g_b.issues_list, "Build");
 }
 
 /* ---------------------------------------------------------------------------
@@ -707,17 +740,66 @@ static void configuration_key(char* out, size_t size) {
 	snprintf(out, size, "%s|%s|%s|%s|%s", g_project_dir, g_settings.build_type, g_settings.raven_prefix, g_settings.license_file, g_settings.generator);
 }
 
+/* The generator the build folder was made with ("" when it was not configured yet). */
+static void cached_generator(const char* build, char* out, size_t size) {
+	char* cache = ide_join(build, "CMakeCache.txt");
+	size_t length = 0;
+	char* text = Rfile_read(cache, &length);
+	const char* at;
+	out[0] = 0;
+	free(cache);
+	if (!text) return;
+	at = strstr(text, "CMAKE_GENERATOR:INTERNAL=");
+	if (at) {
+		size_t n;
+		at += 25;
+		n = strcspn(at, "\r\n");
+		snprintf(out, size, "%.*s", (int)n, at);
+	}
+	Rmemory_free(text);
+}
+
+/*
+ * The generator: the one of the settings; else the one the build folder
+ * already has; else Ninja when it is installed, else on Windows MinGW
+ * Makefiles when mingw32-make is there (the default of CMake would be Visual
+ * Studio, which the Raven of a MinGW package cannot link with).
+ */
+static void choose_generator(const char* build, char* out, size_t size) {
+	char found[1024], cached[256];
+	cached_generator(build, cached, sizeof(cached));
+	out[0] = 0;
+	if (g_settings.generator[0]) {
+		/* another generator than the one the folder was made with: CMake refuses, so the cache goes */
+		if (cached[0] && strcmp(cached, g_settings.generator) != 0) {
+			char* cache = ide_join(build, "CMakeCache.txt");
+			ide_remove_file(cache);
+			free(cache);
+			snprintf(g_b.note, sizeof(g_b.note), "[the build folder was made with %s: configured again with %s]", cached, g_settings.generator);
+		}
+		snprintf(out, size, "%s", g_settings.generator);
+		return;
+	}
+	if (cached[0]) return;
+	if (ide_find_program("ninja", found, sizeof(found))) snprintf(out, size, "Ninja");
+#if defined(_WIN32)
+	else if (ide_find_program("mingw32-make", found, sizeof(found))) snprintf(out, size, "MinGW Makefiles");
+#endif
+}
+
 static void add_configure(void) {
 	char* build = build_dir();
+	char generator[256];
 	step_t* step = add_step(g_project_dir);
+	choose_generator(build, generator, sizeof(generator));
 	add_arg(step, "cmake");
 	add_arg(step, "-S");
 	add_arg(step, "%s", g_project_dir);
 	add_arg(step, "-B");
 	add_arg(step, "%s", build);
-	if (g_settings.generator[0]) {
+	if (generator[0]) {
 		add_arg(step, "-G");
-		add_arg(step, "%s", g_settings.generator);
+		add_arg(step, "%s", generator);
 	}
 	add_arg(step, "-DCMAKE_BUILD_TYPE=%s", g_settings.build_type[0] ? g_settings.build_type : "Debug");
 	add_arg(step, "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON");
@@ -787,7 +869,7 @@ static void add_run(void) {
 	char* program;
 	step_t* step;
 	if (!project_target_name(name, sizeof(name))) {
-		output_printf("The CMakeLists.txt has no add_executable: nothing to run.\n");
+		snprintf(g_b.note, sizeof(g_b.note), "[the CMakeLists.txt has no add_executable: it is built, there is nothing to run]");
 		return;
 	}
 	build = build_dir();
@@ -804,7 +886,7 @@ static void add_run(void) {
 
 static int save_everything(void) {
 	int ok = R_TRUE;
-	if (designer_is_modified() && designer_get_path()) ok = designer_save() && ok;
+	if (designer_has_document() && designer_is_modified() && designer_get_path()) ok = designer_save() && ok;
 	if (editors_any_modified()) ok = editors_save_all() && ok;
 	if (strings_any_modified()) ok = strings_save() && ok;
 	return ok;

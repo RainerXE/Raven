@@ -443,6 +443,48 @@ int ide_find_program(const char* name, char* out, size_t size) {
 	return 1;
 }
 
+static void env_folder(const wchar_t* name, char* out, size_t size) {
+	wchar_t value[1024];
+	DWORD n = GetEnvironmentVariableW(name, value, 1024);
+	out[0] = 0;
+	if (n > 0 && n < 1024) narrow(value, out, size);
+}
+
+const char* ide_home_dir(void) {
+	static char dir[1024];
+	if (!dir[0]) {
+		char* n;
+		env_folder(L"USERPROFILE", dir, sizeof(dir));
+		if (!dir[0]) snprintf(dir, sizeof(dir), "C:/");
+		n = ide_normalize(dir);
+		snprintf(dir, sizeof(dir), "%s", n);
+		free(n);
+	}
+	return dir;
+}
+
+const char* ide_config_dir(void) {
+	static char dir[1100];
+	if (!dir[0]) {
+		char base[1024];
+		char* n;
+		env_folder(L"APPDATA", base, sizeof(base));
+		if (!base[0]) snprintf(base, sizeof(base), "%s/AppData/Roaming", ide_home_dir());
+		n = ide_normalize(base);
+		snprintf(dir, sizeof(dir), "%s/Raven", n);
+		free(n);
+		ide_make_dirs(dir);
+	}
+	return dir;
+}
+
+int ide_remove_file(const char* path) {
+	wchar_t* wide = widen(path);
+	BOOL ok = DeleteFileW(wide);
+	free(wide);
+	return ok != 0;
+}
+
 /* ---------------------------------------------------------------------------
  *  POSIX
  * ------------------------------------------------------------------------- */
@@ -634,4 +676,56 @@ int ide_find_program(const char* name, char* out, size_t size) {
 	return 0;
 }
 
+const char* ide_home_dir(void) {
+	static char dir[1024];
+	if (!dir[0]) {
+		const char* home = getenv("HOME");
+		snprintf(dir, sizeof(dir), "%s", home && home[0] ? home : "/tmp");
+	}
+	return dir;
+}
+
+const char* ide_config_dir(void) {
+	static char dir[1100];
+	if (!dir[0]) {
+#if defined(__APPLE__)
+		snprintf(dir, sizeof(dir), "%s/Library/Application Support/Raven", ide_home_dir());
+#else
+		const char* xdg = getenv("XDG_CONFIG_HOME");
+		if (xdg && xdg[0] == '/') snprintf(dir, sizeof(dir), "%s/raven", xdg);
+		else snprintf(dir, sizeof(dir), "%s/.config/raven", ide_home_dir());
 #endif
+		ide_make_dirs(dir);
+	}
+	return dir;
+}
+
+int ide_remove_file(const char* path) {
+	return unlink(path) == 0;
+}
+
+#endif
+
+/* Where new projects go by default: Documents/Raven Projects (the Documents folder when there is one). */
+const char* ide_default_projects_dir(void) {
+	static char dir[1200];
+	if (!dir[0]) {
+		char* documents = ide_join(ide_home_dir(), "Documents");
+		snprintf(dir, sizeof(dir), "%s/Raven Projects", ide_is_dir(documents) ? documents : ide_home_dir());
+		free(documents);
+	}
+	return dir;
+}
+
+/* "C:/Users/ada/Documents/x" -> "~/Documents/x": shorter, for the eyes only. */
+void ide_pretty_path(const char* path, char* out, size_t size) {
+	char* normalized = ide_normalize(path);
+	char* home = ide_normalize(ide_home_dir());
+	size_t length = strlen(home);
+	if (length > 1 && !strncmp(normalized, home, length) && (normalized[length] == '/' || !normalized[length]))
+		snprintf(out, size, "~%s", normalized + length);
+	else
+		snprintf(out, size, "%s", normalized);
+	free(normalized);
+	free(home);
+}

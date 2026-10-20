@@ -56,6 +56,8 @@ static void load_settings(void) {
 	}
 	snprintf(g_settings.build_type, sizeof(g_settings.build_type), "Debug");
 	if (!g_settings.raven_prefix[0]) guess_raven_prefix(g_settings.raven_prefix, sizeof(g_settings.raven_prefix));
+	/* the package chosen once (the start page, Build settings) serves every project */
+	if (!g_settings.raven_prefix[0]) snprintf(g_settings.raven_prefix, sizeof(g_settings.raven_prefix), "%s", prefs_get("raven_prefix"));
 	if (!g_project_dir) return;
 	path = ide_join(g_project_dir, ".raven-ide");
 	text = Rfile_read(path, &size);
@@ -189,6 +191,11 @@ void designer_open_file(const char* path);
 
 void ide_open_file(const char* path, int line) {
 	const char* ext = ide_extension(path);
+	if (!ide_file_exists(path)) {
+		ide_status("%s does not exist.", path);
+		return;
+	}
+	welcome_hide();
 	if (ide_interface_language(path)) {
 		if (!(xmlc_is_open() && ide_same_path(xmlc_path(), path))) {
 			if (!interface_can_change()) return;
@@ -668,10 +675,33 @@ int project_target_name(char* out, size_t size) {
 	return out[0] != 0;
 }
 
+/* What the IDE holds goes away: the interface, the code editors, the build. */
+static void close_everything(void) {
+	build_reset();
+	editors_close_all();
+	designer_close();
+}
+
+int project_close(void) {
+	if (!ide_confirm_unsaved("closing the project")) return R_FALSE;
+	close_everything();
+	free(g_project_dir);
+	g_project_dir = NULL;
+	load_settings();
+	project_refresh_explorer();
+	strings_reload();
+	Rdock_area_set_panel_title(g_ide_dock, Rwidget_find(g_ide_window, "panel.explorer"), "Explorer");
+	welcome_show();
+	designer_update_title();
+	ide_status("Project closed.");
+	return R_TRUE;
+}
+
 int project_open(const char* folder) {
 	char* normalized;
 	if (!ide_is_dir(folder)) {
 		ide_status("%s is not a folder.", folder);
+		Rmessage_box(g_ide_window, "Open a project", "This folder does not exist (any more).", R_MESSAGE_OK);
 		return R_FALSE;
 	}
 	normalized = ide_normalize(folder);
@@ -679,11 +709,20 @@ int project_open(const char* folder) {
 		size_t n = strlen(normalized);
 		while (n > 1 && normalized[n - 1] == '/') normalized[--n] = 0;
 	}
+	/* another project: what the first one holds is saved (or not) and closed */
+	if (!ide_confirm_unsaved("opening another project")) {
+		free(normalized);
+		return R_FALSE;
+	}
+	close_everything();
 	free(g_project_dir);
 	g_project_dir = normalized;
 	load_settings();
 	project_refresh_explorer();
 	strings_reload();
+	welcome_hide();
+	recent_add(g_project_dir);
+	Rdock_area_show_panel(g_ide_dock, Rwidget_find(g_ide_window, "panel.explorer"));
 	{
 		char title[400];
 		snprintf(title, sizeof(title), "Explorer - %s", ide_basename(g_project_dir));
@@ -709,6 +748,7 @@ int project_open(const char* folder) {
 			free(dir);
 		}
 	}
+	designer_update_title();
 	ide_status("Project %s opened. F5 builds and runs it.", ide_basename(g_project_dir));
 	return R_TRUE;
 }
@@ -865,112 +905,257 @@ int project_create(const char* parent_folder, const char* name, const char* lang
  *  Dialogs
  * ------------------------------------------------------------------------- */
 
-static void on_dialog_button(Rid button, void* user_data) {
-	Rdialog_close(button, (int)(size_t)user_data);
-}
-
-static void on_browse_folder(Rid button, void* user_data) {
-	RFileDialogDesc desc;
-	const char* chosen;
-	(void)button;
-	memset(&desc, 0, sizeof(desc));
-	desc.parent = g_ide_window;
-	desc.title = "Choose a folder";
-	chosen = Rfile_dialog_select_folder(&desc);
-	if (chosen) Rtext_input_set_text((Rid)(size_t)user_data, chosen);
-}
-
-static void on_browse_file(Rid button, void* user_data) {
-	RFileDialogDesc desc;
-	const char* chosen;
-	(void)button;
-	memset(&desc, 0, sizeof(desc));
-	desc.parent = g_ide_window;
-	desc.title = "Choose a file";
-	chosen = Rfile_dialog_open(&desc);
-	if (chosen) Rtext_input_set_text((Rid)(size_t)user_data, chosen);
-}
+/*
+ * Rdialog_run deletes its content when it closes, and setting the text of an
+ * input does not call its changed callback (Browse... does that): the dialogs
+ * read their fields when a button is clicked, before closing.
+ */
 
 static const char NEW_PROJECT_XML[] =
-"<Border Padding=\"20\" Width=\"520\">"
-"  <VBox Spacing=\"12\">"
-"    <Label Text=\"New project\" TextSize=\"20\"/>"
-"    <Label Text=\"An interface with its code in one file (main.xmlc, main.xmlrs...), what the tools of its language need, and its translations (strings.csv). It builds as it is.\" Wrap=\"true\" Opacity=\"0.7\"/>"
-"    <HBox Spacing=\"8\"><Label Text=\"Name\" Width=\"90\" Slot.VAlign=\"Center\"/><TextInput Name=\"name\" Text=\"my_app\" Slot.Fill=\"1\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"Language\" Width=\"90\" Slot.VAlign=\"Center\"/>"
-"      <ComboBox Name=\"language\" Items=\"C (CMake)|C++ (CMake)|Rust (Cargo)|Python|Go|C# (dotnet)|Zig (zig build)|Lua (LuaJIT)\" Selected=\"0\" Slot.Fill=\"1\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"In the folder\" Width=\"90\" Slot.VAlign=\"Center\"/><TextInput Name=\"folder\" Slot.Fill=\"1\"/>"
-"      <Button Name=\"browse\" Text=\"Browse...\"/></HBox>"
+"<Border Padding=\"24\" Width=\"600\">"
+"  <VBox Spacing=\"14\">"
+"    <Label Text=\"New project\" TextSize=\"22\"/>"
+"    <Label Text=\"An interface with its code in one file (main.xmlc, main.xmlrs...), what the tools of its language need, and its translations (strings.csv). It builds as it is.\" Wrap=\"true\" Opacity=\"0.65\"/>"
+"    <Grid Columns=\"0,1\" Spacing=\"10\">"
+"      <Label Text=\"Name\" Slot.VAlign=\"Center\"/>"
+"      <TextInput Name=\"name\" Slot.Column=\"1\" Placeholder=\"my_app\"/>"
+"      <Label Text=\"Language\" Slot.Row=\"1\" Slot.VAlign=\"Center\"/>"
+"      <ComboBox Name=\"language\" Slot.Row=\"1\" Slot.Column=\"1\" Items=\"C (CMake)|C++ (CMake)|Rust (Cargo)|Python|Go|C# (dotnet)|Zig (zig build)|Lua (LuaJIT)\" Selected=\"0\"/>"
+"      <Label Text=\"Location\" Slot.Row=\"2\" Slot.VAlign=\"Center\"/>"
+"      <HBox Spacing=\"8\" Slot.Row=\"2\" Slot.Column=\"1\"><TextInput Name=\"folder\" Slot.Fill=\"1\"/><Button Name=\"browse\" Text=\"Browse...\"/></HBox>"
+"      <Label Text=\"Raven package\" Slot.Row=\"3\" Slot.VAlign=\"Center\" Tooltip=\"The folder with bin/, include/ and lib/: what the project is built with\"/>"
+"      <HBox Spacing=\"8\" Slot.Row=\"3\" Slot.Column=\"1\"><TextInput Name=\"prefix\" Slot.Fill=\"1\" Placeholder=\"the folder with bin/, include/ and lib/\"/><Button Name=\"browse.prefix\" Text=\"Browse...\"/></HBox>"
+"    </Grid>"
+"    <Label Name=\"where\" Opacity=\"0.6\" Wrap=\"true\"/>"
+"    <Label Name=\"error\" Wrap=\"true\" Visibility=\"Collapsed\"/>"
 "    <HBox Spacing=\"8\" Slot.HAlign=\"Right\"><Button Name=\"cancel\" Text=\"Cancel\"/><Button Name=\"create\" Text=\"Create\" Style=\"Primary\"/></HBox>"
 "  </VBox>"
 "</Border>";
 
-/* Rdialog_run deletes the content when it closes: the texts are kept as they change. */
-static char g_new_name[256], g_new_folder[1024];
-static int g_new_language = 0;
-static void keep_language(Rid combo, int index, void* user_data) {
-	(void)combo;
-	(void)user_data;
-	g_new_language = index;
+static const char* const g_languages[] = { "C", "C++", "Rust", "Python", "Go", "C#", "Zig", "Lua" };
+
+static struct {
+	Rid name, language, folder, prefix, where, error;
+	/* what was read when Create was clicked */
+	char name_text[256], folder_text[1024], prefix_text[1024];
+	int language_index;
+} g_np;
+
+static void on_dialog_button(Rid button, void* user_data) {
+	Rdialog_close(button, (int)(size_t)user_data);
 }
-static void keep_text(Rid input, const char* text, void* user_data) {
+
+static void browse_into(Rid input, const char* title, int folder) {
+	RFileDialogDesc desc;
+	const char* chosen;
+	memset(&desc, 0, sizeof(desc));
+	desc.parent = g_ide_window;
+	desc.title = title;
+	chosen = folder ? Rfile_dialog_select_folder(&desc) : Rfile_dialog_open(&desc);
+	if (chosen) Rtext_input_set_text(input, chosen);
+}
+
+static void np_update_where(void);
+
+static void on_browse_folder(Rid button, void* user_data) {
+	(void)button;
+	browse_into((Rid)(size_t)user_data, "Choose a folder", R_TRUE);
+	/* (setting the text calls no callback: the line under the fields follows by hand) */
+	if (g_ide_dialog != R_INVALID_ID && (Rid)(size_t)user_data == g_np.folder) np_update_where();
+}
+
+static void on_browse_file(Rid button, void* user_data) {
+	(void)button;
+	browse_into((Rid)(size_t)user_data, "Choose a file", R_FALSE);
+}
+
+static void np_show_error(const char* text) {
+	Rlabel_set_text(g_np.error, text ? text : "");
+	if (text && text[0]) {
+		float r, gr, b, a;
+		Rtheme_get_color(R_COLOR_DANGER, &r, &gr, &b, &a);
+		{
+			char color[16];
+			snprintf(color, sizeof(color), "#%02X%02X%02X", (int)(r * 255.0f), (int)(gr * 255.0f), (int)(b * 255.0f));
+			Rwidget_set_attribute(g_np.error, "Color.Text", color);
+		}
+	}
+	Rwidget_set_visibility(g_np.error, text && text[0] ? R_VISIBLE : R_COLLAPSED);
+}
+
+static int folder_is_empty(const char* path) {
+	ide_entry_t* entries;
+	int count = ide_list_dir(path, &entries);
+	free(entries);
+	return count <= 0;
+}
+
+/* Where the project goes, shown under the fields as they are typed. */
+static void np_update_where(void) {
+	char text[1400], pretty[1100];
+	char* full;
+	const char* name = Rtext_input_get_text(g_np.name);
+	const char* folder = Rtext_input_get_text(g_np.folder);
+	if (!folder[0] || !name[0]) {
+		Rlabel_set_text(g_np.where, "");
+		return;
+	}
+	full = ide_join(folder, name);
+	ide_pretty_path(full, pretty, sizeof(pretty));
+	snprintf(text, sizeof(text), "Creates the folder %s", pretty);
+	Rlabel_set_text(g_np.where, text);
+	free(full);
+}
+
+static void np_changed(Rid input, const char* text, void* user_data) {
 	(void)input;
-	snprintf((char*)user_data, user_data == g_new_name ? sizeof(g_new_name) : sizeof(g_new_folder), "%s", text);
+	(void)text;
+	(void)user_data;
+	np_update_where();
+	np_show_error(NULL);
+}
+
+static int valid_name(const char* name);
+
+/* Create: what is wrong is said in the dialog, which stays open. */
+static void on_create(Rid button, void* user_data) {
+	char* full;
+	int language;
+	(void)user_data;
+	snprintf(g_np.name_text, sizeof(g_np.name_text), "%s", Rtext_input_get_text(g_np.name));
+	snprintf(g_np.folder_text, sizeof(g_np.folder_text), "%s", Rtext_input_get_text(g_np.folder));
+	snprintf(g_np.prefix_text, sizeof(g_np.prefix_text), "%s", Rtext_input_get_text(g_np.prefix));
+	language = Rcombo_box_get_selected(g_np.language);
+	g_np.language_index = language >= 0 && language < 8 ? language : 0;
+	if (!valid_name(g_np.name_text)) {
+		np_show_error("The name is made of letters, digits, '_' and '-', and starts with a letter.");
+		return;
+	}
+	if (!g_np.folder_text[0]) {
+		np_show_error("Choose where the project goes (Location).");
+		return;
+	}
+	full = ide_join(g_np.folder_text, g_np.name_text);
+	if (ide_file_exists(full) || (ide_is_dir(full) && !folder_is_empty(full))) {
+		free(full);
+		np_show_error("There is already something with that name there: choose another name or another location.");
+		return;
+	}
+	free(full);
+	/* the languages built by their own tools need the bindings of the package */
+	if (g_np.language_index >= 2 && g_np.language_index != 3 && g_np.language_index != 7 && g_np.prefix_text[0]) {
+		char* bindings = ide_join(g_np.prefix_text, "share/raven/bindings");
+		int found = ide_is_dir(bindings);
+		free(bindings);
+		if (!found) {
+			np_show_error("This Raven package has no share/raven/bindings: the project could not find Raven. Choose the folder of a complete package.");
+			return;
+		}
+	}
+	Rdialog_close(button, 1);
 }
 
 void project_new(void);
 void project_new(void) {
 	Rid content = Rwidget_create_from_xml(NEW_PROJECT_XML, sizeof(NEW_PROJECT_XML) - 1);
-	Rid name, folder;
+	const char* location;
 	if (content == R_INVALID_ID) return;
-	name = Rwidget_find(content, "name");
-	folder = Rwidget_find(content, "folder");
-	snprintf(g_new_name, sizeof(g_new_name), "%s", Rtext_input_get_text(name));
-	snprintf(g_new_folder, sizeof(g_new_folder), "%s", g_project_dir ? g_project_dir : "");
-	Rtext_input_set_text(folder, g_new_folder);
-	Rtext_input_set_changed_callback(name, keep_text, g_new_name);
-	Rtext_input_set_changed_callback(folder, keep_text, g_new_folder);
-	Rcombo_box_set_selected(Rwidget_find(content, "language"), g_new_language);
-	Rcombo_box_set_changed_callback(Rwidget_find(content, "language"), keep_language, NULL);
-	Rbutton_set_clicked_callback(Rwidget_find(content, "browse"), on_browse_folder, (void*)(size_t)folder);
+	memset(&g_np, 0, sizeof(g_np));
+	g_np.name = Rwidget_find(content, "name");
+	g_np.language = Rwidget_find(content, "language");
+	g_np.folder = Rwidget_find(content, "folder");
+	g_np.prefix = Rwidget_find(content, "prefix");
+	g_np.where = Rwidget_find(content, "where");
+	g_np.error = Rwidget_find(content, "error");
+	/* a name not taken yet, in the folder of the last project created */
+	location = prefs_get("projects_folder")[0] ? prefs_get("projects_folder") : ide_default_projects_dir();
+	Rtext_input_set_text(g_np.folder, location);
+	{
+		char name[64];
+		int i;
+		snprintf(name, sizeof(name), "my_app");
+		for (i = 2; i < 100; i++) {
+			char* full = ide_join(location, name);
+			int taken = ide_file_exists(full) || ide_is_dir(full);
+			free(full);
+			if (!taken) break;
+			snprintf(name, sizeof(name), "my_app_%d", i);
+		}
+		Rtext_input_set_text(g_np.name, name);
+	}
+	Rtext_input_set_text(g_np.prefix, g_settings.raven_prefix);
+	{
+		int last = atoi(prefs_get("projects_language"));
+		Rcombo_box_set_selected(g_np.language, last >= 0 && last < 8 ? last : 0);
+	}
+	Rtext_input_set_changed_callback(g_np.name, np_changed, NULL);
+	Rtext_input_set_changed_callback(g_np.folder, np_changed, NULL);
+	np_update_where();
+	Rbutton_set_clicked_callback(Rwidget_find(content, "browse"), on_browse_folder, (void*)(size_t)g_np.folder);
+	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.prefix"), on_browse_folder, (void*)(size_t)g_np.prefix);
 	Rbutton_set_clicked_callback(Rwidget_find(content, "cancel"), on_dialog_button, (void*)0);
-	Rbutton_set_clicked_callback(Rwidget_find(content, "create"), on_dialog_button, (void*)1);
-	if (Rdialog_run(g_ide_window, content) != 1) return;
-	if (!g_new_folder[0]) {
-		ide_status("Choose the folder the project goes in.");
+	Rbutton_set_clicked_callback(Rwidget_find(content, "create"), on_create, NULL);
+	Rwidget_focus(g_np.name);
+	g_ide_dialog = content;
+	if (Rdialog_run(g_ide_window, content) != 1) {
+		g_ide_dialog = R_INVALID_ID;
 		return;
 	}
+	g_ide_dialog = R_INVALID_ID;
+	/* (the fields are gone: what was read when Create was clicked) */
+	prefs_set("projects_folder", g_np.folder_text);
 	{
-		static const char* const languages[] = { "C", "C++", "Rust", "Python", "Go", "C#", "Zig", "Lua" };
-		project_create(g_new_folder, g_new_name, languages[g_new_language >= 0 && g_new_language < 8 ? g_new_language : 0]);
+		char index[8];
+		snprintf(index, sizeof(index), "%d", g_np.language_index);
+		prefs_set("projects_language", index);
+	}
+	if (g_np.prefix_text[0]) {
+		snprintf(g_settings.raven_prefix, sizeof(g_settings.raven_prefix), "%s", g_np.prefix_text);
+		prefs_set("raven_prefix", g_np.prefix_text);
+	}
+	if (!project_create(g_np.folder_text, g_np.name_text, g_languages[g_np.language_index])) {
+		char text[1400];
+		snprintf(text, sizeof(text), "The project %s could not be created in %s. The status bar says why.", g_np.name_text, g_np.folder_text);
+		Rmessage_box(g_ide_window, "New project", text, R_MESSAGE_OK);
 	}
 }
 
 static const char SETTINGS_XML[] =
-"<Border Padding=\"20\" Width=\"600\">"
-"  <VBox Spacing=\"12\">"
-"    <Label Text=\"Build settings\" TextSize=\"20\"/>"
-"    <HBox Spacing=\"8\"><Label Text=\"Build type\" Width=\"130\" Slot.VAlign=\"Center\"/>"
-"      <ComboBox Name=\"type\" Items=\"Debug|Release|RelWithDebInfo|MinSizeRel\" Slot.Fill=\"1\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"Raven package\" Width=\"130\" Slot.VAlign=\"Center\" Tooltip=\"The folder of the Raven package (bin/, include/, lib/): find_package(raven) looks there\"/>"
-"      <TextInput Name=\"prefix\" Slot.Fill=\"1\" Placeholder=\"the folder with bin/, include/ and lib/\"/><Button Name=\"browse.prefix\" Text=\"Browse...\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"License file\" Width=\"130\" Slot.VAlign=\"Center\" Tooltip=\"A .raven-license: builds the Release edition, without the watermark\"/>"
-"      <TextInput Name=\"license\" Slot.Fill=\"1\" Placeholder=\"none: the free edition\"/><Button Name=\"browse.license\" Text=\"Browse...\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"Generator\" Width=\"130\" Slot.VAlign=\"Center\"/>"
-"      <TextInput Name=\"generator\" Slot.Fill=\"1\" Placeholder=\"the default of CMake (Ninja, MinGW Makefiles...)\"/></HBox>"
-"    <HBox Spacing=\"8\"><Label Text=\"Run arguments\" Width=\"130\" Slot.VAlign=\"Center\"/><TextInput Name=\"arguments\" Slot.Fill=\"1\"/></HBox>"
+"<Border Padding=\"24\" Width=\"640\">"
+"  <VBox Spacing=\"14\">"
+"    <Label Text=\"Build settings\" TextSize=\"22\"/>"
+"    <Label Name=\"for\" Opacity=\"0.65\" Wrap=\"true\"/>"
+"    <Grid Columns=\"0,1\" Spacing=\"10\">"
+"      <Label Text=\"Build type\" Slot.VAlign=\"Center\"/>"
+"      <ComboBox Name=\"type\" Slot.Column=\"1\" Items=\"Debug|Release|RelWithDebInfo|MinSizeRel\"/>"
+"      <Label Text=\"Raven package\" Slot.Row=\"1\" Slot.VAlign=\"Center\" Tooltip=\"The folder of the Raven package (bin/, include/, lib/): find_package(raven) looks there\"/>"
+"      <HBox Spacing=\"8\" Slot.Row=\"1\" Slot.Column=\"1\"><TextInput Name=\"prefix\" Slot.Fill=\"1\" Placeholder=\"the folder with bin/, include/ and lib/\"/><Button Name=\"browse.prefix\" Text=\"Browse...\"/></HBox>"
+"      <Label Text=\"License file\" Slot.Row=\"2\" Slot.VAlign=\"Center\" Tooltip=\"A .raven-license: builds the Release edition, without the watermark\"/>"
+"      <HBox Spacing=\"8\" Slot.Row=\"2\" Slot.Column=\"1\"><TextInput Name=\"license\" Slot.Fill=\"1\" Placeholder=\"none: the license-free edition\"/><Button Name=\"browse.license\" Text=\"Browse...\"/></HBox>"
+"      <Label Text=\"Generator\" Slot.Row=\"3\" Slot.VAlign=\"Center\"/>"
+"      <TextInput Name=\"generator\" Slot.Row=\"3\" Slot.Column=\"1\" Placeholder=\"automatic: Ninja when it is installed (MinGW Makefiles, Unix Makefiles...)\"/>"
+"      <Label Text=\"Run arguments\" Slot.Row=\"4\" Slot.VAlign=\"Center\"/>"
+"      <TextInput Name=\"arguments\" Slot.Row=\"4\" Slot.Column=\"1\"/>"
+"    </Grid>"
 "    <HBox Spacing=\"8\" Slot.HAlign=\"Right\"><Button Name=\"cancel\" Text=\"Cancel\"/><Button Name=\"ok\" Text=\"Save\" Style=\"Primary\"/></HBox>"
 "  </VBox>"
 "</Border>";
 
 static ide_settings_t g_edit;
-static void keep_setting(Rid input, const char* text, void* user_data) {
-	(void)input;
-	snprintf((char*)user_data, 1024, "%s", text);
-}
-static void keep_type(Rid combo, int index, void* user_data) {
+static Rid g_settings_content;
+
+static void on_settings_save(Rid button, void* user_data) {
+	Rid content = g_settings_content, type = Rwidget_find(content, "type");
+	int index = Rcombo_box_get_selected(type);
 	(void)user_data;
-	if (index >= 0) snprintf(g_edit.build_type, sizeof(g_edit.build_type), "%s", Rcombo_box_get_item_text(combo, index));
+	if (index >= 0) snprintf(g_edit.build_type, sizeof(g_edit.build_type), "%s", Rcombo_box_get_item_text(type, index));
+#define READ_FIELD(name, field) snprintf(g_edit.field, sizeof(g_edit.field), "%s", Rtext_input_get_text(Rwidget_find(content, name)))
+	READ_FIELD("prefix", raven_prefix);
+	READ_FIELD("license", license_file);
+	READ_FIELD("generator", generator);
+	READ_FIELD("arguments", run_arguments);
+#undef READ_FIELD
+	Rdialog_close(button, 1);
 }
 
 void project_settings_dialog(void);
@@ -979,26 +1164,30 @@ void project_settings_dialog(void) {
 	Rid type;
 	int i;
 	if (content == R_INVALID_ID) return;
+	g_settings_content = content;
 	g_edit = g_settings;
+	Rlabel_set_text(Rwidget_find(content, "for"), g_project_dir ? "For this project (kept in its file .raven-ide). The Raven package is also the one new projects start with."
+		: "No project is open: the Raven package is kept for the projects to come.");
 	type = Rwidget_find(content, "type");
 	for (i = 0; i < Rcombo_box_get_item_count(type); i++) if (ide_iequal(Rcombo_box_get_item_text(type, i), g_settings.build_type)) Rcombo_box_set_selected(type, i);
-	Rcombo_box_set_changed_callback(type, keep_type, NULL);
-#define FIELD(name, field) Rtext_input_set_text(Rwidget_find(content, name), g_edit.field); \
-	Rtext_input_set_changed_callback(Rwidget_find(content, name), keep_setting, g_edit.field)
-	FIELD("prefix", raven_prefix);
-	FIELD("license", license_file);
-	FIELD("arguments", run_arguments);
+	Rtext_input_set_text(Rwidget_find(content, "prefix"), g_edit.raven_prefix);
+	Rtext_input_set_text(Rwidget_find(content, "license"), g_edit.license_file);
 	Rtext_input_set_text(Rwidget_find(content, "generator"), g_edit.generator);
-	Rtext_input_set_changed_callback(Rwidget_find(content, "generator"), keep_setting, g_edit.generator);
-#undef FIELD
+	Rtext_input_set_text(Rwidget_find(content, "arguments"), g_edit.run_arguments);
 	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.prefix"), on_browse_folder, (void*)(size_t)Rwidget_find(content, "prefix"));
 	Rbutton_set_clicked_callback(Rwidget_find(content, "browse.license"), on_browse_file, (void*)(size_t)Rwidget_find(content, "license"));
 	Rbutton_set_clicked_callback(Rwidget_find(content, "cancel"), on_dialog_button, (void*)0);
-	Rbutton_set_clicked_callback(Rwidget_find(content, "ok"), on_dialog_button, (void*)1);
-	if (Rdialog_run(g_ide_window, content) != 1) return;
+	Rbutton_set_clicked_callback(Rwidget_find(content, "ok"), on_settings_save, NULL);
+	g_ide_dialog = content;
+	if (Rdialog_run(g_ide_window, content) != 1) {
+		g_ide_dialog = R_INVALID_ID;
+		return;
+	}
+	g_ide_dialog = R_INVALID_ID;
 	g_settings = g_edit;
+	if (g_settings.raven_prefix[0]) prefs_set("raven_prefix", g_settings.raven_prefix);
 	project_save_settings();
-	ide_status("Settings saved. The next build configures the project again.");
+	ide_status(g_project_dir ? "Settings saved. The next build configures the project again." : "Settings kept for the projects to come.");
 }
 
 static void action_project(Rid sender, const char* action, void* user_data) {
@@ -1022,6 +1211,9 @@ static void action_project(Rid sender, const char* action, void* user_data) {
 		project_refresh_explorer();
 	} else if (!strcmp(action, "project.settings")) {
 		project_settings_dialog();
+	} else if (!strcmp(action, "project.close")) {
+		if (g_project_dir) project_close();
+		else welcome_show();
 	}
 }
 
@@ -1032,6 +1224,7 @@ void project_init(void) {
 	Raction_bind("project.open", action_project, NULL);
 	Raction_bind("project.refresh", action_project, NULL);
 	Raction_bind("project.settings", action_project, NULL);
+	Raction_bind("project.close", action_project, NULL);
 	load_settings();
 	project_refresh_explorer();
 }

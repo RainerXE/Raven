@@ -9,6 +9,7 @@
  *   xmlc.c      .xmlc files: their <script> blocks and their interface
  *   build.c     configure, build, run, the Output panel and the build problems
  *   strings.c   the Translations panel (CSV tables) and the language of the preview
+ *   welcome.c   the start page (recent projects) and the preferences of the IDE
  */
 
 #ifndef RAVEN_IDE_H
@@ -60,11 +61,22 @@ void ide_process_free(ide_process_t* process);
 void ide_prepend_path(const char* folder);
 /** R_TRUE when a program of that name is found in the PATH. */
 int  ide_find_program(const char* name, char* out, size_t size);
+/** The folder of the user (forward slashes). */
+const char* ide_home_dir(void);
+/** Where the IDE keeps its preferences and its recent projects (made when missing). */
+const char* ide_config_dir(void);
+/** Where New project proposes to put projects the first time: Documents/Raven Projects. */
+const char* ide_default_projects_dir(void);
+/** A path for the eyes: the folder of the user becomes "~". */
+void ide_pretty_path(const char* path, char* out, size_t size);
+int  ide_remove_file(const char* path);
 
 /* ---- main.c (the visual editor) ---- */
 
 extern Rid g_ide_window;
 extern Rid g_ide_dock;
+/** The content of the dialog the IDE runs now (the scripts of the tests look in it), or R_INVALID_ID. */
+extern Rid g_ide_dialog;
 /** The dock panel the code editors share tabs with. */
 extern Rid g_ide_center;
 void ide_status(const char* format, ...);
@@ -87,6 +99,12 @@ void designer_refresh_preview(void);
 Rid  designer_get_frame(void);
 /** Saves what the visual editor holds into its file (for .xmlc: with its scripts). */
 int  designer_save(void);
+/** The title of the window, after what it names changed (the project, the page). */
+void designer_update_title(void);
+/** No interface is shown any more: the visual editor says how to open one. */
+void designer_close(void);
+/** R_TRUE when the visual editor shows an interface. */
+int  designer_has_document(void);
 
 /* ---- project.c ---- */
 
@@ -114,6 +132,10 @@ void ide_open_file(const char* path, int line);
 int  project_target_name(char* out, size_t size);
 void project_new(void);
 void project_settings_dialog(void);
+/** Closes the project (asks about unsaved changes first): R_FALSE when the user cancels. */
+int  project_close(void);
+/** Unsaved changes anywhere: asks to save them. R_FALSE when the user cancels. */
+int  ide_confirm_unsaved(const char* why);
 
 /* ---- editors.c ---- */
 
@@ -125,7 +147,13 @@ Rid  editors_open(const char* path, int line);
 typedef int (*ide_save_callback)(Rid editor, void* user_data);
 Rid  editors_open_virtual(const char* title, const char* key, const char* text, const char* language, ide_save_callback save, void* user_data);
 Rid  editors_find(const char* key);
+/** A tab whose title contains `text` (scripts of the tests). */
+Rid  editors_find_title(const char* text);
 int  editors_save_all(void);
+/** Closes every code editor (without asking: ask before). */
+void editors_close_all(void);
+/** An editor was closed by its dock area without asking: forget it. */
+void editors_forget_closed(void);
 /** Saves the editor the keyboard is in: R_TRUE / R_FALSE, -1 when it is not in a code editor. */
 int  editors_save_focused(void);
 int  editors_any_modified(void);
@@ -156,6 +184,8 @@ int  xmlc_locate(int file_line, Rid* editor, int* editor_line);
 void build_init(void);
 void build_shutdown(void);
 int  build_is_running(void);
+/** Stops what runs, empties the Output and the Build panel (another project). */
+void build_reset(void);
 
 /* ---- strings.c ---- */
 
@@ -174,6 +204,21 @@ int  strings_set_cell(const char* key, int column, const char* text);
 /** The keys of the tables (completion of @keys). */
 int  strings_key_count(void);
 const char* strings_key(int index);
+
+/* ---- welcome.c ---- */
+
+void welcome_init(void);
+void welcome_shutdown(void);
+/** The start page: New project, Open, the recent projects. */
+void welcome_show(void);
+/** The panels of the IDE (a project or a file is open). */
+void welcome_hide(void);
+int  welcome_is_shown(void);
+/** A project was opened: first in the list of recent projects. */
+void recent_add(const char* folder);
+/** A preference of the IDE (ide.ini in ide_config_dir), "" when not set. */
+const char* prefs_get(const char* key);
+void prefs_set(const char* key, const char* value);
 
 /* ---- the languages of the interfaces with code (.xmlc, .xmlrs...) ---- */
 
