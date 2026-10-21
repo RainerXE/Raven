@@ -50,7 +50,7 @@ static const char* const DESIGNER_XML[] = {
 "    <Button Text=\"{Text}\" Style=\"Flat\" Tooltip=\"{Tip}\" OnClicked=\"{Do}\" Metric.PaddingX=\"8\"/>"
 "  </Widget>"
 "  <VBox>"
-"    <HeaderBar Name=\"header\" Title=\"Raven IDE\">"
+"    <HeaderBar Name=\"header\" Title=\"\">"
 "      <MenuBar>"
 "        <Menu Text=\"File\">"
 "          <Menu Text=\"New\">"
@@ -102,6 +102,7 @@ static const char* const DESIGNER_XML[] = {
 "          <MenuItem Name=\"menu.interact\" Text=\"Use the preview\" Shortcut=\"F6\" Checkable=\"true\" OnClicked=\"view.interact\"/>"
 "          <MenuItem Text=\"Preview in a window\" Shortcut=\"F7\" OnClicked=\"view.run\"/>"
 "          <Separator/>"
+"          <MenuItem Text=\"Content drawer\" Shortcut=\"Ctrl+Space\" OnClicked=\"drawer.toggle\"/>"
 "          <MenuItem Text=\"Reset the panels\" OnClicked=\"view.reset\"/>"
 "        </Menu>",
 "        <Menu Text=\"Project\">"
@@ -128,7 +129,8 @@ static const char* const DESIGNER_XML[] = {
 "        <Button Text=\"Run\" Style=\"Primary\" OnClicked=\"build.run\" Tooltip=\"Builds and runs the project (F5); without a project, opens the interface in a window\" Metric.ControlHeight=\"26\"/>"
 "      </HBox>"
 "    </HeaderBar>",
-"    <Switcher Name=\"pages\" Slot.Fill=\"1\">"
+"    <Overlay Name=\"main.overlay\" Slot.Fill=\"1\">"
+"    <Switcher Name=\"pages\">"
 "    <VBox Name=\"page.welcome\"/>"
 "    <VBox Name=\"page.workspace\">"
 "    <DockArea Name=\"dock\" Slot.Fill=\"1\">"
@@ -215,6 +217,7 @@ static const char* const DESIGNER_XML[] = {
 "    </HBox>"
 "    </VBox>"
 "    </Switcher>"
+"    </Overlay>"
 "  </VBox>"
 "</Window>",
 };
@@ -497,7 +500,8 @@ static void update_title(void) {
 	else if (g_project_dir) snprintf(title, sizeof(title), "%s%s - %s - Raven IDE", slash ? slash + 1 : name, g.modified ? " *" : "", ide_basename(g_project_dir));
 	else snprintf(title, sizeof(title), "%s%s - Raven IDE", slash ? slash + 1 : name, g.modified ? " *" : "");
 	Rwindow_set_title(g.window, title);
-	Rheader_bar_set_title(Rwidget_find(g.window, "header"), title);
+	/* (the header shows no title: the island in its middle says what is open) */
+	island_refresh();
 }
 
 /* ---------------------------------------------------------------------------
@@ -1626,6 +1630,10 @@ int designer_save(void) {
 	return save_file(R_FALSE);
 }
 
+int designer_problem_count(void) {
+	return g.problem_count;
+}
+
 int designer_has_document(void) {
 	return g.has_document;
 }
@@ -2172,6 +2180,8 @@ static int build_interface(void) {
 	project_init();
 	welcome_init();
 	accessibility_init();
+	drawer_init(Rwidget_find(g.window, "main.overlay"));
+	island_init();
 	Rdock_area_show_panel(g.dock, g.source);
 	return R_TRUE;
 }
@@ -2245,6 +2255,8 @@ int main(int argc, char** argv) {
 	}
 
 	build_shutdown();
+	island_shutdown();
+	drawer_shutdown();
 	accessibility_shutdown();
 	welcome_shutdown();
 	if (xmlc_is_open()) xmlc_close();

@@ -52,10 +52,26 @@ static struct {
 	char note[512];
 	/* CMake said it could not find the package of Raven */
 	int package_missing;
+	/* the last build that ended (the island shows it) */
+	int has_result, last_ok;
+	double finished;
 } g_b;
 
 int build_is_running(void) {
 	return g_b.process != NULL || g_b.step_at < g_b.step_count;
+}
+
+void build_get_summary(build_summary_t* summary) {
+	memset(summary, 0, sizeof(*summary));
+	summary->running = build_is_running();
+	/* the step under way is the program itself: it runs, it is not building */
+	summary->program = g_b.process && g_b.step_at < g_b.step_count && g_b.steps[g_b.step_at].run;
+	summary->started = g_b.started;
+	summary->has_result = g_b.has_result;
+	summary->ok = g_b.last_ok;
+	summary->finished = g_b.finished;
+	summary->errors = g_b.error_count;
+	summary->warnings = g_b.warning_count;
 }
 
 /* ---------------------------------------------------------------------------
@@ -393,6 +409,9 @@ static void add_arg(step_t* step, const char* format, ...) {
 
 static void finish(int ok) {
 	double seconds = Rget_time() - g_b.started;
+	g_b.has_result = R_TRUE;
+	g_b.last_ok = ok;
+	g_b.finished = Rget_time();
 	if (g_b.timer != R_INVALID_ID && Rtimer_is_valid(g_b.timer)) Rtimer_destroy(g_b.timer);
 	g_b.timer = R_INVALID_ID;
 	free_steps();

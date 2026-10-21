@@ -105,6 +105,25 @@ void designer_update_title(void);
 void designer_close(void);
 /** R_TRUE when the visual editor shows an interface. */
 int  designer_has_document(void);
+/** The problems of the interface (the Problems panel). */
+int  designer_problem_count(void);
+
+/* ---- island.c: the island at the top of the window (project, file, build, problems) ---- */
+
+void island_init(void);
+void island_shutdown(void);
+/** Shows what changed now (else it follows four times a second). */
+void island_refresh(void);
+
+/* ---- drawer.c: the content drawer (Ctrl+Space), the files of the project as tiles ---- */
+
+/** Puts the drawer in `host` (an Overlay over the pages of the IDE). */
+void drawer_init(Rid host);
+void drawer_shutdown(void);
+void drawer_open(void);
+void drawer_close(void);
+void drawer_toggle(void);
+int  drawer_is_open(void);
 
 /* ---- project.c ---- */
 
@@ -183,6 +202,17 @@ int  xmlc_locate(int file_line, Rid* editor, int* editor_line);
 void build_init(void);
 void build_shutdown(void);
 int  build_is_running(void);
+typedef struct build_summary_t {
+	int running;      /* a build (or the program) is under way */
+	int program;      /* what runs is the program itself */
+	double started;   /* Rget_time() when it started */
+	int has_result;   /* a build ended since the IDE started */
+	int ok;           /* how the last one ended */
+	double finished;
+	int errors, warnings;
+} build_summary_t;
+/** What the island shows: the build under way, or how the last one ended. */
+void build_get_summary(build_summary_t* summary);
 /** Stops what runs, empties the Output and the Build panel (another project). */
 void build_reset(void);
 
