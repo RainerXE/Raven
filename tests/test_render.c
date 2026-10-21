@@ -354,11 +354,11 @@ static void test_glass_theme(void) {
 	capture(window);
 	CHECK(g_width == (int)(420 * g_scale) && g_height == (int)(320 * g_scale));
 
-	/* the background of the dark glass is a plain grey (#1C1C1C): no colors behind the glass */
+	/* the background of the dark glass is a plain grey (#2A2A2E): no colors behind the glass */
 	p = pixel_at(4, 4);
-	CHECK(abs((int)p[0] - 0x1C) < 8 && abs((int)p[1] - 0x1C) < 8 && abs((int)p[2] - 0x1C) < 8);
+	CHECK(abs((int)p[0] - 0x2A) < 8 && abs((int)p[1] - 0x2A) < 8 && abs((int)p[2] - 0x2E) < 8);
 	p = pixel_at(410, 6);
-	CHECK(abs((int)p[0] - 0x1C) < 8 && abs((int)p[1] - 0x1C) < 8 && abs((int)p[2] - 0x1C) < 8);
+	CHECK(abs((int)p[0] - 0x2A) < 8 && abs((int)p[1] - 0x2A) < 8 && abs((int)p[2] - 0x2E) < 8);
 
 	/* a second frame of the same window: the offscreen images are reused */
 	Rwidget_invalidate(Rwidget_find(window, "panel"));

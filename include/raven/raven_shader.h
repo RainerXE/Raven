@@ -88,12 +88,12 @@ extern "C" {
 #endif
 
 	/**
-	 * @brief A shader from SPIR-V words (a fragment shader written with
-	 * raven_effect.glsl). `size` is in bytes. R_INVALID_ID when the code is
-	 * not SPIR-V; a backend that refuses it reports an error and the effect
-	 * is drawn as a rectangle.
+	 * @brief A shader from SPIR-V code (a fragment shader written with
+	 * raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
+	 * when the code is not SPIR-V; a backend that refuses it reports an error
+	 * and the effect is drawn as a rectangle.
 	 */
-	RAVEN_API Rid Rshader_create(const uint32_t* spirv, size_t size, Ruint flags);
+	RAVEN_API Rid Rshader_create(const void* spirv, size_t size, Ruint flags);
 	/** @brief The same, from a .spv file (UTF-8 path, relative to the current folder). */
 	RAVEN_API Rid Rshader_create_from_file(const char* path, Ruint flags);
 	RAVEN_API void Rshader_destroy(Rid shader);

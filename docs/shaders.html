@@ -302,8 +302,8 @@ vec4 raven_effect(RavenEffect fx) {
 <section id="reference">
 <h2>15. API reference</h2>
 <dl>
-<dt><code>Rid Rshader_create(const uint32_t* spirv, size_t size, Ruint flags)</code></dt>
-<dd>A shader from SPIR-V words; <code>size</code> in bytes. Flags: <code>R_SHADER_BACKDROP</code>, <code>R_SHADER_ANIMATED</code>.</dd>
+<dt><code>Rid Rshader_create(const void* spirv, size_t size, Ruint flags)</code></dt>
+<dd>A shader from SPIR-V code (the bytes of a <code>.spv</code> file); <code>size</code> in bytes, the code is copied. Flags: <code>R_SHADER_BACKDROP</code>, <code>R_SHADER_ANIMATED</code>.</dd>
 <dt><code>Rid Rshader_create_from_file(const char* path, Ruint flags)</code></dt>
 <dd>The same from a <code>.spv</code> file.</dd>
 <dt><code>void Rshader_destroy(Rid shader)</code>, <code>int Rshader_is_valid(Rid shader)</code>, <code>Ruint Rshader_get_flags(Rid shader)</code></dt>

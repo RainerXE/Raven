@@ -746,6 +746,32 @@ pub const R_MOTION_BOUNCY: RMotion = 0x0322;
 /// Swings several times around the target: things that fly in or get dropped.
 pub const R_MOTION_WOBBLY: RMotion = 0x0323;
 
+/// The effects that come with Raven (Reffect_get).
+pub const REffect = c_int;
+/// Soft lights that drift slowly: color, color2; params: speed, scale, intensity, -. Animated.
+pub const R_EFFECT_AURORA: REffect = 0x0B40;
+/// A band of light that sweeps across (loading placeholders): color = base, color2 = light; params: speed, width, angle, -. Animated.
+pub const R_EFFECT_SHIMMER: REffect = 0x0B41;
+/// A glowing edge whose colors run around the shape: color, color2; params: speed, width, glow, -. Animated.
+pub const R_EFFECT_NEON: REffect = 0x0B42;
+/// Rings that ripple what is behind, like water (reads the backdrop): color = tint; params: speed, strength, density, center x (0..1). Animated.
+pub const R_EFFECT_RIPPLE: REffect = 0x0B43;
+/// Bands of color that flow into each other: color, color2; params: speed, scale, contrast, -. Animated.
+pub const R_EFFECT_PLASMA: REffect = 0x0B44;
+/// A gradient with the fine grain of film: color (top left) to color2 (bottom right); params: grain, angle, -, -. Animated grain.
+pub const R_EFFECT_GRAIN: REffect = 0x0B45;
+/// A soft light that follows a point: color = light, color2 = background; params: x, y (0..1), radius (0..1), -.
+pub const R_EFFECT_SPOTLIGHT: REffect = 0x0B46;
+/// Four colors blended across the surface, slowly moving: color, color2 and their mix; params: speed, -, -, -. Animated.
+pub const R_EFFECT_MESH: REffect = 0x0B47;
+
+/// Flags of Rshader_create.
+pub const RShaderFlags = c_int;
+/// The effect reads what is drawn behind it (raven_backdrop, raven_backdrop_blur).
+pub const R_SHADER_BACKDROP: RShaderFlags = 1;
+/// The effect changes with time: the window keeps drawing frames while it is shown.
+pub const R_SHADER_ANIMATED: RShaderFlags = 2;
+
 /// The kind of value an attribute takes.
 pub const RXmlValueType = c_int;
 pub const R_XML_TEXT: RXmlValueType = 0x03C0;
@@ -865,6 +891,10 @@ pub const RWidgetDestroyCallback = ?*const fn (widget: Rid, user_data: ?*anyopaq
 /// not see it), R_FALSE to let it continue.
 pub const RWidgetEventCallback = ?*const fn (widget: Rid, event: ?*const REvent, user_data: ?*anyopaque) callconv(.C) c_int;
 pub const RTabChangedCallback = ?*const fn (tab_view: Rid, index: c_int, user_data: ?*anyopaque) callconv(.C) void;
+/// The user closes a tab (its button, a middle click). Return R_TRUE
+/// to delete its page now, R_FALSE to keep it (the application may ask to
+/// save, then delete the page itself with Rwidget_destroy).
+pub const RTabCloseCallback = ?*const fn (tab_view: Rid, index: c_int, content: Rid, user_data: ?*anyopaque) callconv(.C) c_int;
 pub const RExpanderChangedCallback = ?*const fn (expander: Rid, expanded: c_int, user_data: ?*anyopaque) callconv(.C) void;
 /// Called when the user clicks a link of a Markdown label.
 ///
@@ -1213,6 +1243,21 @@ pub const RSpring = extern struct {
     value: f32 = 0,
     velocity: f32 = 0,
     started: c_int = 0,
+};
+
+/// How an effect is drawn. Start from Rshader_look_init.
+pub const RShaderLook = extern struct {
+    /// First and second color, 0..1, straight alpha.
+    color: [4]f32 = [_]f32{0} ** 4,
+    color2: [4]f32 = [_]f32{0} ** 4,
+    /// Four numbers the effect reads as fx.params (their meaning is the effect's).
+    params: [4]f32 = [_]f32{0} ** 4,
+    /// Radius of the corners, in logical units.
+    radius: f32 = 0,
+    /// Texture the effect reads with raven_texture(), or R_INVALID_ID.
+    texture: Rid = 0,
+    /// -1: animated when the shader is (R_SHADER_ANIMATED); R_TRUE / R_FALSE forces it.
+    animate: c_int = 0,
 };
 
 /// Where and why a text could not be read (Rxml_document_parse).
@@ -1926,6 +1971,24 @@ pub extern fn Rtab_view_add_tab(tab_view: Rid, title: ?[*:0]const u8, content: R
 pub extern fn Rtab_view_set_active(tab_view: Rid, index: c_int) void;
 pub extern fn Rtab_view_get_active(tab_view: Rid) c_int;
 pub extern fn Rtab_view_set_changed_callback(tab_view: Rid, callback: RTabChangedCallback, user_data: ?*anyopaque) void;
+/// Documents mode: the major tabs of an application (the level,
+/// then one tab per open asset, as in Unreal): tabs on the left with an
+/// icon and a close button (a middle click closes too), shrinking when
+/// they do not fit, no slide between pages. XML: Documents="true".
+pub extern fn Rtab_view_set_documents(tab_view: Rid, documents: c_int) void;
+pub extern fn Rtab_view_get_tab_count(tab_view: Rid) c_int;
+/// The page of a tab, R_INVALID_ID if none.
+pub extern fn Rtab_view_get_tab(tab_view: Rid, index: c_int) Rid;
+/// Index of the tab of a page, -1 if none.
+pub extern fn Rtab_view_find_tab(tab_view: Rid, content: Rid) c_int;
+pub extern fn Rtab_view_set_tab_title(tab_view: Rid, content: Rid, title: ?[*:0]const u8) void;
+/// Icon before the title (documents). R_INVALID_ID removes it; tint: a mask in the text color.
+pub extern fn Rtab_view_set_tab_icon(tab_view: Rid, content: Rid, texture: Rid, u0: f32, v0: f32, u1: f32, v1: f32, tint: c_int) void;
+/// R_FALSE: no close button (documents ; the level tab). Tabs can be closed by default.
+pub extern fn Rtab_view_set_tab_closable(tab_view: Rid, content: Rid, closable: c_int) void;
+/// Shows the tab of a page (the changed callback is called).
+pub extern fn Rtab_view_show_tab(tab_view: Rid, content: Rid) void;
+pub extern fn Rtab_view_set_close_callback(tab_view: Rid, callback: RTabCloseCallback, user_data: ?*anyopaque) void;
 pub extern fn Rexpander_set_title(expander: Rid, title: ?[*:0]const u8) void;
 pub extern fn Rexpander_get_title(expander: Rid) ?[*:0]const u8;
 pub extern fn Rexpander_set_expanded(expander: Rid, expanded: c_int) void;
@@ -2275,6 +2338,9 @@ pub extern fn Rheader_bar_set_buttons(bar: Rid, buttons: u32) void;
 pub extern fn Rheader_bar_set_button_side(bar: Rid, side: RHAlign) void;
 /// align R_HALIGN_CENTER (default) or R_HALIGN_LEFT.
 pub extern fn Rheader_bar_set_title_align(bar: Rid, align_: RHAlign) void;
+/// R_TRUE: the title sits in a dark tab hanging from the top edge of
+/// the bar (slanted sides, round bottom corners). XML: TitleStyle="Notch".
+pub extern fn Rheader_bar_set_title_notch(bar: Rid, notch: c_int) void;
 /// R_FALSE removes the background of the bar: for a header that
 /// floats above the content (in an Overlay) or sits inside a glass panel.
 pub extern fn Rheader_bar_set_background(bar: Rid, enabled: c_int) void;
@@ -2329,6 +2395,22 @@ pub extern fn Rdock_area_save_layout(area: Rid) ?[*:0]const u8;
 /// Returns: R_FALSE when the text is not a layout (nothing is changed).
 pub extern fn Rdock_area_load_layout(area: Rid, layout: ?[*:0]const u8) c_int;
 pub extern fn Rdock_area_set_close_callback(area: Rid, callback: RDockCloseCallback, user_data: ?*anyopaque) void;
+/// Tearing: a tab dragged out of the area takes its panel to a
+/// window of its own (a floating area of the same family), and a tab
+/// dragged from such a window over the area docks it back where it is
+/// dropped. A double click on the tab of a floating window, or closing
+/// that window, puts its panels back where they were. Dragging the only
+/// tab of a floating window moves the window. R_TRUE by default; XML:
+/// Tearable="false". The functions of this area that take a panel also
+/// work on its panels that are in floating windows.
+pub extern fn Rdock_area_set_tearable(area: Rid, tearable: c_int) void;
+pub extern fn Rdock_area_is_tearable(area: Rid) c_int;
+/// Takes a panel to a window of its own, its top left corner at (x, y) on the screen. Returns the window.
+pub extern fn Rdock_area_float_panel(area: Rid, panel: Rid, x: c_int, y: c_int) Rid;
+/// A floating panel goes back where it was in the area.
+pub extern fn Rdock_area_dock_panel(area: Rid, panel: Rid) void;
+/// The window a floating panel is in, R_INVALID_ID when it is docked in the area.
+pub extern fn Rdock_area_get_panel_window(area: Rid, panel: Rid) Rid;
 pub extern fn Rdock_area_set_changed_callback(area: Rid, callback: RDockChangedCallback, user_data: ?*anyopaque) void;
 pub extern fn Risland_create() Rid;
 /// Unfolds or folds the island. The changed callback is not called.
@@ -2618,6 +2700,22 @@ pub extern fn Rblock_editor_load(editor: Rid, text: ?[*:0]const u8) c_int;
 pub extern fn Rblock_editor_set_changed_callback(editor: Rid, callback: RBlockEditorCallback, user_data: ?*anyopaque) void;
 pub extern fn Rblock_editor_set_clicked_callback(editor: Rid, callback: RBlockEditorCallback, user_data: ?*anyopaque) void;
 pub extern fn Rblock_editor_set_context_callback(editor: Rid, callback: RBlockEditorContextCallback, user_data: ?*anyopaque) void;
+/// The choices of a %m slot of a kind, separated by '\n' ("" : the slot is typed in).
+pub extern fn Rblock_editor_set_slot_options(editor: Rid, kind: ?[*:0]const u8, slot: c_int, options: ?[*:0]const u8) void;
+/// R_FALSE: the kind is not in the palette (its blocks stay where they are).
+pub extern fn Rblock_editor_set_kind_visible(editor: Rid, kind: ?[*:0]const u8, visible: c_int) void;
+/// A new label for a kind (a function that takes one more input...).
+/// The blocks of that kind keep the values of the slots that are still there.
+pub extern fn Rblock_editor_set_kind_label(editor: Rid, kind: ?[*:0]const u8, label: ?[*:0]const u8) c_int;
+/// R_FALSE: the user cannot delete the block (the entry of a function). Not saved.
+pub extern fn Rblock_editor_set_block_deletable(editor: Rid, block: c_int, deletable: c_int) void;
+pub extern fn Rblock_editor_get_selection_count(editor: Rid) c_int;
+pub extern fn Rblock_editor_get_selected(editor: Rid, index: c_int) c_int;
+/// Selects a block (add: R_FALSE clears the selection first ; block 0 : only clears).
+pub extern fn Rblock_editor_select(editor: Rid, block: c_int, add: c_int) void;
+/// Pan (canvas units at the top left) and zoom.
+pub extern fn Rblock_editor_get_view(editor: Rid, x: ?*f32, y: ?*f32, zoom: ?*f32) void;
+pub extern fn Rblock_editor_set_view(editor: Rid, x: f32, y: f32, zoom: f32) void;
 /// Shows a widget as a dialog of a window. The window takes
 /// ownership of `content`: it is deleted when the dialog closes, so read
 /// what you need from it before, or in `closed`.
@@ -2756,6 +2854,36 @@ pub extern fn Rspring_set(spring: ?*RSpring, value: f32) void;
 /// Restricts the following draws to a rectangle, intersected with the current one.
 pub extern fn Rdraw_push_clip_rect(painter: ?*RPainter, x: f32, y: f32, width: f32, height: f32) void;
 pub extern fn Rdraw_pop_clip_rect(painter: ?*RPainter) void;
+/// A shader from SPIR-V code (a fragment shader written with
+/// raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
+/// when the code is not SPIR-V; a backend that refuses it reports an error
+/// and the effect is drawn as a rectangle.
+pub extern fn Rshader_create(spirv: ?*const anyopaque, size: usize, flags: u32) Rid;
+/// The same, from a .spv file (UTF-8 path, relative to the current folder).
+pub extern fn Rshader_create_from_file(path: ?[*:0]const u8, flags: u32) Rid;
+pub extern fn Rshader_destroy(shader: Rid) void;
+pub extern fn Rshader_is_valid(shader: Rid) c_int;
+pub extern fn Rshader_get_flags(shader: Rid) u32;
+/// A built-in effect, created the first time it is asked for.
+pub extern fn Reffect_get(effect: REffect) Rid;
+/// A built-in effect by its name ("aurora", "shimmer", "neon", "ripple", "plasma", "grain", "spotlight", "mesh"), or R_INVALID_ID.
+pub extern fn Reffect_find(name: ?[*:0]const u8) Rid;
+pub extern fn Reffect_get_name(effect: REffect) ?[*:0]const u8;
+/// Its colors and parameters when nothing else is given (Rshader_look_init uses them).
+pub extern fn Reffect_get_defaults(effect: REffect, look: ?*RShaderLook) void;
+/// White to white, no parameter, no texture, square corners, animated when the shader is.
+pub extern fn Rshader_look_init(look: ?*RShaderLook) void;
+/// Fills a look with the defaults of the shader when it is a built-in effect (else Rshader_look_init).
+pub extern fn Rshader_look_defaults(shader: Rid, look: ?*RShaderLook) void;
+/// From a paint callback: draws the effect over a rectangle of the
+/// widget (logical units, from its top left corner).
+pub extern fn Rdraw_shader(painter: ?*RPainter, shader: Rid, x: f32, y: f32, width: f32, height: f32, look: ?*const RShaderLook) void;
+/// The background of a border becomes an effect (its Background,
+/// if any, is drawn under it; its child over it). R_INVALID_ID removes it.
+/// XML: Effect="aurora" or Effect="file.spv", EffectColor, EffectColor2,
+/// EffectParams="a,b,c,d", EffectAnimate, EffectBackdrop (for a file).
+pub extern fn Rborder_set_effect(border: Rid, shader: Rid, look: ?*const RShaderLook) void;
+pub extern fn Rborder_get_effect(border: Rid) Rid;
 /// Creates a window from a document whose root element is <Window>.
 /// xml  UTF-8 text. It does not need to be null-terminated.
 /// size Size of the text in bytes.
