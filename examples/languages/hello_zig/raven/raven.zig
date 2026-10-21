@@ -1398,10 +1398,14 @@ pub extern fn Rset_ui_scale(scale: f32) void;
 pub extern fn Rset_vsync(enabled: c_int) void;
 pub extern fn Rget_vsync() c_int;
 pub extern fn Rget_ui_scale() f32;
+/// R_FALSE makes every change immediate: for users who ask for
+/// reduced motion (Raccessibility_set_reduce_motion), and for tests that
+/// read the state right after an input.
 pub extern fn Rset_animations_enabled(enabled: c_int) void;
 pub extern fn Rget_animations_enabled() c_int;
 /// Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion.
 pub extern fn Rset_animation_speed(speed: f32) void;
+pub extern fn Rget_animation_speed() f32;
 /// When positive, each frame advances the animations by exactly this
 /// many seconds instead of the time really elapsed: frames rendered one by
 /// one for a video or a screenshot, deterministic tests. 0 follows the clock.
@@ -3088,8 +3092,13 @@ pub extern fn Raccessibility_set_high_contrast(enabled: c_int) void;
 pub extern fn Raccessibility_get_high_contrast() c_int;
 /// R_TRUE: the focus ring is always shown (not only after the keyboard was used), and thicker.
 pub extern fn Raccessibility_set_focus_always_visible(enabled: c_int) void;
-/// R_TRUE: no animation (same as Rset_animations_enabled(R_FALSE)).
+pub extern fn Raccessibility_get_focus_always_visible() c_int;
+/// Reduced motion, for the whole application: R_TRUE and nothing
+/// moves by itself. Changes are immediate (no spring, no slide, no bounce,
+/// no transition), and the effects (raven_shader.h) stand still; they still
+/// follow the pointer. Same as Rset_animations_enabled(R_FALSE).
 pub extern fn Raccessibility_set_reduce_motion(enabled: c_int) void;
+pub extern fn Raccessibility_get_reduce_motion() c_int;
 /// A filter on the colors of the interface (pictures and viewports keep theirs).
 pub extern fn Raccessibility_set_color_filter(filter: RColorFilter) void;
 pub extern fn Raccessibility_get_color_filter() RColorFilter;

@@ -96,6 +96,9 @@ static const char* const DESIGNER_XML[] = {
 "          <MenuItem Name=\"theme.glass_dark\" Text=\"Dark glass\" Checkable=\"true\" OnClicked=\"view.theme.glass_dark\"/>"
 "          <MenuItem Name=\"theme.glass_light\" Text=\"Light glass\" Checkable=\"true\" OnClicked=\"view.theme.glass_light\"/>"
 "          <Separator/>"
+"          <MenuItem Name=\"menu.reduce_motion\" Text=\"Reduce motion\" Checkable=\"true\" OnClicked=\"view.reduce_motion\"/>"
+"          <MenuItem Text=\"Accessibility...\" OnClicked=\"view.accessibility\"/>"
+"          <Separator/>"
 "          <MenuItem Name=\"menu.interact\" Text=\"Use the preview\" Shortcut=\"F6\" Checkable=\"true\" OnClicked=\"view.interact\"/>"
 "          <MenuItem Text=\"Preview in a window\" Shortcut=\"F7\" OnClicked=\"view.run\"/>"
 "          <Separator/>"
@@ -2168,6 +2171,7 @@ static int build_interface(void) {
 	strings_init();
 	project_init();
 	welcome_init();
+	accessibility_init();
 	Rdock_area_show_panel(g.dock, g.source);
 	return R_TRUE;
 }
@@ -2223,6 +2227,8 @@ int main(int argc, char** argv) {
 		snprintf(action, sizeof(action), "view.theme.%s", prefs_get("theme"));
 		Raction_fire(action, R_INVALID_ID);
 	}
+	/* the accessibility settings of the last time (text size, contrast, motion...) */
+	if (!g.quitting) accessibility_apply_saved();
 	/* nothing is opened by itself: the start page, unless a project or a file was given */
 	designer_close();
 	if (file && ide_is_dir(file)) project_open(file);
@@ -2239,6 +2245,7 @@ int main(int argc, char** argv) {
 	}
 
 	build_shutdown();
+	accessibility_shutdown();
 	welcome_shutdown();
 	if (xmlc_is_open()) xmlc_close();
 	strings_shutdown();

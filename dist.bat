@@ -25,6 +25,15 @@ rem        mingw-static\    include\, lib\libraven.a, lib\cmake\raven, ...
 rem        mingw-shared\    include\, bin\raven.dll, lib\libraven.dll.a (import library), lib\cmake\raven, ...
 rem    dist\raven-<version>-free.zip
 rem
+rem  And, ready to be attached to a release on GitHub, one archive per library:
+rem    dist-release\windows-x64-msvc-static.zip     (the free edition)
+rem    dist-release\windows-x64-msvc-shared.zip
+rem    dist-release\windows-x64-mingw-static.zip
+rem    dist-release\windows-x64-mingw-shared.zip
+rem    dist-release\SHA256SUMS.txt                  the checksums of the archives
+rem    dist-release\paid\windows-x64-*.zip          the paid edition: NOT for a public release
+rem  Each archive holds one folder of the same name (windows-x64-msvc-static\...).
+rem
 rem  Each of the four folders is an install prefix: find_package(raven) with
 rem  CMAKE_PREFIX_PATH set to it. The libraries of one compiler are not for the
 rem  other: a program built with Visual C++ takes msvc-*, one built with MinGW
@@ -105,9 +114,12 @@ if not defined MADE (
 	echo [dist] nothing was built: no compiler could be used.
 	goto failed
 )
+call :checksums "%ROOT%\dist-release"
+call :checksums "%ROOT%\dist-release\paid"
 echo [dist] done:%MADE%
 if defined SKIPPED echo        skipped:%SKIPPED%
-echo        in "%ROOT%\dist"
+echo        packages in "%ROOT%\dist"
+echo        archives for a release in "%ROOT%\dist-release" ^(the paid edition in dist-release\paid: keep it private^)
 endlocal
 exit /b 0
 
@@ -189,6 +201,22 @@ if errorlevel 1 exit /b 1
 cmake --install "%BUILD%" --config Release --prefix "%PREFIX%"
 if errorlevel 1 exit /b 1
 set "BUILT=1"
+
+rem  the archive for a release: one folder named as the archive, in dist-release (paid: dist-release\paid)
+set "ARCHIVE=windows-x64-%TOOL%-%KIND%"
+set "RELEASE=%ROOT%\dist-release"
+if /I "%EDITION%"=="paid" set "RELEASE=%ROOT%\dist-release\paid"
+set "STAGE=%ROOT%\build\dist\archives\%EDITION%"
+if exist "%STAGE%\%ARCHIVE%" rmdir /s /q "%STAGE%\%ARCHIVE%"
+cmake -E copy_directory "%PREFIX%" "%STAGE%\%ARCHIVE%"
+if errorlevel 1 exit /b 1
+if not exist "%RELEASE%" mkdir "%RELEASE%"
+if exist "%RELEASE%\%ARCHIVE%.zip" del /q "%RELEASE%\%ARCHIVE%.zip"
+pushd "%STAGE%"
+cmake -E tar cf "%RELEASE%\%ARCHIVE%.zip" --format=zip "%ARCHIVE%"
+if errorlevel 1 ( popd & exit /b 1 )
+popd
+echo [dist] %RELEASE%\%ARCHIVE%.zip
 exit /b 0
 
 :variant_no_msvc
@@ -197,6 +225,17 @@ echo.
 echo [dist] Visual C++ could not be used: the msvc packages are skipped.
 set "SKIPPED=%SKIPPED% %EDITION%-msvc"
 exit /b 2
+
+rem ---------------------------------------------------------------------------
+rem  :checksums <folder>   SHA256SUMS.txt of the archives of a folder (as sha256sum -c reads it)
+rem ---------------------------------------------------------------------------
+:checksums
+if not exist "%~1\*.zip" exit /b 0
+pushd "%~1"
+if exist SHA256SUMS.txt del /q SHA256SUMS.txt
+for %%f in (*.zip) do cmake -E sha256sum "%%f" >> SHA256SUMS.txt
+popd
+exit /b 0
 
 :failed
 echo.
@@ -214,5 +253,6 @@ echo   --test              run the tests of each build
 echo   --no-pause          do not wait for a key when something fails
 echo.
 echo   Result: dist\raven-^<version^>-free\ and dist\raven-^<version^>-paid\, each with
-echo   msvc-static, msvc-shared, mingw-static and mingw-shared, and a zip of each.
+echo   msvc-static, msvc-shared, mingw-static and mingw-shared, and a zip of each;
+echo   and dist-release\windows-x64-^<compiler^>-^<kind^>.zip for a release on GitHub.
 exit /b 1

@@ -219,6 +219,17 @@ void recent_add(const char* folder);
 const char* prefs_get(const char* key);
 void prefs_set(const char* key, const char* value);
 
+/* ---- accessibility.c ---- */
+
+void accessibility_init(void);
+void accessibility_shutdown(void);
+/** The settings kept from the last time (ide.ini, a11y.*), applied at start. */
+void accessibility_apply_saved(void);
+/** View > Accessibility: every setting, live. */
+void accessibility_window(void);
+/** The menu follows the settings (Reduce motion). */
+void accessibility_sync_menu(void);
+
 /* ---- the languages of the interfaces with code (.xmlc, .xmlrs...) ---- */
 
 typedef struct ide_language_t {

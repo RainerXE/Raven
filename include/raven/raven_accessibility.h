@@ -57,9 +57,16 @@ extern "C" {
 
 	/** @brief R_TRUE: the focus ring is always shown (not only after the keyboard was used), and thicker. */
 	RAVEN_API void Raccessibility_set_focus_always_visible(int enabled);
+	RAVEN_API int Raccessibility_get_focus_always_visible(void);
 
-	/** @brief R_TRUE: no animation (same as Rset_animations_enabled(R_FALSE)). */
+	/**
+	 * @brief Reduced motion, for the whole application: R_TRUE and nothing
+	 * moves by itself. Changes are immediate (no spring, no slide, no bounce,
+	 * no transition), and the effects (raven_shader.h) stand still; they still
+	 * follow the pointer. Same as Rset_animations_enabled(R_FALSE).
+	 */
 	RAVEN_API void Raccessibility_set_reduce_motion(int enabled);
+	RAVEN_API int Raccessibility_get_reduce_motion(void);
 
 	typedef enum RColorFilter {
 		R_COLOR_FILTER_NONE = 0x0740,

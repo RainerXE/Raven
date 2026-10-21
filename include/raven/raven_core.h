@@ -340,10 +340,6 @@ extern "C" {
 	 */
 
 	/**
-	 * @brief R_FALSE makes every change immediate: for users who ask for
-	 * reduced motion, and for tests that read the state right after an input.
-	 */
-	/**
 	 * @brief Scale of the whole interface, on top of the one of the monitor
 	 * (RInitDesc.ui_scale at start): every window is laid out again. 0.25 .. 4.
 	 */
@@ -357,11 +353,17 @@ extern "C" {
 	RAVEN_API int Rget_vsync(void);
 	RAVEN_API float Rget_ui_scale(void);
 
+	/**
+	 * @brief R_FALSE makes every change immediate: for users who ask for
+	 * reduced motion (Raccessibility_set_reduce_motion), and for tests that
+	 * read the state right after an input.
+	 */
 	RAVEN_API void Rset_animations_enabled(int enabled);
 	RAVEN_API int Rget_animations_enabled(void);
 
 	/** @brief Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion. */
 	RAVEN_API void Rset_animation_speed(float speed);
+	RAVEN_API float Rget_animation_speed(void);
 
 	/**
 	 * @brief When positive, each frame advances the animations by exactly this

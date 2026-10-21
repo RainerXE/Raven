@@ -375,6 +375,13 @@ dist\raven-0.1.0-free\          (dist\raven-0.1.0-paid\: the same, without the w
     mingw-shared\    bin\raven.dll, lib\libraven.dll.a (to link with the DLL), the rest as above
 ```
 
+For a release on GitHub, `dist.bat` also writes one archive per library in
+`dist-release\`, to attach as they are: `windows-x64-msvc-static.zip`,
+`windows-x64-msvc-shared.zip`, `windows-x64-mingw-static.zip`,
+`windows-x64-mingw-shared.zip` (the free edition) and `SHA256SUMS.txt`. The
+archives of the paid edition go to `dist-release\paid\`, to keep out of a
+public release.
+
 Each of the four folders is an install prefix: `find_package(raven)` finds it
 through `CMAKE_PREFIX_PATH`. The libraries of one compiler are not for the
 other; `raven.dll` itself can be loaded by anything. MinGW-w64 needs `gcc`,

@@ -7,7 +7,7 @@
 # src/embedded; they are not needed to build.
 
 add_executable(raven_designer designer/main.c designer/ide.h designer/os.c designer/project.c designer/editors.c
-	designer/xmlc.c designer/build.c designer/strings.c designer/welcome.c)
+	designer/xmlc.c designer/build.c designer/strings.c designer/welcome.c designer/accessibility.c)
 # the headers of Raven, for the completion of its API (an installed IDE reads ../include)
 target_compile_definitions(raven_designer PRIVATE "RAVEN_IDE_INCLUDE_DIR=\"${PROJECT_SOURCE_DIR}/include\"")
 target_link_libraries(raven_designer PRIVATE raven::raven)
