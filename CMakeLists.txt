@@ -346,6 +346,11 @@ else()
 	add_library(raven STATIC)
 endif()
 add_library(raven::raven ALIAS raven)
+# RAVEN_REBUILD_SHADERS: the headers made from the GLSL shaders are built before the library
+get_property(RAVEN_SHADER_HEADERS GLOBAL PROPERTY RAVEN_SHADER_HEADERS)
+if(RAVEN_SHADER_HEADERS)
+	target_sources(raven PRIVATE ${RAVEN_SHADER_HEADERS})
+endif()
 
 # web pages (raven_web.h): compiled into the same library
 set(RAVEN_WEB_SOURCES "")

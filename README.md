@@ -355,33 +355,34 @@ target_link_libraries(app PRIVATE raven::raven)
 
 ### Packages to give away
 
-`dist.bat` (Windows) and `dist.sh` (Linux) build what is given to people who
-use Raven without building it: the static library and the shared one, the
-headers, the designer, the bindings and the documentation, in one folder and
-one archive per compiler and per edition.
+`dist.bat` (Windows) builds what is given to people who use Raven without
+building it, the way `build.bat` builds (`generate-cmake.bat`, then
+`build.bat`, then `cmake --install`): one folder and one zip per edition, each
+with the library of Visual C++ and of MinGW-w64, static and shared.
 
 ```bat
-dist.bat              :: Visual C++ and MinGW-w64, whichever are installed, both editions
-dist.bat msvc         :: dist\raven-0.1.0-windows-x64-msvc.zip and ...-msvc-paid.zip
-dist.bat mingw free   :: dist\raven-0.1.0-windows-x64-mingw.zip  (gcc and mingw32-make in the PATH)
-dist.bat msvc paid    :: dist\raven-0.1.0-windows-x64-msvc-paid.zip only
+dist.bat              :: both editions, Visual C++ and MinGW-w64 (one not installed is skipped)
+dist.bat free         :: dist\raven-0.1.0-free\ and dist\raven-0.1.0-free.zip only
+dist.bat paid msvc    :: the paid edition, Visual C++ only
+dist.bat --test       :: also runs the tests of each build
 ```
 
-`./dist.sh [free | paid | both]` does the same on Linux.
-
 ```
-raven-0.1.0-windows-x64-msvc\
-    include\                 Raven.h, raven\*.h
-    bin\raven.dll            raven_designer.exe, ravenc.exe
-    lib\raven.lib            to link with raven.dll        (MinGW: libraven.dll.a)
-    lib\static\raven.lib     the static library            (MinGW: libraven.a)
-    lib\cmake\raven          find_package(raven), DLL; lib\static\cmake\raven for the static library
-    share\raven\             README.md, docs\, bindings\, licenses\
+dist\raven-0.1.0-free\          (dist\raven-0.1.0-paid\: the same, without the watermark)
+    msvc-static\     include\, lib\raven.lib, lib\cmake\raven, bin\raven_designer.exe, bin\ravenc.exe, share\raven\
+    msvc-shared\     bin\raven.dll, lib\raven.lib (to link with the DLL), the rest as above
+    mingw-static\    lib\libraven.a, the rest as above
+    mingw-shared\    bin\raven.dll, lib\libraven.dll.a (to link with the DLL), the rest as above
 ```
 
-The libraries of one compiler are not for the other; `raven.dll` itself can be
-loaded by anything. The MinGW DLL is linked with `-static-libgcc`, so that it
-does not need the DLLs of the compiler beside it. `cmake --build build
+Each of the four folders is an install prefix: `find_package(raven)` finds it
+through `CMAKE_PREFIX_PATH`. The libraries of one compiler are not for the
+other; `raven.dll` itself can be loaded by anything. MinGW-w64 needs `gcc`,
+and `ninja` or `mingw32-make`, in the PATH; its DLL is linked with
+`-static-libgcc`, so that it does not need the DLLs of the compiler beside it.
+The build trees are in `build\dist\`.
+
+`./dist.sh [free | paid | both]` makes the Linux packages. `cmake --build build
 --target package` makes a simpler archive (one library) with CPack.
 
 ## Examples

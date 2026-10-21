@@ -42,6 +42,7 @@ layout(location = 6) flat in float rvn_v_time;
 layout(location = 7) flat in uint rvn_v_flags;
 layout(location = 8) flat in vec4 rvn_v_params;
 layout(location = 9) flat in vec2 rvn_v_inv_size;
+layout(location = 10) flat in vec4 rvn_v_pointer;
 
 layout(location = 0) out vec4 rvn_out;
 
@@ -60,6 +61,17 @@ struct RavenEffect {
 	float edge;
 	/** Seconds: grows while the effect is animated. */
 	float time;
+	/**
+	 * Where the pointer is, in pixels from the top left corner of the
+	 * rectangle, like `pixel` (it may be outside the rectangle). Far away
+	 * (below -1e5) when the pointer is not over the window, or when the
+	 * effect is told not to follow it (RShaderLook::pointer, EffectPointer).
+	 */
+	vec2 pointer;
+	/** How much the pointer is over the widget, 0..1: eased, it rises and falls in a fraction of a second. */
+	float hover;
+	/** How much the widget is pressed, 0..1 (eased). */
+	float press;
 	/** The two colors of the look, straight alpha. */
 	vec4 color;
 	vec4 color2;
@@ -125,6 +137,11 @@ vec3 raven_hsv(vec3 c) {
 	return c.z * mix(vec3(1.0), rgb, c.y);
 }
 
+/** R_TRUE when the effect knows where the pointer is (it is over the window, and the effect follows it). */
+bool raven_has_pointer(RavenEffect fx) {
+	return fx.pointer.x > -1e5;
+}
+
 /** Signed distance to a rounded box centered on the origin (radii: top-left, top-right, bottom-right, bottom-left). */
 float raven_sd_round_box(vec2 p, vec2 half_size, vec4 radii) {
 	float radius = p.x < 0.0 ? (p.y < 0.0 ? radii.x : radii.w) : (p.y < 0.0 ? radii.y : radii.z);
@@ -151,6 +168,9 @@ void main() {
 	fx.screen = p;
 	fx.edge = d;
 	fx.time = rvn_v_time;
+	fx.pointer = rvn_v_pointer.xy - rvn_v_rect.xy;
+	fx.hover = rvn_v_pointer.z;
+	fx.press = rvn_v_pointer.w;
 	/* (the vertex shader premultiplies the colors: the effect gets them straight) */
 	fx.color = rvn_v_color.a > 0.0 ? vec4(rvn_v_color.rgb / rvn_v_color.a, rvn_v_color.a) : vec4(0.0);
 	fx.color2 = rvn_v_color2.a > 0.0 ? vec4(rvn_v_color2.rgb / rvn_v_color2.a, rvn_v_color2.a) : vec4(0.0);

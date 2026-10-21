@@ -28,5 +28,6 @@ function(raven_compile_shader source header symbol)
 		COMMENT "Raven: compiling ${source}"
 		VERBATIM
 	)
-	target_sources(raven PRIVATE "${header_path}")
+	# (the library is made after the shaders are listed: it takes these headers then)
+	set_property(GLOBAL APPEND PROPERTY RAVEN_SHADER_HEADERS "${header_path}")
 endfunction()

@@ -44,6 +44,8 @@
 #define R_PRIM_MASK      0xFu
 /** The instance samples the texture of its draw command. */
 #define R_INSTANCE_TEXTURED (1u << 4)
+/** SHADER: the effect is told nothing of the pointer (RShaderLook::pointer = R_FALSE). */
+#define R_INSTANCE_NO_POINTER (1u << 5)
 
 /**
  * One primitive. All positions are in framebuffer pixels, origin top-left.
@@ -105,9 +107,12 @@
  *   color         first color of the effect
  *   border_color  second color of the effect
  *   border_width  time of the frame, in seconds (for animated effects)
- *   flags         bits 8..15 = opacity of the whole primitive, 0..255
- * A backend without custom shaders may draw it as a rounded rectangle
- * filled with `color`.
+ *   flags         bits 8..15 = opacity of the whole primitive, 0..255;
+ *                 bits 16..23 = how much the pointer is over it (hover), 0..255;
+ *                 bits 24..31 = how much it is pressed, 0..255;
+ *                 R_INSTANCE_NO_POINTER: the effect does not follow the pointer
+ * The effect also gets RDrawData::pointer. A backend without custom shaders
+ * may draw it as a rounded rectangle filled with `color`.
  *
  * In a window that can be seen through (RNativeWindow::transparent), the
  * alpha of the frame is what the window system blends with: GLASS and BLUR
@@ -191,6 +196,8 @@ typedef struct RDrawData {
 	float scale;
 	/** R_TRUE: the frame waits for the vertical synchronization (Rset_vsync). */
 	int vsync;
+	/** Where the pointer is, in framebuffer pixels; -1e6, -1e6 when it is not over the window (for the effects, R_DRAW_SHADER). */
+	float pointer[2];
 } RDrawData;
 
 typedef enum RTextureFormat{

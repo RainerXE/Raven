@@ -28,6 +28,10 @@
  * or in C:        Rid wave = Rshader_create_from_file("wave.spv", 0);
  *                 Rborder_set_effect(border, wave, &look);   // or Rdraw_shader in a paint callback
  *
+ * Effects follow the pointer: fx.pointer is where it is (pixels, from the
+ * corner of the rectangle), fx.hover and fx.press how much it is over the
+ * widget and pressing it. The effects of Raven all react to it.
+ *
  * The guide docs/shaders.html describes everything an effect can use.
  * The Vulkan backend runs effects; a backend without them (R_BACKEND_NULL, a
  * custom backend whose CreateShader is NULL) draws the rectangle in `color`.
@@ -81,6 +85,16 @@ typedef struct RShaderLook {
 	Rid texture;
 	/** -1: animated when the shader is (R_SHADER_ANIMATED); R_TRUE / R_FALSE forces it. */
 	int animate;
+	/** R_TRUE (the default): the effect knows where the pointer is (fx.pointer, fx.hover, fx.press). */
+	int pointer;
+	/**
+	 * How much the pointer is over it and how much it is pressed, 0..1, as
+	 * the effect reads them (fx.hover, fx.press). -1 (the default): 1 while
+	 * the pointer is in the rectangle, and while the left button is down
+	 * there; a Border eases them itself.
+	 */
+	float hover;
+	float press;
 } RShaderLook;
 
 #ifdef __cplusplus

@@ -1258,6 +1258,14 @@ pub const RShaderLook = extern struct {
     texture: Rid = 0,
     /// -1: animated when the shader is (R_SHADER_ANIMATED); R_TRUE / R_FALSE forces it.
     animate: c_int = 0,
+    /// R_TRUE (the default): the effect knows where the pointer is (fx.pointer, fx.hover, fx.press).
+    pointer: c_int = 0,
+    /// How much the pointer is over it and how much it is pressed, 0..1, as
+    /// the effect reads them (fx.hover, fx.press). -1 (the default): 1 while
+    /// the pointer is in the rectangle, and while the left button is down
+    /// there; a Border eases them itself.
+    hover: f32 = 0,
+    press: f32 = 0,
 };
 
 /// Where and why a text could not be read (Rxml_document_parse).

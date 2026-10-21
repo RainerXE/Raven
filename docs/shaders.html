@@ -27,6 +27,7 @@
 <li><a href="#use">Using an effect</a></li>
 <li><a href="#backdrop">Reading what is behind</a></li>
 <li><a href="#animation">Animation</a></li>
+<li><a href="#pointer">Following the pointer</a></li>
 <li><a href="#examples">Examples</a></li>
 <li><a href="#performance">Performance</a></li>
 <li><a href="#debugging">When nothing shows</a></li>
@@ -70,17 +71,17 @@ vec4 raven_effect(RavenEffect fx) {
 <tr><th scope="col">Name</th><th scope="col">What it does</th><th scope="col">Colors (defaults)</th><th scope="col">Params (defaults)</th></tr>
 </thead>
 <tbody>
-<tr><td><code>aurora</code></td><td>Curtains of light drifting in a night sky, with stars. Animated.</td><td>light at the edge #30D158, light higher up #5E5CE6</td><td>speed 1, scale 1, intensity 1.5</td></tr>
-<tr><td><code>mesh</code></td><td>Four colors blended across the surface, slowly wandering. Animated.</td><td>#FF6482, #0A84FF (and two colors made from them)</td><td>speed 1</td></tr>
-<tr><td><code>plasma</code></td><td>Bands of color flowing into each other. Animated.</td><td>#5E5CE6, #FF9F0A</td><td>speed 1, scale 1, contrast 1</td></tr>
-<tr><td><code>grain</code></td><td>A gradient with the grain of film. Animated grain.</td><td>start #3A3A3F, end #1C1C1E</td><td>grain 0.6, angle 60 (degrees)</td></tr>
-<tr><td><code>spotlight</code></td><td>A soft light on a surface.</td><td>light #2B2B60, surface #141416</td><td>x 0.3, y 0.2, radius 0.7 (fractions)</td></tr>
-<tr><td><code>shimmer</code></td><td>A band of light sweeping across, for content that is loading. Animated.</td><td>surface #2C2C30, light #48484E (alpha = strength)</td><td>speed 1, width 0.35, angle 20</td></tr>
-<tr><td><code>neon</code></td><td>A glowing edge whose colors chase each other around the shape. Animated.</td><td>#0A84FF, #FF375F</td><td>speed 1, width 2 (pixels), glow 10 (pixels)</td></tr>
-<tr><td><code>ripple</code></td><td>Rings that ripple what is behind, like water. Reads the backdrop. Animated.</td><td>tint #64D2FF (alpha = strength)</td><td>speed 1, strength 6 (pixels), density 1, center x 0.5</td></tr>
+<tr><td><code>aurora</code></td><td>Curtains of light drifting in a night sky, with stars. Animated. The curtains lean toward the pointer and light up around it; a press makes them flare.</td><td>light at the edge #30D158, light higher up #5E5CE6</td><td>speed 1, scale 1, intensity 1.5</td></tr>
+<tr><td><code>mesh</code></td><td>Four colors blended across the surface, slowly wandering. Animated. The colors gather around the pointer like a liquid, under a soft light.</td><td>#FF6482, #0A84FF (and two colors made from them)</td><td>speed 1</td></tr>
+<tr><td><code>plasma</code></td><td>Bands of color flowing into each other. Animated. The bands swirl around the pointer, faster while it presses.</td><td>#5E5CE6, #FF9F0A</td><td>speed 1, scale 1, contrast 1</td></tr>
+<tr><td><code>grain</code></td><td>A gradient with the grain of film. Animated grain. A soft sheen follows the pointer.</td><td>start #3A3A3F, end #1C1C1E</td><td>grain 0.6, angle 60 (degrees)</td></tr>
+<tr><td><code>spotlight</code></td><td>A soft light on a surface. The light follows the pointer, and narrows and brightens while it presses.</td><td>light #2B2B60, surface #141416</td><td>x 0.3, y 0.2, radius 0.7 (fractions)</td></tr>
+<tr><td><code>shimmer</code></td><td>A band of light sweeping across, for content that is loading. Animated. The light also gathers under the pointer.</td><td>surface #2C2C30, light #48484E (alpha = strength)</td><td>speed 1, width 0.35, angle 20</td></tr>
+<tr><td><code>neon</code></td><td>A glowing edge whose colors chase each other around the shape. Animated. The edge next to the pointer burns brighter and wider; a press flashes it.</td><td>#0A84FF, #FF375F</td><td>speed 1, width 2 (pixels), glow 10 (pixels)</td></tr>
+<tr><td><code>ripple</code></td><td>Rings that ripple what is behind, like water. Reads the backdrop. Animated. The rings start from the pointer; a press makes them stronger.</td><td>tint #64D2FF (alpha = strength)</td><td>speed 1, strength 6 (pixels), density 1, center x 0.5</td></tr>
 </tbody>
 </table>
-<p><code>neon</code> only draws the edge and its glow: give the border a <code>Background</code> for the inside. <code>ripple</code> needs something behind it: put it in an <code>Overlay</code>, over the content it ripples.</p>
+<p>All of them follow the pointer (<a href="#pointer">section 11</a>); <code>EffectPointer="false"</code> keeps one still. <code>neon</code> only draws the edge and its glow: give the border a <code>Background</code> for the inside. <code>ripple</code> needs something behind it: put it in an <code>Overlay</code>, over the content it ripples.</p>
 </section>
 
 <section id="model">
@@ -127,6 +128,9 @@ vec4 raven_effect(RavenEffect fx) {
 <tr><td><code>fx.screen</code></td><td>vec2</td><td>Where the pixel is in the window, in pixels: what <code>raven_backdrop</code> takes.</td></tr>
 <tr><td><code>fx.edge</code></td><td>float</td><td>Signed distance to the edge of the rounded rectangle, in pixels: negative inside, 0 on the edge. Use it for borders and glows.</td></tr>
 <tr><td><code>fx.time</code></td><td>float</td><td>Seconds. It wraps every hour; effects should only depend on how it changes.</td></tr>
+<tr><td><code>fx.pointer</code></td><td>vec2</td><td>Where the pointer is, in pixels from the top left corner of the rectangle, like <code>fx.pixel</code> (it may be outside the rectangle). Far away (below -1e5) when the pointer is not over the window or the effect does not follow it: test with <code>raven_has_pointer(fx)</code>.</td></tr>
+<tr><td><code>fx.hover</code></td><td>float</td><td>How much the pointer is over the widget, 0..1. On a Border it eases in and out in a fraction of a second.</td></tr>
+<tr><td><code>fx.press</code></td><td>float</td><td>How much the widget is pressed (left button down over it), 0..1, eased the same way.</td></tr>
 <tr><td><code>fx.color</code>, <code>fx.color2</code></td><td>vec4</td><td>The two colors of the look (<code>EffectColor</code>, <code>EffectColor2</code>), straight alpha.</td></tr>
 <tr><td><code>fx.params</code></td><td>vec4</td><td>The four parameters (<code>EffectParams</code>, <code>RShaderLook::params</code>). Their meaning is the effect's.</td></tr>
 </tbody>
@@ -147,6 +151,7 @@ vec4 raven_effect(RavenEffect fx) {
 <tr><td><code>raven_fbm(vec2 p)</code></td><td>Five octaves of noise (fractal Brownian motion), 0..1.</td></tr>
 <tr><td><code>raven_hsv(vec3 hsv)</code></td><td>RGB from hue (0..1), saturation and value.</td></tr>
 <tr><td><code>raven_sd_round_box(vec2 p, vec2 half_size, vec4 radii)</code></td><td>Signed distance to a rounded box centered on the origin, for shapes inside the effect.</td></tr>
+<tr><td><code>raven_has_pointer(RavenEffect fx)</code></td><td><code>true</code> when <code>fx.pointer</code> is where the pointer is: over the window, and the effect follows it.</td></tr>
 <tr><td><code>RAVEN_PI</code>, <code>RAVEN_TAU</code></td><td>π and 2π.</td></tr>
 </tbody>
 </table>
@@ -180,6 +185,7 @@ add_custom_target(effects ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/stripes.spv)</
 <tr><td><code>EffectColor</code>, <code>EffectColor2</code></td><td>Colors, <code>#RRGGBB</code> or <code>#RRGGBBAA</code>.</td></tr>
 <tr><td><code>EffectParams</code></td><td>One to four numbers: <code>"1,0.5,20"</code>.</td></tr>
 <tr><td><code>EffectAnimate</code></td><td><code>true</code> / <code>false</code>: overrides whether the window keeps drawing frames for it.</td></tr>
+<tr><td><code>EffectPointer</code></td><td><code>false</code>: the effect is told nothing of the pointer (<code>true</code> by default).</td></tr>
 <tr><td><code>EffectBackdrop</code></td><td><code>true</code> for a <code>.spv</code> that reads what is behind it.</td></tr>
 <tr><td><code>CornerRadius</code>, <code>BorderColor</code>, <code>BorderWidth</code>, <code>Shadow</code>, <code>Background</code></td><td>As for any Border: the corners shape the effect, the outline is drawn over it, the background under it.</td></tr>
 </tbody>
@@ -233,8 +239,29 @@ Rborder_set_effect(border, shader, &amp;look);</code></pre>
 <p>Effects in <code>.spv</code> files used from XML are animated by default; write <code>EffectAnimate="false"</code> for a still one.</p>
 </section>
 
+<section id="pointer">
+<h2>11. Following the pointer</h2>
+<p>Every effect knows where the pointer is: <code>fx.pointer</code> (pixels, from the corner of the rectangle), <code>fx.hover</code> and <code>fx.press</code> (0..1). The effects of Raven all use them; an effect of the application uses them if it wants. Guard with <code>raven_has_pointer(fx)</code>, and weigh what the pointer does by <code>fx.hover</code>, so that the effect eases back to its rest when the pointer leaves:</p>
+<pre><code>vec4 raven_effect(RavenEffect fx) {
+    vec4 color = mix(fx.color, fx.color2, fx.uv.y);
+    if (raven_has_pointer(fx)) {
+        vec2 d = (fx.pixel - fx.pointer) / (0.4 * max(fx.size.x, fx.size.y));
+        float light = exp(-dot(d, d) * 3.0) * fx.hover;        /* a soft light under the pointer */
+        color.rgb += light * (0.12 + 0.12 * fx.press);         /* brighter while pressed */
+    }
+    return color;
+}</code></pre>
+<ul>
+<li>On a <code>Border</code>, <code>fx.hover</code> rises when the pointer enters the border or anything it holds, and falls when it leaves; <code>fx.press</code> follows the left button over it. Both are eased, so the effect never jumps.</li>
+<li>With <code>Rdraw_shader</code>, they are 1 while the pointer is in the rectangle (and the left button is down there), else 0; set <code>RShaderLook::hover</code> and <code>press</code> to ease them yourself, for example with <code>Rdraw_spring</code>.</li>
+<li>While the pointer is over it, an effect is drawn every frame, so that it follows the pointer even when it is not animated. It goes back to sleep when the pointer has left.</li>
+<li><code>EffectPointer="false"</code> (<code>RShaderLook::pointer = R_FALSE</code>) keeps an effect still: <code>fx.pointer</code> is then far away and <code>fx.hover</code>, <code>fx.press</code> are 0.</li>
+<li>The pointer is that of the window: an effect can react to it before it is over the effect (<code>fx.pointer</code> outside the rectangle), for a glow that grows as the pointer comes near. It is only redrawn as the pointer moves while something animates the window, though; weigh such effects by <code>fx.hover</code>.</li>
+</ul>
+</section>
+
 <section id="examples">
-<h2>11. Examples</h2>
+<h2>12. Examples</h2>
 <h3>A pulse of light</h3>
 <pre><code>vec4 raven_effect(RavenEffect fx) {
     float pulse = 0.5 + 0.5 * sin(fx.time * 3.0);
@@ -257,11 +284,11 @@ vec4 raven_effect(RavenEffect fx) {
     float rim = smoothstep(-6.0, 0.0, fx.edge);
     return vec4(mix(seen, fx.color.rgb, fx.color.a) + rim * 0.12, 1.0);
 }</code></pre>
-<p>The examples of the repository (<code>examples/effects</code>) show every built-in effect and two effects of the application, <code>wave.frag</code> and <code>liquid.frag</code>.</p>
+<p>The examples of the repository (<code>examples/effects</code>) show every built-in effect and two effects of the application, <code>wave.frag</code> and <code>liquid.frag</code>; move the pointer over them.</p>
 </section>
 
 <section id="performance">
-<h2>12. Performance</h2>
+<h2>13. Performance</h2>
 <ul>
 <li>The shader runs once per pixel of the rectangle, every frame while it is animated. A full-window effect at 4K is about 8 million calls per frame: keep loops short (the built-in effects use at most fifteen noise lookups per pixel).</li>
 <li><code>raven_fbm</code> is five noise lookups; <code>raven_noise</code> is four hashes. Prefer <code>sin</code> and <code>smoothstep</code> where they are enough.</li>
@@ -272,7 +299,7 @@ vec4 raven_effect(RavenEffect fx) {
 </section>
 
 <section id="debugging">
-<h2>13. When nothing shows</h2>
+<h2>14. When nothing shows</h2>
 <table>
 <caption>Symptoms and causes</caption>
 <thead><tr><th scope="col">Symptom</th><th scope="col">Cause</th></tr></thead>
@@ -289,7 +316,7 @@ vec4 raven_effect(RavenEffect fx) {
 </section>
 
 <section id="rules">
-<h2>14. Rules and limits</h2>
+<h2>15. Rules and limits</h2>
 <ul>
 <li>Effects run with the Vulkan backend. On other backends the rectangle is filled with the first color.</li>
 <li>An effect is a fragment shader only: it cannot change the geometry. To draw outside a widget, give the effect a larger rectangle (a larger Border, or <code>Rdraw_shader</code> with a larger rectangle, within the clip of the widget).</li>
@@ -300,7 +327,7 @@ vec4 raven_effect(RavenEffect fx) {
 </section>
 
 <section id="reference">
-<h2>15. API reference</h2>
+<h2>16. API reference</h2>
 <dl>
 <dt><code>Rid Rshader_create(const void* spirv, size_t size, Ruint flags)</code></dt>
 <dd>A shader from SPIR-V code (the bytes of a <code>.spv</code> file); <code>size</code> in bytes, the code is copied. Flags: <code>R_SHADER_BACKDROP</code>, <code>R_SHADER_ANIMATED</code>.</dd>
@@ -329,6 +356,8 @@ vec4 raven_effect(RavenEffect fx) {
 <tr><td><code>float radius</code></td><td>Radius of the corners, logical units (<code>Rdraw_shader</code>; a Border uses its own corners).</td></tr>
 <tr><td><code>Rid texture</code></td><td>Texture read by <code>raven_texture</code>, or <code>R_INVALID_ID</code>.</td></tr>
 <tr><td><code>int animate</code></td><td>-1: as the shader says; <code>R_TRUE</code> / <code>R_FALSE</code> to force it.</td></tr>
+<tr><td><code>int pointer</code></td><td><code>R_TRUE</code> (the default): the effect follows the pointer.</td></tr>
+<tr><td><code>float hover, press</code></td><td>What the effect reads as <code>fx.hover</code> and <code>fx.press</code>, 0..1. -1 (the default): 1 while the pointer is in the rectangle, and while the left button is down there. A Border fills them itself, eased.</td></tr>
 </tbody>
 </table>
 <h3>For backend writers</h3>

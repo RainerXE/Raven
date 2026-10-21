@@ -1,210 +1,218 @@
 @echo off
 rem ---------------------------------------------------------------------------
 rem  Raven - dist.bat
-rem  Builds what is given to people who use Raven without building it: for
-rem  Visual C++ and for MinGW-w64, the static library and raven.dll (Release),
-rem  the headers, the designer, the bindings and the documentation, each in
-rem  one folder and one zip, for the free edition and for the paid one.
+rem  Builds what is given to people who use Raven without building it, the way
+rem  build.bat builds (generate-cmake.bat, then build.bat): for each edition,
+rem  one folder with the library of Visual C++ and of MinGW-w64, static and
+rem  shared, each a complete package (headers, library, designer, docs).
 rem
-rem    dist.bat [msvc | mingw | all] [free | paid | both] [options] [-- extra cmake arguments]
+rem    dist.bat [free | paid | both] [msvc | mingw | all] [options]
 rem
-rem    msvc                Visual C++ only (the newest Visual Studio installed)
-rem    mingw               MinGW-w64 only (gcc and mingw32-make must be in the PATH)
-rem    all                 both; a compiler that is not installed is skipped (default)
 rem    free                the free edition only (every window shows a watermark)
-rem    paid                the paid edition only (no watermark)
-rem    both                the two editions, one package each (default)
-rem    --no-test           do not run the tests
+rem    paid                the paid edition only (no watermark, RAVEN_PAID=ON)
+rem    both                the two editions (default)
+rem    msvc                Visual C++ only (the Visual Studio build.bat uses)
+rem    mingw               MinGW-w64 only (gcc, and ninja or mingw32-make, in the PATH)
+rem    all                 both compilers; one that is not installed is skipped (default)
+rem    --test              run the tests of each build (slow: eight builds)
 rem    --no-pause          do not wait for a key when something fails
 rem
-rem  Result:
-rem    dist\raven-<version>-windows-x64-msvc\        the free edition
-rem        include\                 Raven.h, raven\*.h, raven_web.h
-rem        bin\raven.dll            (web pages included), raven_designer.exe, ravenc.exe
-rem        lib\raven.lib            what a program links with to use raven.dll
-rem        lib\static\raven.lib     the static library
-rem        lib\cmake\raven          find_package(raven) for the DLL
-rem        lib\static\cmake\raven   find_package(raven) for the static library
-rem        share\raven\             README.md, docs\, bindings\
-rem    dist\raven-<version>-windows-x64-msvc.zip
-rem    dist\raven-<version>-windows-x64-msvc-paid\   the paid edition, the same files
-rem    dist\raven-<version>-windows-x64-msvc-paid.zip
-rem    dist\raven-<version>-windows-x64-mingw[-paid]\  (libraven.dll.a, static\libraven.a)
+rem  Result, for the free edition (the paid one is the same with "paid"):
+rem    dist\raven-<version>-free\
+rem        msvc-static\     include\, lib\raven.lib, lib\cmake\raven, bin\ (designer, ravenc), share\raven\
+rem        msvc-shared\     include\, bin\raven.dll, lib\raven.lib (import library), lib\cmake\raven, ...
+rem        mingw-static\    include\, lib\libraven.a, lib\cmake\raven, ...
+rem        mingw-shared\    include\, bin\raven.dll, lib\libraven.dll.a (import library), lib\cmake\raven, ...
+rem    dist\raven-<version>-free.zip
 rem
-rem  The libraries of one compiler are not for the other: a program built with
-rem  Visual C++ takes the msvc package, one built with MinGW the mingw package.
-rem  raven.dll itself can be loaded by anything (Python, C#, Rust...).
+rem  Each of the four folders is an install prefix: find_package(raven) with
+rem  CMAKE_PREFIX_PATH set to it. The libraries of one compiler are not for the
+rem  other: a program built with Visual C++ takes msvc-*, one built with MinGW
+rem  mingw-*. A DLL itself can be loaded by anything (Python, C#, Rust...).
+rem  The build trees are in build\dist\.
 rem ---------------------------------------------------------------------------
 setlocal EnableExtensions
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
-set "WHAT=all"
 set "EDITIONS=both"
-set "TEST=1"
+set "WHAT=all"
+set "TEST=0"
 set "NO_PAUSE=0"
-set "EXTRA="
 if defined RAVEN_NO_PAUSE set "NO_PAUSE=1"
 
 :parse
 if "%~1"=="" goto parsed
-if /I "%~1"=="msvc"       ( set "WHAT=msvc" & shift & goto parse )
-if /I "%~1"=="mingw"      ( set "WHAT=mingw" & shift & goto parse )
-if /I "%~1"=="all"        ( set "WHAT=all" & shift & goto parse )
 if /I "%~1"=="free"       ( set "EDITIONS=free" & shift & goto parse )
 if /I "%~1"=="paid"       ( set "EDITIONS=paid" & shift & goto parse )
 if /I "%~1"=="both"       ( set "EDITIONS=both" & shift & goto parse )
+if /I "%~1"=="msvc"       ( set "WHAT=msvc" & shift & goto parse )
+if /I "%~1"=="mingw"      ( set "WHAT=mingw" & shift & goto parse )
+if /I "%~1"=="all"        ( set "WHAT=all" & shift & goto parse )
+if /I "%~1"=="--test"     ( set "TEST=1" & shift & goto parse )
 if /I "%~1"=="--no-test"  ( set "TEST=0" & shift & goto parse )
 if /I "%~1"=="--no-pause" ( set "NO_PAUSE=1" & shift & goto parse )
-if "%~1"=="--"            ( shift & goto extra )
-echo dist.bat: unknown option %1
-goto fail
-
-:extra
-if "%~1"=="" goto parsed
-set "EXTRA=%EXTRA% %1"
-shift
-goto extra
+if /I "%~1"=="--help"     goto usage
+if /I "%~1"=="-h"         goto usage
+echo [dist] unknown option: %~1
+echo.
+goto usage
 
 :parsed
-set "TEST_OPTION=ON"
-if "%TEST%"=="0" set "TEST_OPTION=OFF"
 where cmake >nul 2>nul
 if errorlevel 1 (
-	echo dist.bat: cmake was not found in the PATH. Install CMake 3.16 or newer: https://cmake.org/download/
-	goto fail
+	echo [dist] cmake was not found in the PATH.
+	echo        Install CMake 3.16 or newer from https://cmake.org/download, or start
+	echo        this script from a "Developer Command Prompt for Visual Studio".
+	goto failed
 )
 
 set "VERSION=0.0.0"
 for /f "tokens=3" %%v in ('findstr /r /c:"^project.raven VERSION" "%ROOT%\CMakeLists.txt"') do set "VERSION=%%v"
 
-set "BUILT=0"
-
-if /I "%WHAT%"=="mingw" goto after_msvc
-call :compiler msvc
-if errorlevel 2 goto fail
-:after_msvc
-
-if /I "%WHAT%"=="msvc" goto after_mingw
-call :compiler mingw
-if errorlevel 2 goto fail
-:after_mingw
-
-if "%BUILT%"=="0" (
-	echo dist.bat: nothing was built: no compiler was found.
-	goto fail
+rem  MinGW-w64: gcc, and a make program (Ninja when it is there, else mingw32-make)
+set "MINGW=1"
+set "MINGW_GENERATOR="
+where gcc >nul 2>nul
+if errorlevel 1 set "MINGW=0"
+where ninja >nul 2>nul
+if not errorlevel 1 set "MINGW_GENERATOR=Ninja"
+if not defined MINGW_GENERATOR (
+	where mingw32-make >nul 2>nul
+	if not errorlevel 1 set "MINGW_GENERATOR=MinGW Makefiles"
 )
+if not defined MINGW_GENERATOR set "MINGW=0"
+if "%MINGW%"=="0" if /I "%WHAT%"=="mingw" (
+	echo [dist] MinGW-w64 was not found in the PATH: gcc, and ninja or mingw32-make.
+	goto failed
+)
+
+set "MADE="
+set "SKIPPED="
+if /I "%EDITIONS%"=="paid" goto edition_paid
+call :edition free
+if errorlevel 1 goto failed
+:edition_paid
+if /I "%EDITIONS%"=="free" goto done
+call :edition paid
+if errorlevel 1 goto failed
+
+:done
 echo.
-echo Done: see %ROOT%\dist
+echo ===========================================================================
+if not defined MADE (
+	echo [dist] nothing was built: no compiler could be used.
+	goto failed
+)
+echo [dist] done:%MADE%
+if defined SKIPPED echo        skipped:%SKIPPED%
+echo        in "%ROOT%\dist"
 endlocal
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  :compiler <msvc|mingw>  the packages of one compiler, edition by edition
+rem  :edition <free|paid>   the four packages of one edition, then its zip
 rem ---------------------------------------------------------------------------
-:compiler
-if /I "%EDITIONS%"=="paid" goto compiler_paid
-call :package %~1 OFF ""
-if errorlevel 2 exit /b 2
-if errorlevel 1 exit /b 1
-:compiler_paid
-if /I "%EDITIONS%"=="free" exit /b 0
-call :package %~1 ON "-paid"
-if errorlevel 2 exit /b 2
-if errorlevel 1 exit /b 1
-exit /b 0
-
-rem ---------------------------------------------------------------------------
-rem  :package <msvc|mingw> <paid ON|OFF> <name suffix>
-rem  Returns 0 when the package was made, 1 when the compiler is not installed
-rem  and "all" was asked (skipped), 2 on a failure.
-rem ---------------------------------------------------------------------------
-:package
-set "TOOL=%~1"
-set "PAID=%~2"
-set "NAME=raven-%VERSION%-windows-x64-%TOOL%%~3"
+:edition
+set "EDITION=%~1"
+set "NAME=raven-%VERSION%-%EDITION%"
 set "OUT=%ROOT%\dist\%NAME%"
-
-if /I "%TOOL%"=="mingw" (
-	where gcc >nul 2>nul
-	if errorlevel 1 goto no_compiler
-	where mingw32-make >nul 2>nul
-	if errorlevel 1 goto no_compiler
-)
-
-echo.
-echo ===========================================================================
-echo  %NAME%
-echo ===========================================================================
+set "BUILT=0"
 if exist "%OUT%" rmdir /s /q "%OUT%"
 if exist "%OUT%.zip" del /q "%OUT%.zip"
 
-rem the static library last: the designer that stays in bin\ is the one that needs no DLL
-call :variant shared ON lib
-if errorlevel 1 goto package_failed
-call :variant static OFF lib/static
-if errorlevel 1 goto package_failed
+if /I "%WHAT%"=="mingw" goto edition_mingw
+call :variant msvc static
+if errorlevel 2 goto edition_mingw
+if errorlevel 1 exit /b 1
+call :variant msvc shared
+if errorlevel 1 exit /b 1
+:edition_mingw
+if /I "%WHAT%"=="msvc" goto edition_zip
+if "%MINGW%"=="0" (
+	echo.
+	echo [dist] MinGW-w64 was not found in the PATH ^(gcc, and ninja or mingw32-make^): skipped.
+	set "SKIPPED=%SKIPPED% %EDITION%-mingw"
+	goto edition_zip
+)
+call :variant mingw static
+if errorlevel 1 exit /b 1
+call :variant mingw shared
+if errorlevel 1 exit /b 1
 
+:edition_zip
+if "%BUILT%"=="0" exit /b 0
 pushd "%ROOT%\dist"
 cmake -E tar cf "%NAME%.zip" --format=zip "%NAME%"
-if errorlevel 1 ( popd & goto package_failed )
+if errorlevel 1 ( popd & exit /b 1 )
 popd
-echo dist\%NAME%.zip
+echo [dist] dist\%NAME%.zip
+set "MADE=%MADE% %NAME%"
+exit /b 0
+
+rem ---------------------------------------------------------------------------
+rem  :variant <msvc|mingw> <static|shared>
+rem  Generates (generate-cmake.bat), builds (build.bat) and installs one
+rem  package. Returns 0 when it was made, 1 on a failure, 2 when Visual C++
+rem  cannot be used and "all" was asked (its packages are then skipped).
+rem ---------------------------------------------------------------------------
+:variant
+set "TOOL=%~1"
+set "KIND=%~2"
+set "BUILD=%ROOT%\build\dist\%EDITION%-%TOOL%-%KIND%"
+set "PREFIX=%OUT%\%TOOL%-%KIND%"
+echo.
+echo ===========================================================================
+echo  %NAME%\%TOOL%-%KIND%
+echo ===========================================================================
+
+set "GENERATE_ARGS=--no-pause --fresh --no-examples --build-dir "%BUILD%" --%EDITION%"
+if "%TEST%"=="0" set "GENERATE_ARGS=%GENERATE_ARGS% --no-tests"
+if /I "%KIND%"=="shared" set "GENERATE_ARGS=%GENERATE_ARGS% --shared"
+
+if /I "%TOOL%"=="mingw" goto variant_mingw
+rem  Visual C++: the default generator, as build.bat (the newest Visual Studio)
+call "%ROOT%\generate-cmake.bat" %GENERATE_ARGS%
+if errorlevel 1 goto variant_no_msvc
+goto variant_build
+:variant_mingw
+call "%ROOT%\generate-cmake.bat" %GENERATE_ARGS% --generator "%MINGW_GENERATOR%" -- -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
+if errorlevel 1 exit /b 1
+
+:variant_build
+set "BUILD_ARGS=release --no-pause --build-dir "%BUILD%""
+if "%TEST%"=="1" set "BUILD_ARGS=%BUILD_ARGS% --test"
+call "%ROOT%\build.bat" %BUILD_ARGS%
+if errorlevel 1 exit /b 1
+
+cmake --install "%BUILD%" --config Release --prefix "%PREFIX%"
+if errorlevel 1 exit /b 1
 set "BUILT=1"
 exit /b 0
 
-:no_compiler
-if /I "%WHAT%"=="all" (
-	echo.
-	echo dist.bat: MinGW-w64 was not found in the PATH ^(gcc, mingw32-make^): its packages are skipped.
-	exit /b 1
-)
-echo dist.bat: MinGW-w64 was not found in the PATH ^(gcc, mingw32-make^).
-exit /b 2
-
-:package_failed
-if /I "%WHAT%"=="all" if /I "%TOOL%"=="msvc" if "%CONFIGURED%"=="0" (
-	echo.
-	echo dist.bat: Visual C++ could not be used: its packages are skipped.
-	exit /b 1
-)
-exit /b 2
-
-rem ---------------------------------------------------------------------------
-rem  :variant <name> <shared ON|OFF> <library folder>
-rem ---------------------------------------------------------------------------
-:variant
-set "KIND=%~1"
-set "BUILD=%ROOT%\build\dist-%TOOL%-%KIND%"
-if "%PAID%"=="ON" set "BUILD=%BUILD%-paid"
-set "CONFIGURED=0"
+:variant_no_msvc
+if /I not "%WHAT%"=="all" exit /b 1
 echo.
-if "%PAID%"=="ON" ( echo -- %TOOL%, %KIND% library, paid edition ) else ( echo -- %TOOL%, %KIND% library, free edition )
+echo [dist] Visual C++ could not be used: the msvc packages are skipped.
+set "SKIPPED=%SKIPPED% %EDITION%-msvc"
+exit /b 2
 
-if /I "%TOOL%"=="mingw" (
-	cmake -S "%ROOT%" -B "%BUILD%" -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DRAVEN_BUILD_SHARED=%~2 -DRAVEN_PAID=%PAID% -DRAVEN_BUILD_EXAMPLES=OFF -DRAVEN_BUILD_TESTS=%TEST_OPTION% "-DCMAKE_INSTALL_PREFIX=%OUT%" -DCMAKE_INSTALL_LIBDIR=%~3 %EXTRA%
-) else (
-	cmake -S "%ROOT%" -B "%BUILD%" -A x64 -DRAVEN_BUILD_SHARED=%~2 -DRAVEN_PAID=%PAID% -DRAVEN_BUILD_EXAMPLES=OFF -DRAVEN_BUILD_TESTS=%TEST_OPTION% "-DCMAKE_INSTALL_PREFIX=%OUT%" -DCMAKE_INSTALL_LIBDIR=%~3 %EXTRA%
-)
-if errorlevel 1 exit /b 1
-set "CONFIGURED=1"
-
-cmake --build "%BUILD%" --config Release --parallel
-if errorlevel 1 exit /b 1
-
-if "%TEST%"=="1" (
-	pushd "%BUILD%"
-	ctest -C Release --output-on-failure
-	if errorlevel 1 ( popd & exit /b 1 )
-	popd
-)
-
-cmake --install "%BUILD%" --config Release
-if errorlevel 1 exit /b 1
-exit /b 0
-
-:fail
+:failed
+echo.
+echo [dist] FAILED.
 if "%NO_PAUSE%"=="0" pause
 endlocal
+exit /b 1
+
+:usage
+echo Usage: dist.bat [free ^| paid ^| both] [msvc ^| mingw ^| all] [options]
+echo.
+echo   free / paid / both  the editions to package, both by default
+echo   msvc / mingw / all  the compilers, all by default (one not installed is skipped)
+echo   --test              run the tests of each build
+echo   --no-pause          do not wait for a key when something fails
+echo.
+echo   Result: dist\raven-^<version^>-free\ and dist\raven-^<version^>-paid\, each with
+echo   msvc-static, msvc-shared, mingw-static and mingw-shared, and a zip of each.
 exit /b 1
