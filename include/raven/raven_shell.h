@@ -206,6 +206,25 @@ extern "C" {
 	typedef int (*RDockCloseCallback)(Rid area, Rid panel, void* user_data);
 	RAVEN_API void Rdock_area_set_close_callback(Rid area, RDockCloseCallback callback, void* user_data);
 
+	/**
+	 * @brief Tearing: a tab dragged out of the area takes its panel to a
+	 * window of its own (a floating area of the same family), and a tab
+	 * dragged from such a window over the area docks it back where it is
+	 * dropped. A double click on the tab of a floating window, or closing
+	 * that window, puts its panels back where they were. Dragging the only
+	 * tab of a floating window moves the window. R_TRUE by default; XML:
+	 * Tearable="false". The functions of this area that take a panel also
+	 * work on its panels that are in floating windows.
+	 */
+	RAVEN_API void Rdock_area_set_tearable(Rid area, int tearable);
+	RAVEN_API int  Rdock_area_is_tearable(Rid area);
+	/** @brief Takes a panel to a window of its own, its top left corner at (x, y) on the screen. Returns the window. */
+	RAVEN_API Rid  Rdock_area_float_panel(Rid area, Rid panel, int x, int y);
+	/** @brief A floating panel goes back where it was in the area. */
+	RAVEN_API void Rdock_area_dock_panel(Rid area, Rid panel);
+	/** @brief The window a floating panel is in, R_INVALID_ID when it is docked in the area. */
+	RAVEN_API Rid  Rdock_area_get_panel_window(Rid area, Rid panel);
+
 	/** @brief Called after the user moved, resized, showed or closed a panel. */
 	typedef void (*RDockChangedCallback)(Rid area, void* user_data);
 	RAVEN_API void Rdock_area_set_changed_callback(Rid area, RDockChangedCallback callback, void* user_data);

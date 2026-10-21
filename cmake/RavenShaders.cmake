@@ -15,16 +15,16 @@ function(raven_compile_shader source header symbol)
 	get_filename_component(name "${source}" NAME)
 	set(spirv "${CMAKE_CURRENT_BINARY_DIR}/${name}.spv")
 	if(RAVEN_GLSLANG)
-		set(compile ${RAVEN_GLSLANG} -V --quiet -o "${spirv}" "${source_path}")
+		set(compile ${RAVEN_GLSLANG} -V --quiet -I${CMAKE_CURRENT_SOURCE_DIR}/include/raven/shaders -o "${spirv}" "${source_path}")
 	else()
-		set(compile ${RAVEN_GLSLC} -O -o "${spirv}" "${source_path}")
+		set(compile ${RAVEN_GLSLC} -O -I${CMAKE_CURRENT_SOURCE_DIR}/include/raven/shaders -o "${spirv}" "${source_path}")
 	endif()
 	add_custom_command(
 		OUTPUT "${header_path}"
 		COMMAND ${compile}
 		COMMAND ${CMAKE_COMMAND} -DINPUT=${spirv} -DOUTPUT=${header_path} -DSYMBOL=${symbol} -DSOURCE=${source}
 			-P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RavenEmbedSpirv.cmake"
-		DEPENDS "${source_path}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RavenEmbedSpirv.cmake"
+		DEPENDS "${source_path}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RavenEmbedSpirv.cmake" "${CMAKE_CURRENT_SOURCE_DIR}/include/raven/shaders/raven_effect.glsl"
 		COMMENT "Raven: compiling ${source}"
 		VERBATIM
 	)

@@ -13,6 +13,7 @@
 #   studio           a graph of nodes, a timeline and a color picker; live reload of its XML
 #   themes           theme files, styles and classes, a theme for a part of the window, Markdown
 #   overlay          a window that is seen through, and the four ways to blur what is behind
+#   effects          the effects (shaders) of Raven, and two written by the application
 #   browser          web pages in the interface, with the optional library raven_web
 #   viewport_vulkan  a Vulkan scene shown in the UI (offscreen image + in-pass draw)
 #   viewport_opengl  an OpenGL scene shown in a native child window
@@ -41,6 +42,7 @@ raven_add_example(memory memory/main.c)
 raven_add_example(studio studio/main.c studio/studio.xml)
 raven_add_example(themes themes/main.c themes/themes.xml themes/ocean.xml themes/paper.xml themes/notes.md)
 raven_add_example(overlay overlay/main.c overlay/overlay.xml)
+raven_add_example(effects effects/main.c effects/effects.xml effects/wave.frag effects/liquid.frag)
 
 # Web pages in the interface: needs the optional library (RAVEN_BUILD_WEB).
 if(TARGET raven_web)

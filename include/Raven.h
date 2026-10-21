@@ -53,6 +53,7 @@
 #include "raven/raven_dialogs.h"
 #include "raven/raven_viewport.h"
 #include "raven/raven_draw.h"
+#include "raven/raven_shader.h"
 #include "raven/raven_xml.h"
 #include "raven/raven_locale.h"
 #include "raven/raven_accessibility.h"

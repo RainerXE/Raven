@@ -763,8 +763,13 @@ static void test_schema(void) {
 			CHECK(info.name && info.group && info.description);
 			CHECK((info.type == R_XML_CHOICE) == (info.choices != NULL));
 			total++;
-			/* (a file would have to exist, and a saved arrangement to be one) */
+			/* (a file would have to exist, and a saved arrangement to be one; an effect is a name or a file) */
 			if (info.type == R_XML_FILE || strcmp(info.name, "Layout") == 0 || strcmp(info.name, "Swatches") == 0) continue;
+			if (strcmp(info.name, "Effect") == 0) {
+				CHECK(Rwidget_set_attribute(widget, info.name, "aurora"));
+				CHECK(Rwidget_set_attribute(widget, info.name, "none"));
+				continue;
+			}
 			value = schema_sample(&info, buffer, sizeof(buffer));
 			/* (some take a share below 1, some two numbers, some four) */
 			if (!Rwidget_set_attribute(widget, info.name, value) &&

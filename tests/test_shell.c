@@ -396,11 +396,14 @@ static void test_dock(void) {
 	/* onto the left edge of the area: against everything */
 	drag(window, left + gap + 10.0f, top + gap + bar * 0.5f, 5.0f, 300.0f);
 	CHECK_STR(Rdock_area_save_layout(dock), "H(250,T(0;a),H(250,T(0;b),T(0;d)))");
-	/* dropped outside, or where it already is: nothing moves */
+	/* dropped outside an area that is not tearable, or where it already is: nothing moves
+	   (a tearable area gives the panel a window of its own: test_dock_tearing) */
 	snprintf(saved, sizeof(saved), "%s", Rdock_area_save_layout(dock));
+	Rdock_area_set_tearable(dock, R_FALSE);
 	drag(window, 10.0f, bar * 0.5f, 100.0f, 300.0f);
 	drag(window, 10.0f, bar * 0.5f, 900.0f, 700.0f);
 	CHECK_STR(Rdock_area_save_layout(dock), saved);
+	Rdock_area_set_tearable(dock, R_TRUE);
 
 	/* the border between two groups is dragged to share the room differently */
 	Rwidget_get_rect(a, &x, &y, &w, &h);

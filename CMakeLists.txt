@@ -150,6 +150,7 @@ set(RAVEN_RENDER_SOURCES
 	src/render/renderer.c
 	src/render/renderer.h
 	src/render/texture.c
+	src/render/shader.c
 	src/render/null/null_backend.c
 	src/resources/default_font.c
 	src/resources/mono_font.c
@@ -311,6 +312,14 @@ if(RAVEN_BACKEND_VULKAN)
 		raven_compile_shader(src/render/vulkan/shaders/ui.frag src/render/vulkan/generated/ui_frag_spv.h rvn_ui_frag_spv)
 		raven_compile_shader(src/render/vulkan/shaders/blur.vert src/render/vulkan/generated/blur_vert_spv.h rvn_blur_vert_spv)
 		raven_compile_shader(src/render/vulkan/shaders/blur.frag src/render/vulkan/generated/blur_frag_spv.h rvn_blur_frag_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/aurora.frag src/render/vulkan/generated/effect_aurora_spv.h rvn_effect_aurora_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/shimmer.frag src/render/vulkan/generated/effect_shimmer_spv.h rvn_effect_shimmer_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/neon.frag src/render/vulkan/generated/effect_neon_spv.h rvn_effect_neon_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/ripple.frag src/render/vulkan/generated/effect_ripple_spv.h rvn_effect_ripple_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/plasma.frag src/render/vulkan/generated/effect_plasma_spv.h rvn_effect_plasma_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/grain.frag src/render/vulkan/generated/effect_grain_spv.h rvn_effect_grain_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/spotlight.frag src/render/vulkan/generated/effect_spotlight_spv.h rvn_effect_spotlight_spv)
+		raven_compile_shader(src/render/vulkan/shaders/effects/mesh.frag src/render/vulkan/generated/effect_mesh_spv.h rvn_effect_mesh_spv)
 	endif()
 endif()
 

@@ -40,6 +40,7 @@
 #define R_PRIM_GLASS     5u /* rounded rectangle of glass: refracts and tints what is behind it */
 #define R_PRIM_BLUR      6u /* rounded rectangle that shows what is behind it out of focus: uv = radius (pixels), grain, saturation, light */
 #define R_PRIM_CURVE     7u /* cubic curve: a stroke that shades from one color to another, with an optional halo and pulses running along it */
+#define R_PRIM_SHADER    8u /* rounded rectangle colored by the fragment shader of its R_DRAW_SHADER command (raven_shader.h) */
 #define R_PRIM_MASK      0xFu
 /** The instance samples the texture of its draw command. */
 #define R_INSTANCE_TEXTURED (1u << 4)
@@ -57,6 +58,7 @@
  *   GLASS     x0, y0, x1, y1       see below       tl, tr, br, bl     bevel width
  *   BLUR      x0, y0, x1, y1       see below       tl, tr, br, bl     outline width
  *   CURVE     ax, ay, dx, dy       see below       bx, by, cx, cy     thickness
+ *   SHADER    x0, y0, x1, y1       params 0..3     tl, tr, br, bl     time (seconds)
  *
  * Fragments outside `clip` (x0, y0, x1, y1) are discarded.
  *
@@ -95,6 +97,16 @@
  *   border_color  color of the outline, when border_width is not 0
  *   flags         bits 8..15 = opacity of the whole primitive, 0..255
  * A backend without backdrop support may draw it as a rounded rectangle
+ * filled with `color`.
+ *
+ * SHADER is drawn by the fragment shader of its command (R_DRAW_SHADER),
+ * an effect of the application or of Raven (raven_shader.h):
+ *   uv            four parameters of the effect, as the application gave them
+ *   color         first color of the effect
+ *   border_color  second color of the effect
+ *   border_width  time of the frame, in seconds (for animated effects)
+ *   flags         bits 8..15 = opacity of the whole primitive, 0..255
+ * A backend without custom shaders may draw it as a rounded rectangle
  * filled with `color`.
  *
  * In a window that can be seen through (RNativeWindow::transparent), the
@@ -136,7 +148,15 @@ typedef enum RDrawCommandType{
 	 * (ZERO, ONE_MINUS_SRC_ALPHA) for the color and for the alpha. A backend
 	 * whose windows are never transparent ignores the command.
 	 */
-	R_DRAW_ERASE
+	R_DRAW_ERASE,
+	/**
+	 * Like R_DRAW_INSTANCES (SHADER primitives), drawn with the fragment
+	 * shader `shader` instead of the one of the UI. The shader sees the same
+	 * inputs and bindings as the UI shader: the texture of the command, and
+	 * the backdrop of glass when an R_DRAW_BACKDROP came before. A backend
+	 * without custom shaders draws the instances as rounded rectangles.
+	 */
+	R_DRAW_SHADER
 }RDrawCommandType;
 
 typedef struct RDrawCommand {
@@ -152,6 +172,8 @@ typedef struct RDrawCommand {
 	/** x, y, width, height in pixels. */
 	int rect[4];
 	int clip[4];
+	/* R_DRAW_SHADER: the shader (Rshader_create), as given to CreateShader */
+	Rid shader;
 } RDrawCommand;
 
 /** Everything needed to render one frame of one window. */
@@ -227,6 +249,14 @@ typedef struct RBackendVTable {
 
 	/** Blocks until the GPU finished all submitted work. */
 	void (*WaitIdle)(void);
+
+	/**
+	 * Optional (NULL: SHADER primitives are drawn as plain rounded
+	 * rectangles). Makes a fragment shader of SPIR-V words usable by the
+	 * R_DRAW_SHADER commands that name `shader`. R_FALSE when it is refused.
+	 */
+	int  (*CreateShader)(Rid shader, const uint32_t* spirv, size_t size);
+	void (*DestroyShader)(Rid shader);
 } RBackendVTable;
 
 
