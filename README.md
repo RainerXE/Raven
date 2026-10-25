@@ -2,6 +2,115 @@
 
 A lightweight, multithreaded GUI library in C for editors and tools.
 
+## Build from source
+
+Raven builds with CMake and a C11 compiler, and has no dependency to install
+besides the X11 development package on Linux. The Vulkan *headers* are
+downloaded automatically during the configuration (git and an internet
+connection are needed for that), unless the [Vulkan SDK](https://vulkan.lunarg.com)
+is installed. No Vulkan library is linked.
+
+Each build below gives the library, `ravenc` (the XMLC compiler), the
+designer, the examples and the tests. Add `-DRAVEN_BUILD_SHARED=ON` to the
+configure command for a shared library (`raven.dll`, `libraven.so`,
+`libraven.dylib`) instead of a static one.
+
+### Windows (Visual Studio)
+
+1. Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/)
+   (Community is fine) with the **Desktop development with C++** workload; it
+   includes CMake. Install [Git](https://git-scm.com/download/win).
+2. Open the **Developer PowerShell for VS 2022** and run:
+
+```powershell
+git clone https://github.com/oscar-soirey/Raven.git
+cd Raven
+cmake -S . -B build
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure   # optional: the tests
+cmake --install build --config Release --prefix install
+```
+
+The programs are in `build\bin\Release` (start `raven_editor.exe` or
+`raven_designer.exe`); the library, its headers and the CMake package are in
+`install\`. Shortcuts: `build.bat` does the configure and the build in one
+command, `generate-cmake.bat --open` opens the solution in Visual Studio (see
+[Build options and scripts](#build-options-and-scripts)).
+
+### Windows (MinGW-w64)
+
+1. Install [MSYS2](https://www.msys2.org), then in the **MSYS2 MINGW64** shell:
+
+```sh
+pacman -S --needed git mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
+git clone https://github.com/oscar-soirey/Raven.git
+cd Raven
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+cmake --install build --prefix install
+```
+
+This gives `libraven.a` (or `raven.dll` and `libraven.dll.a` in a shared
+build). A MinGW library is for programs built with MinGW, not with Visual C++.
+
+### Linux
+
+1. Install a compiler, CMake, Git and the X11 headers:
+
+```sh
+sudo apt install build-essential cmake git libx11-dev ninja-build   # Debian, Ubuntu
+sudo dnf install gcc cmake git libX11-devel ninja-build             # Fedora
+sudo pacman -S base-devel cmake git libx11 ninja                    # Arch
+```
+
+2. Build:
+
+```sh
+git clone https://github.com/oscar-soirey/Raven.git
+cd Raven
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure   # optional: the tests
+cmake --install build --prefix install       # or: sudo cmake --install build
+```
+
+The programs are in `build/bin` (`./build/bin/raven_editor`,
+`./build/bin/raven_designer`). At run time the Vulkan driver of the system
+is used (`libvulkan.so.1`, from the `libvulkan1` / `vulkan-loader` package).
+
+### macOS
+
+1. Install the Xcode command line tools (`xcode-select --install`) and CMake
+   (`brew install cmake`, or the app from [cmake.org](https://cmake.org/download/)).
+2. Build:
+
+```sh
+git clone https://github.com/oscar-soirey/Raven.git
+cd Raven
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure   # optional: the tests
+cmake --install build --prefix install
+```
+
+Add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` for a universal library.
+Raven draws with Vulkan, which runs on macOS through
+[MoltenVK](https://github.com/KhronosGroup/MoltenVK) (`brew install molten-vk`,
+or the Vulkan SDK for macOS).
+
+### Using the built library
+
+`install/` is a CMake package. In your project:
+
+```cmake
+find_package(raven REQUIRED)          # configure with -DCMAKE_PREFIX_PATH=<path to install>
+target_link_libraries(app PRIVATE raven::raven)
+```
+
+or, without installing, `add_subdirectory(Raven)` before the same
+`target_link_libraries`. Prebuilt packages for every platform are attached to
+the [releases](https://github.com/oscar-soirey/Raven/releases).
+
 - **The interface and its code in one file, in your language.** Write the
   window in XML and its code in `<script>` beside it: `.xmlc` (C),
   `.xmlc++`, `.xmlrs` (Rust), `.xmlpy`, `.xmlgo`, `.xmlcs` (C#), `.xmlzig`,
@@ -282,7 +391,7 @@ real GPUs, Windows, macOS and Linux (X11), the screen readers of each system,
 `raven_web`, the designer, the build scripts, `dist.sh`/`dist.bat`, the CMake
 package and every binding (C++, Python, Rust, Go, C#, Zig, LuaJIT).
 
-## Building
+## Build options and scripts
 
 Requirements: CMake 3.16+, a C11 compiler. Linux also needs the X11
 development package (`libx11-dev`). The Vulkan *headers* are needed to build;
@@ -1006,17 +1115,36 @@ and how to add a widget, a window system or a backend.
 
 ## Not implemented yet
 
-native Wayland (XWayland works through the X11 platform); the full
-OpenType shaping of complex scripts (Indic scripts, kerning: Arabic joining
-is done); IME composition window placement; in the text editor: several
-cursors, search and replace, code folding, a language server client; tearing a docked panel off
-into its own window; dragging out of a window to another application;
-mipmaps for scaled-down images; a GPU memory sub-allocator; presenting
-several windows in one call; recovery from a lost Vulkan device; glass over
-a native child window. In the node graph: knots on links, groups and
-comments, a minimap, undo (the application holds the model). In the timeline: tracks inside tracks, curves between
-keys. In Markdown: images from the network, HTML, footnotes. Embedding the
-web view of the system itself (WebView2, WebKitGTK).
+What Raven does not do yet, by area. Contributions are welcome.
+
+**Platforms**
+- Native Wayland (Wayland sessions work through XWayland and the X11 platform).
+- Embedding the system web view (WebView2, WebKitGTK); `raven_web` drives an
+  installed Chromium-based browser instead.
+
+**Text**
+- Full OpenType shaping of complex scripts (Indic scripts, kerning); Arabic
+  joining is done.
+- Placement of the IME composition window.
+- In the text editor: multiple cursors, search and replace, code folding, a
+  language server client.
+
+**Windows and docking**
+- Tearing a docked panel off into its own window.
+- Dragging from a Raven window to another application.
+- Glass over a native child window.
+
+**Rendering**
+- Mipmaps for scaled-down images.
+- A GPU memory sub-allocator.
+- Presenting several windows in one call.
+- Recovery from a lost Vulkan device.
+
+**Widgets**
+- Node graph: knots on links, groups and comments, a minimap, undo (for now the
+  application holds the model and its history).
+- Timeline: nested tracks, curves between keys.
+- Markdown: images from the network, HTML, footnotes.
 
 ## Third-party code
 
