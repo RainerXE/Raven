@@ -61,9 +61,9 @@ A lightweight, multithreaded GUI library in C for editors and tools.
   validated on every call, with errors reported through a callback.
 - **One header**: `#include <Raven.h>`.
 
-> **Raven is free — with a watermark.** Use it for anything; what you make
-> with it is yours. The paid edition is the same library without the
-> watermark. See [Editions](#editions).
+> **Raven is open source** under the [Apache License 2.0](LICENSE). Use it
+> for anything, commercial included; what you make with it is yours. No
+> watermark, no paid edition, no royalties.
 
 ![The studio example](docs/images/studio_glass.png)
 
@@ -256,32 +256,21 @@ View menu switches the theme; a folder dropped on the window opens it as a
 project. The visual editor uses the public API only. The files are in
 `tools/designer/` (`ide.h` says what each one does).
 
-## Editions
+## License
 
-**Raven is free to use, for anything.** Whatever you build with Raven is
-yours: sell it, ship it to clients, keep its source closed, use it at work.
-No royalties, no revenue share, no permission to ask.
+**Raven is open source**, under the [Apache License 2.0](LICENSE) (see also
+[NOTICE](NOTICE)). All of its source code is in this repository.
 
-Raven is compiled in one of two editions, which differ only by a watermark:
+Use it for anything: whatever you build with Raven is yours. Sell it, ship it
+to clients, keep its source closed, use it at work. No watermark, no paid
+edition, no license file, no royalties, no permission to ask.
 
-| Edition | Built with | |
-|---|---|---|
-| Free | `RAVEN_PAID=OFF` (the default) | every window shows a small note in its bottom right corner |
-| Paid | `-DRAVEN_PAID=ON` | no note |
+Raven itself is yours to study, fork and change. When you redistribute Raven
+or a modified copy of it, keep its license and copyright notices and say what
+you changed. Contributions (issues, pull requests) are welcome on
+[GitHub](https://github.com/oscar-soirey/Raven).
 
-The note of the free edition:
-
-```
-Made with Raven · free edition
-The paid edition has no watermark · oscar-soirey.github.io/Raven
-```
-
-It never takes the mouse: what is under it still gets the clicks. Not one
-feature is held back in the free edition. A program can ask which edition it
-runs with at run time with `Ris_free_edition()`; after `find_package(raven)`,
-`RAVEN_PAID` says which edition the package holds. `dist.bat` and `dist.sh`
-build one package per edition (see [Packages to give away](#packages-to-give-away)).
-Questions about the paid edition: oscarsoirey.contact@gmail.com.
+Questions: oscarsoirey.contact@gmail.com.
 
 ## Status
 
@@ -310,8 +299,7 @@ The programs are written to `build/bin` (`build\bin\Release` with Visual
 Studio), next to `raven.dll` in a shared build.
 
 With CMake 3.21 or newer, presets do the same: `cmake --preset linux` (or
-`msvc`, `msvc-shared`, `mingw`, `mingw-shared`, `linux-shared`, `dev`, and
-`linux-paid`, `msvc-paid`... for the paid edition), then
+`msvc`, `msvc-shared`, `mingw`, `mingw-shared`, `linux-shared`, `dev`), then
 `cmake --build --preset linux` and `ctest --preset linux`.
 
 On Windows, two scripts work from the folder of Raven:
@@ -322,7 +310,6 @@ generate-cmake.bat --open     :: ... and opens it; F5 starts the editor example
 build.bat                     :: Release build (generates the build tree if needed)
 build.bat debug --test        :: Debug build, then the tests
 build.bat --run glass         :: builds, then starts an example
-build.bat --paid              :: the paid edition (no watermark)
 ```
 
 `generate-cmake.bat --help` and `build.bat --help` list their options
@@ -331,7 +318,6 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 
 | Option | Default | |
 |---|---|---|
-| `RAVEN_PAID` | `OFF` | `ON`: the paid edition, without the watermark (see [Editions](#editions)) |
 | `RAVEN_BUILD_SHARED` | `OFF` | shared library instead of static |
 | `RAVEN_BUILD_EXAMPLES` | `ON` when top level | |
 | `RAVEN_BUILD_TESTS` | `ON` when top level | tests, tests of the bindings, `raven_benchmark` |
@@ -357,18 +343,17 @@ target_link_libraries(app PRIVATE raven::raven)
 
 `dist.bat` (Windows) builds what is given to people who use Raven without
 building it, the way `build.bat` builds (`generate-cmake.bat`, then
-`build.bat`, then `cmake --install`): one folder and one zip per edition, each
-with the library of Visual C++ and of MinGW-w64, static and shared.
+`build.bat`, then `cmake --install`): one folder and one zip, with the
+library of Visual C++ and of MinGW-w64, static and shared.
 
 ```bat
-dist.bat              :: both editions, Visual C++ and MinGW-w64 (one not installed is skipped)
-dist.bat free         :: dist\raven-0.1.0-free\ and dist\raven-0.1.0-free.zip only
-dist.bat paid msvc    :: the paid edition, Visual C++ only
+dist.bat              :: Visual C++ and MinGW-w64 (one not installed is skipped)
+dist.bat msvc         :: Visual C++ only
 dist.bat --test       :: also runs the tests of each build
 ```
 
 ```
-dist\raven-0.1.0-free\          (dist\raven-0.1.0-paid\: the same, without the watermark)
+dist\raven-0.1.0\
     msvc-static\     include\, lib\raven.lib, lib\cmake\raven, bin\raven_designer.exe, bin\ravenc.exe, share\raven\
     msvc-shared\     bin\raven.dll, lib\raven.lib (to link with the DLL), the rest as above
     mingw-static\    lib\libraven.a, the rest as above
@@ -378,9 +363,7 @@ dist\raven-0.1.0-free\          (dist\raven-0.1.0-paid\: the same, without the w
 For a release on GitHub, `dist.bat` also writes one archive per library in
 `dist-release\`, to attach as they are: `windows-x64-msvc-static.zip`,
 `windows-x64-msvc-shared.zip`, `windows-x64-mingw-static.zip`,
-`windows-x64-mingw-shared.zip` (the free edition) and `SHA256SUMS.txt`. The
-archives of the paid edition go to `dist-release\paid\`, to keep out of a
-public release.
+`windows-x64-mingw-shared.zip` and `SHA256SUMS.txt`.
 
 Each of the four folders is an install prefix: `find_package(raven)` finds it
 through `CMAKE_PREFIX_PATH`. The libraries of one compiler are not for the
@@ -389,7 +372,7 @@ and `ninja` or `mingw32-make`, in the PATH; its DLL is linked with
 `-static-libgcc`, so that it does not need the DLLs of the compiler beside it.
 The build trees are in `build\dist\`.
 
-`./dist.sh [free | paid | both]` makes the Linux packages. `cmake --build build
+`./dist.sh` makes the Linux packages. `cmake --build build
 --target package` makes a simpler archive (one library) with CPack.
 
 ## Examples

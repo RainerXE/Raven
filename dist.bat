@@ -2,36 +2,32 @@
 rem ---------------------------------------------------------------------------
 rem  Raven - dist.bat
 rem  Builds what is given to people who use Raven without building it, the way
-rem  build.bat builds (generate-cmake.bat, then build.bat): for each edition,
-rem  one folder with the library of Visual C++ and of MinGW-w64, static and
+rem  build.bat builds (generate-cmake.bat, then build.bat): one folder with
+rem  the library of Visual C++ and of MinGW-w64, static and
 rem  shared, each a complete package (headers, library, designer, docs).
 rem
-rem    dist.bat [free | paid | both] [msvc | mingw | all] [options]
+rem    dist.bat [msvc | mingw | all] [options]
 rem
-rem    free                the free edition only (every window shows a watermark)
-rem    paid                the paid edition only (no watermark, RAVEN_PAID=ON)
-rem    both                the two editions (default)
 rem    msvc                Visual C++ only (the Visual Studio build.bat uses)
 rem    mingw               MinGW-w64 only (gcc, and ninja or mingw32-make, in the PATH)
 rem    all                 both compilers; one that is not installed is skipped (default)
 rem    --test              run the tests of each build (slow: eight builds)
 rem    --no-pause          do not wait for a key when something fails
 rem
-rem  Result, for the free edition (the paid one is the same with "paid"):
-rem    dist\raven-<version>-free\
+rem  Result:
+rem    dist\raven-<version>\
 rem        msvc-static\     include\, lib\raven.lib, lib\cmake\raven, bin\ (designer, ravenc), share\raven\
 rem        msvc-shared\     include\, bin\raven.dll, lib\raven.lib (import library), lib\cmake\raven, ...
 rem        mingw-static\    include\, lib\libraven.a, lib\cmake\raven, ...
 rem        mingw-shared\    include\, bin\raven.dll, lib\libraven.dll.a (import library), lib\cmake\raven, ...
-rem    dist\raven-<version>-free.zip
+rem    dist\raven-<version>.zip
 rem
 rem  And, ready to be attached to a release on GitHub, one archive per library:
-rem    dist-release\windows-x64-msvc-static.zip     (the free edition)
+rem    dist-release\windows-x64-msvc-static.zip
 rem    dist-release\windows-x64-msvc-shared.zip
 rem    dist-release\windows-x64-mingw-static.zip
 rem    dist-release\windows-x64-mingw-shared.zip
 rem    dist-release\SHA256SUMS.txt                  the checksums of the archives
-rem    dist-release\paid\windows-x64-*.zip          the paid edition: NOT for a public release
 rem  Each archive holds one folder of the same name (windows-x64-msvc-static\...).
 rem
 rem  Each of the four folders is an install prefix: find_package(raven) with
@@ -45,7 +41,6 @@ setlocal EnableExtensions
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
-set "EDITIONS=both"
 set "WHAT=all"
 set "TEST=0"
 set "NO_PAUSE=0"
@@ -53,9 +48,6 @@ if defined RAVEN_NO_PAUSE set "NO_PAUSE=1"
 
 :parse
 if "%~1"=="" goto parsed
-if /I "%~1"=="free"       ( set "EDITIONS=free" & shift & goto parse )
-if /I "%~1"=="paid"       ( set "EDITIONS=paid" & shift & goto parse )
-if /I "%~1"=="both"       ( set "EDITIONS=both" & shift & goto parse )
 if /I "%~1"=="msvc"       ( set "WHAT=msvc" & shift & goto parse )
 if /I "%~1"=="mingw"      ( set "WHAT=mingw" & shift & goto parse )
 if /I "%~1"=="all"        ( set "WHAT=all" & shift & goto parse )
@@ -99,12 +91,7 @@ if "%MINGW%"=="0" if /I "%WHAT%"=="mingw" (
 
 set "MADE="
 set "SKIPPED="
-if /I "%EDITIONS%"=="paid" goto edition_paid
-call :edition free
-if errorlevel 1 goto failed
-:edition_paid
-if /I "%EDITIONS%"=="free" goto done
-call :edition paid
+call :edition
 if errorlevel 1 goto failed
 
 :done
@@ -115,20 +102,18 @@ if not defined MADE (
 	goto failed
 )
 call :checksums "%ROOT%\dist-release"
-call :checksums "%ROOT%\dist-release\paid"
 echo [dist] done:%MADE%
 if defined SKIPPED echo        skipped:%SKIPPED%
 echo        packages in "%ROOT%\dist"
-echo        archives for a release in "%ROOT%\dist-release" ^(the paid edition in dist-release\paid: keep it private^)
+echo        archives for a release in "%ROOT%\dist-release"
 endlocal
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem  :edition <free|paid>   the four packages of one edition, then its zip
+rem  :edition   the four packages, then the zip
 rem ---------------------------------------------------------------------------
 :edition
-set "EDITION=%~1"
-set "NAME=raven-%VERSION%-%EDITION%"
+set "NAME=raven-%VERSION%"
 set "OUT=%ROOT%\dist\%NAME%"
 set "BUILT=0"
 if exist "%OUT%" rmdir /s /q "%OUT%"
@@ -145,7 +130,7 @@ if /I "%WHAT%"=="msvc" goto edition_zip
 if "%MINGW%"=="0" (
 	echo.
 	echo [dist] MinGW-w64 was not found in the PATH ^(gcc, and ninja or mingw32-make^): skipped.
-	set "SKIPPED=%SKIPPED% %EDITION%-mingw"
+	set "SKIPPED=%SKIPPED% mingw"
 	goto edition_zip
 )
 call :variant mingw static
@@ -172,14 +157,14 @@ rem ---------------------------------------------------------------------------
 :variant
 set "TOOL=%~1"
 set "KIND=%~2"
-set "BUILD=%ROOT%\build\dist\%EDITION%-%TOOL%-%KIND%"
+set "BUILD=%ROOT%\build\dist\%TOOL%-%KIND%"
 set "PREFIX=%OUT%\%TOOL%-%KIND%"
 echo.
 echo ===========================================================================
 echo  %NAME%\%TOOL%-%KIND%
 echo ===========================================================================
 
-set "GENERATE_ARGS=--no-pause --fresh --no-examples --build-dir "%BUILD%" --%EDITION%"
+set "GENERATE_ARGS=--no-pause --fresh --no-examples --build-dir "%BUILD%""
 if "%TEST%"=="0" set "GENERATE_ARGS=%GENERATE_ARGS% --no-tests"
 if /I "%KIND%"=="shared" set "GENERATE_ARGS=%GENERATE_ARGS% --shared"
 
@@ -202,11 +187,10 @@ cmake --install "%BUILD%" --config Release --prefix "%PREFIX%"
 if errorlevel 1 exit /b 1
 set "BUILT=1"
 
-rem  the archive for a release: one folder named as the archive, in dist-release (paid: dist-release\paid)
+rem  the archive for a release: one folder named as the archive, in dist-release
 set "ARCHIVE=windows-x64-%TOOL%-%KIND%"
 set "RELEASE=%ROOT%\dist-release"
-if /I "%EDITION%"=="paid" set "RELEASE=%ROOT%\dist-release\paid"
-set "STAGE=%ROOT%\build\dist\archives\%EDITION%"
+set "STAGE=%ROOT%\build\dist\archives"
 if exist "%STAGE%\%ARCHIVE%" rmdir /s /q "%STAGE%\%ARCHIVE%"
 cmake -E copy_directory "%PREFIX%" "%STAGE%\%ARCHIVE%"
 if errorlevel 1 exit /b 1
@@ -223,7 +207,7 @@ exit /b 0
 if /I not "%WHAT%"=="all" exit /b 1
 echo.
 echo [dist] Visual C++ could not be used: the msvc packages are skipped.
-set "SKIPPED=%SKIPPED% %EDITION%-msvc"
+set "SKIPPED=%SKIPPED% msvc"
 exit /b 2
 
 rem ---------------------------------------------------------------------------
@@ -245,14 +229,13 @@ endlocal
 exit /b 1
 
 :usage
-echo Usage: dist.bat [free ^| paid ^| both] [msvc ^| mingw ^| all] [options]
+echo Usage: dist.bat [msvc ^| mingw ^| all] [options]
 echo.
-echo   free / paid / both  the editions to package, both by default
 echo   msvc / mingw / all  the compilers, all by default (one not installed is skipped)
 echo   --test              run the tests of each build
 echo   --no-pause          do not wait for a key when something fails
 echo.
-echo   Result: dist\raven-^<version^>-free\ and dist\raven-^<version^>-paid\, each with
+echo   Result: dist\raven-^<version^>\, with
 echo   msvc-static, msvc-shared, mingw-static and mingw-shared, and a zip of each;
 echo   and dist-release\windows-x64-^<compiler^>-^<kind^>.zip for a release on GitHub.
 exit /b 1

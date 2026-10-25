@@ -21,8 +21,6 @@
 static uint8_t* g_pixels;
 static int g_width, g_height;
 static float g_scale = 1.0f;
-/* the watermark of the free edition: pixels under it are not compared */
-static float g_wm_x, g_wm_y, g_wm_w, g_wm_h;
 
 /* Renders the window and keeps its pixels for the CHECK_PIXEL that follow. */
 static void capture(Rid window) {
@@ -30,13 +28,7 @@ static void capture(Rid window) {
 	Rdraw_frame();
 	g_pixels = Rwindow_capture(window, &g_width, &g_height);
 	g_scale = Rwindow_get_scale(window);
-	if (!Rwindow_get_watermark_rect(window, &g_wm_x, &g_wm_y, &g_wm_w, &g_wm_h)) { g_wm_x = g_wm_y = -1000.0f; g_wm_w = g_wm_h = 0.0f; }
 	CHECK(g_pixels != NULL);
-}
-
-/* The note of the free edition (logical units): pixel checks leave it out. */
-static int in_watermark(float x, float y) {
-	return x >= g_wm_x - 1.0f && x <= g_wm_x + g_wm_w + 1.0f && y >= g_wm_y - 1.0f && y <= g_wm_y + g_wm_h + 1.0f;
 }
 
 static const uint8_t* pixel_at(float x, float y) {
@@ -49,10 +41,8 @@ static const uint8_t* pixel_at(float x, float y) {
 /* Position in logical units, expected color, with a tolerance for rounding in the blending. */
 #define CHECK_PIXEL(x, y, er, eg, eb) do { \
 	const uint8_t* test_p_ = pixel_at((float)(x), (float)(y)); \
-	int test_wm_ = (float)(x) >= g_wm_x - 1.0f && (float)(x) <= g_wm_x + g_wm_w + 1.0f && \
-		(float)(y) >= g_wm_y - 1.0f && (float)(y) <= g_wm_y + g_wm_h + 1.0f; \
 	g_test_checks++; \
-	if (!test_wm_ && (abs((int)test_p_[0] - (er)) > 3 || abs((int)test_p_[1] - (eg)) > 3 || abs((int)test_p_[2] - (eb)) > 3)) { \
+	if ((abs((int)test_p_[0] - (er)) > 3 || abs((int)test_p_[1] - (eg)) > 3 || abs((int)test_p_[2] - (eb)) > 3)) { \
 		g_test_failures++; \
 		printf("  FAIL %s:%d: pixel (%g, %g) = (%d, %d, %d), expected (%d, %d, %d)\n", __FILE__, __LINE__, \
 			(double)(x), (double)(y), test_p_[0], test_p_[1], test_p_[2], (er), (eg), (eb)); \
@@ -206,7 +196,6 @@ static void test_text(void) {
 			const uint8_t* p = g_pixels + ((size_t)py * (size_t)g_width + (size_t)px) * 4;
 			float lx = (float)px / g_scale, ly = (float)py / g_scale;
 			int inside = lx >= x - 1 && ly >= y - 1 && lx < x + w + 1 && ly < y + h + 1;
-			if (in_watermark(lx, ly)) continue;
 			if (p[0] > 128) {
 				if (inside) lit_inside++;
 				else lit_outside++;
@@ -385,7 +374,6 @@ static int row_contrast(float x0, float x1, float y) {
 		const uint8_t* a = pixel_at(x, y);
 		const uint8_t* c = pixel_at(x + 1.0f, y);
 		int r = a[0], g = a[1], b = a[2];
-		if (in_watermark(x, y) || in_watermark(x + 1.0f, y)) continue;
 		total += abs(r - c[0]) + abs(g - c[1]) + abs(b - c[2]);
 	}
 	return total;

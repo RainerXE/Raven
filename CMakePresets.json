@@ -13,14 +13,6 @@
 			"installDir": "${sourceDir}/build/${presetName}/install"
 		},
 		{
-			"name": "paid",
-			"hidden": true,
-			"description": "The paid edition: no watermark",
-			"cacheVariables": {
-				"RAVEN_PAID": "ON"
-			}
-		},
-		{
 			"name": "msvc",
 			"displayName": "Visual C++ (the newest Visual Studio installed), static library",
 			"inherits": "base",
@@ -37,22 +29,6 @@
 			"cacheVariables": {
 				"RAVEN_BUILD_SHARED": "ON"
 			}
-		},
-		{
-			"name": "msvc-paid",
-			"displayName": "Visual C++, static library, paid edition (no watermark)",
-			"inherits": [
-				"paid",
-				"msvc"
-			]
-		},
-		{
-			"name": "msvc-shared-paid",
-			"displayName": "Visual C++, raven.dll, paid edition (no watermark)",
-			"inherits": [
-				"paid",
-				"msvc-shared"
-			]
 		},
 		{
 			"name": "mingw",
@@ -78,22 +54,6 @@
 			}
 		},
 		{
-			"name": "mingw-paid",
-			"displayName": "MinGW-w64 (gcc), static library, paid edition (no watermark)",
-			"inherits": [
-				"paid",
-				"mingw"
-			]
-		},
-		{
-			"name": "mingw-shared-paid",
-			"displayName": "MinGW-w64 (gcc), raven.dll, paid edition (no watermark)",
-			"inherits": [
-				"paid",
-				"mingw-shared"
-			]
-		},
-		{
 			"name": "linux",
 			"displayName": "Linux, static library",
 			"inherits": "base",
@@ -114,22 +74,6 @@
 			"cacheVariables": {
 				"RAVEN_BUILD_SHARED": "ON"
 			}
-		},
-		{
-			"name": "linux-paid",
-			"displayName": "Linux, static library, paid edition (no watermark)",
-			"inherits": [
-				"paid",
-				"linux"
-			]
-		},
-		{
-			"name": "linux-shared-paid",
-			"displayName": "Linux, libraven.so, paid edition (no watermark)",
-			"inherits": [
-				"paid",
-				"linux-shared"
-			]
 		},
 		{
 			"name": "dev",
@@ -153,16 +97,6 @@
 			"configuration": "Release"
 		},
 		{
-			"name": "msvc-paid",
-			"configurePreset": "msvc-paid",
-			"configuration": "Release"
-		},
-		{
-			"name": "msvc-shared-paid",
-			"configurePreset": "msvc-shared-paid",
-			"configuration": "Release"
-		},
-		{
 			"name": "mingw",
 			"configurePreset": "mingw"
 		},
@@ -171,28 +105,12 @@
 			"configurePreset": "mingw-shared"
 		},
 		{
-			"name": "mingw-paid",
-			"configurePreset": "mingw-paid"
-		},
-		{
-			"name": "mingw-shared-paid",
-			"configurePreset": "mingw-shared-paid"
-		},
-		{
 			"name": "linux",
 			"configurePreset": "linux"
 		},
 		{
 			"name": "linux-shared",
 			"configurePreset": "linux-shared"
-		},
-		{
-			"name": "linux-paid",
-			"configurePreset": "linux-paid"
-		},
-		{
-			"name": "linux-shared-paid",
-			"configurePreset": "linux-shared-paid"
 		},
 		{
 			"name": "dev",
@@ -225,13 +143,6 @@
 		{
 			"name": "linux-shared",
 			"configurePreset": "linux-shared",
-			"output": {
-				"outputOnFailure": true
-			}
-		},
-		{
-			"name": "linux-paid",
-			"configurePreset": "linux-paid",
 			"output": {
 				"outputOnFailure": true
 			}

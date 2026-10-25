@@ -32,9 +32,6 @@ option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SD
 option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator or glslc)" OFF)
 option(RAVEN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(RAVEN_MSVC_STATIC_RUNTIME "Visual C++: link the C runtime statically (/MT) instead of using its DLL (/MD)" OFF)
-# The edition: free (the default) shows a small watermark in every window;
-# paid (-DRAVEN_PAID=ON) shows none. Nothing else differs.
-option(RAVEN_PAID "Build the paid edition: no watermark in the windows" OFF)
 set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11, cocoa or null")
 set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 cocoa null)
 
@@ -168,7 +165,6 @@ set(RAVEN_WIDGET_SOURCES
 	src/widget/widget.c
 	src/widget/widget.h
 	src/widget/window.c
-	src/widget/watermark.c
 )
 
 set(RAVEN_WIDGETS_SOURCES
@@ -325,13 +321,6 @@ endif()
 
 if(RAVEN_WITH_STB_IMAGE)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_WITH_STB_IMAGE)
-endif()
-
-if(RAVEN_PAID)
-	list(APPEND RAVEN_DEFINITIONS RAVEN_PAID)
-	message(STATUS "Raven: paid edition (no watermark)")
-else()
-	message(STATUS "Raven: free edition (every window shows a watermark; -DRAVEN_PAID=ON for the paid edition)")
 endif()
 
 # ---------------------------------------------------------------------------
@@ -503,11 +492,7 @@ if(RAVEN_IS_TOP_LEVEL)
 	set(CPACK_PACKAGE_NAME "raven")
 	set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 	set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
-	set(RAVEN_PACKAGE_EDITION "")
-	if(RAVEN_PAID)
-		set(RAVEN_PACKAGE_EDITION "-paid")
-	endif()
-	set(CPACK_PACKAGE_FILE_NAME "raven-${PROJECT_VERSION}-${RAVEN_PACKAGE_SYSTEM}-${RAVEN_PACKAGE_COMPILER}-${RAVEN_PACKAGE_KIND}${RAVEN_PACKAGE_EDITION}")
+	set(CPACK_PACKAGE_FILE_NAME "raven-${PROJECT_VERSION}-${RAVEN_PACKAGE_SYSTEM}-${RAVEN_PACKAGE_COMPILER}-${RAVEN_PACKAGE_KIND}")
 	if(WIN32)
 		set(CPACK_GENERATOR "ZIP")
 	else()

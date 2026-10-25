@@ -439,9 +439,7 @@ extern "C" {
 	RAVEN_API Rid Rwindow_get_hovered_widget(Rid window);
 	RAVEN_API void Rwindow_get_mouse_position(Rid window, float* x, float* y);
 	/**
-	 * @brief Where the watermark of the free edition is drawn in the
-	 * window (logical units). R_FALSE, and zeros, in the paid edition.
-	 * It never takes the mouse; this is for layouts and tests that read pixels.
+	 * @deprecated Raven no longer shows a watermark. Always R_FALSE, with zeros.
 	 */
 	RAVEN_API int Rwindow_get_watermark_rect(Rid window, float* x, float* y, float* width, float* height);
 

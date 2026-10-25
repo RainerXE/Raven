@@ -15,20 +15,4 @@ if(CMAKE_HOST_WIN32)
 endif()
 include("${CMAKE_CURRENT_LIST_DIR}/RavenXMLC.cmake")
 
-# ---------------------------------------------------------------------------
-#  Edition
-#
-#  A Raven package holds one edition: the free one (every window shows a
-#  small watermark) or the paid one (no watermark). RAVEN_PAID says which.
-# ---------------------------------------------------------------------------
-
-set(RAVEN_PAID @RAVEN_PAID@)
-if(NOT RAVEN_FIND_QUIETLY)
-	if(RAVEN_PAID)
-		message(STATUS "Raven: paid edition (no watermark)")
-	else()
-		message(STATUS "Raven: free edition (every window shows a watermark)")
-	endif()
-endif()
-
 check_required_components(raven)

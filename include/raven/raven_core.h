@@ -187,10 +187,8 @@ extern "C" {
 
 	RAVEN_API int Ris_initialized(void);
 	/**
-	 * @brief R_TRUE in the free edition of Raven (the default build): every
-	 * window shows a small watermark in its bottom right corner. R_FALSE in the
-	 * paid edition (the library built with -DRAVEN_PAID=ON), which shows none.
-	 * Nothing else differs; what you make with either one is yours.
+	 * @deprecated Raven no longer has editions: it is open source (Apache
+	 * License 2.0) and never shows a watermark. Always R_FALSE.
 	 */
 	RAVEN_API int Ris_free_edition(void);
 
