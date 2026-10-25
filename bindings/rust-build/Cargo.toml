@@ -1,0 +1,8 @@
+[package]
+name = "raven-build"
+version = "0.1.0"
+edition = "2018"
+description = "Compiles the .xmlrs files of a crate (Raven XML + Rust) with ravenc, from build.rs"
+
+[lib]
+path = "src/lib.rs"

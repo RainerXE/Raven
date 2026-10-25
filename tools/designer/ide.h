@@ -4,7 +4,7 @@
  * interface; the other files make it an IDE around a CMake project:
  *
  *   os.c        folders, files and programs (CMake, the compiler, the program)
- *   project.c   the project: its folder, the Explorer, New project, settings
+ *   project.c   the project: its folder, New project, settings
  *   editors.c   code editors (C, CMake, any text) in tabs, and completion
  *   xmlc.c      .xmlc files: their <script> blocks and their interface
  *   build.c     configure, build, run, the Output panel and the build problems
@@ -93,6 +93,8 @@ int  designer_get_names(const char** names, int max);
 /** Opens a .xml file in the visual editor; goes to a line of its XML panel. */
 void designer_open_file(const char* path);
 void designer_go_to_line(int line);
+/** A mark of the compiler on a line of the XML panel (an .xmlc: a line of the file). */
+void designer_add_marker(int line, int column, int error, const char* message);
 /** Builds the preview again (after the translations or the language changed). */
 void designer_refresh_preview(void);
 /** The frame of the preview: the strings panel sets its direction. */
@@ -185,17 +187,17 @@ void completion_load_raven_api(void);
 
 /* ---- xmlc.c ---- */
 
-/** Opens a .xmlc: its interface in the visual editor, each <script> in a C tab. */
+/** Opens a .xmlc (or .xmlrs, .xmlpy...) whole in the XML panel; the visual editor shows its interface element. */
 int  xmlc_open(const char* path);
-/** Writes the .xmlc back from the visual editor and the script tabs. */
+/** Writes the .xmlc back: the text of the XML panel, scripts and interface together. */
 int  xmlc_save(void);
+/** Where the interface element of the text of an .xmlc is (offsets, and its first line): 1, 0 when there is none, -1 when an element is not closed. */
+int  xmlc_find_interface(const char* text, size_t* start, size_t* end, int* line);
 int  xmlc_is_open(void);
 const char* xmlc_path(void);
 void xmlc_close(void);
-/** The line of the interface in the file (to turn a line of the XML panel into a line of the file). */
+/** The line of the interface element in the file. */
 int  xmlc_interface_line(void);
-/** Script tab and line of a line of the .xmlc file, for the errors of the compiler. */
-int  xmlc_locate(int file_line, Rid* editor, int* editor_line);
 
 /* ---- build.c ---- */
 

@@ -1178,6 +1178,11 @@ pub const RLanguageDesc = extern struct {
     annotation: ?[*:0]const u8 = null,
     /// Bitmask of RLanguageFlags.
     flags: u32 = 0,
+    /// Markup with R_LANGUAGE_EMBEDS: the language of what is between
+    /// <script> and </script> (the name of a language: "C", "Rust"...).
+    /// NULL: JavaScript, as in HTML. The XMLC, XMLRS, XMLPY... languages of
+    /// Raven use it for the code of their files.
+    script_language: ?[*:0]const u8 = null,
 };
 
 /// A kind of file in a file dialog.

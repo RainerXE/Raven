@@ -272,12 +272,9 @@ void editors_clear_markers(void) {
 void editors_add_marker(const char* path, int line, int column, int error, const char* message) {
 	Rid widget = editors_find(path);
 	if (widget == R_INVALID_ID && xmlc_is_open() && ide_same_path(path, xmlc_path())) {
-		int editor_line;
-		Rid script;
-		if (xmlc_locate(line, &script, &editor_line) && script != R_INVALID_ID) {
-			widget = script;
-			line = editor_line;
-		}
+		/* an .xmlc is whole in the XML panel */
+		designer_add_marker(line, column, error, message);
+		return;
 	}
 	if (widget == R_INVALID_ID || line <= 0) return;
 	Rtext_editor_add_marker(widget, line - 1, column > 0 ? column - 1 : 0, -1, error ? R_MARKER_ERROR : R_MARKER_WARNING, message);
@@ -547,10 +544,57 @@ static void complete_xml(Rid editor, const char* prefix, const char* before) {
 	}
 }
 
+/* In the XML panel of an .xmlc: the cursor is between <script> and </script>. */
+static int in_script(Rid editor) {
+	const char* text = Rtext_editor_get_text(editor);
+	const char* at = text;
+	const char* open = NULL;
+	const char* p;
+	int line, column, l = 0;
+	Rtext_editor_get_cursor(editor, &line, &column);
+	while (*at && l < line) if (*at++ == '\n') l++;
+	for (p = at; *p && *p != '\n' && p - at < column; p++) {}
+	/* the last <script before the cursor, and no </script after it */
+	for (at = text; at < p; at++) {
+		if (*at != '<') continue;
+		if (!strncmp(at, "<script", 7) && (at[7] == '>' || at[7] == ' ' || at[7] == '\t' || at[7] == '\n' || at[7] == '\r')) open = at;
+		else if (!strncmp(at, "</script", 8)) open = NULL;
+	}
+	if (!open) return 0;
+	/* (past the end of the opening tag) */
+	at = strchr(open, '>');
+	return at && at < p;
+}
+
 static void on_complete(Rid editor, const char* prefix, void* user_data) {
 	char before[1024];
 	if (!before_cursor(editor, before, sizeof(before))) return;
-	if (user_data) complete_xml(editor, prefix, before);
+	/* an .xmlc is whole in the XML panel: in its scripts, the code of the language */
+	if (user_data && xmlc_is_open() && in_script(editor)) {
+		/* the words of the language of the scripts too (the panel itself is in XMLC, XMLRS...) */
+		const ide_language_t* language = ide_interface_language(xmlc_path());
+		RLanguageDesc desc;
+		if (language && Rlanguage_get(language->editor, &desc)) {
+			const char* lists[2];
+			int k;
+			lists[0] = desc.keywords;
+			lists[1] = desc.types;
+			for (k = 0; k < 2; k++) {
+				const char* w = lists[k];
+				while (w && *w) {
+					char word[64];
+					size_t n = 0;
+					while (*w == ' ') w++;
+					while (*w && *w != ' ' && n + 1 < sizeof(word)) word[n++] = *w++;
+					while (*w && *w != ' ') w++;
+					word[n] = '\0';
+					if (n && !strncmp(word, prefix, strlen(prefix))) Rtext_editor_add_completion(editor, word, k ? "type" : "keyword");
+				}
+			}
+		}
+		complete_c(editor, prefix, before);
+	}
+	else if (user_data) complete_xml(editor, prefix, before);
 	else complete_c(editor, prefix, before);
 }
 

@@ -108,7 +108,7 @@ static const char* const DESIGNER_XML[] = {
 "        <Menu Text=\"Project\">"
 "          <MenuItem Text=\"New project...\" Shortcut=\"Ctrl+Shift+N\" OnClicked=\"project.new\"/>"
 "          <MenuItem Text=\"Open folder...\" Shortcut=\"Ctrl+Shift+O\" OnClicked=\"project.open\"/>"
-"          <MenuItem Text=\"Refresh the Explorer\" OnClicked=\"project.refresh\"/>"
+"          <MenuItem Text=\"Content drawer\" OnClicked=\"drawer.toggle\" Tooltip=\"Ctrl+Space\"/>"
 "          <MenuItem Text=\"Close project\" OnClicked=\"project.close\"/>"
 "          <Separator/>"
 "          <MenuItem Text=\"Build settings...\" OnClicked=\"project.settings\"/>"
@@ -149,25 +149,16 @@ static const char* const DESIGNER_XML[] = {
 "          </ScrollBox>"
 "          <VBox Name=\"stage.empty\" Spacing=\"8\" Slot.HAlign=\"Center\" Slot.VAlign=\"Center\" Visibility=\"Collapsed\">"
 "            <Label Text=\"No interface open\" TextSize=\"20\" Slot.HAlign=\"Center\"/>"
-"            <Label Text=\"Double-click an interface in the Explorer (.xml, .xmlc, .xmlrs...), or use File &gt; New.\" Opacity=\"0.6\" Slot.HAlign=\"Center\"/>"
+"            <Label Text=\"Open an interface from the content drawer (Ctrl+Space): .xml, .xmlc, .xmlrs..., or use File &gt; New.\" Opacity=\"0.6\" Slot.HAlign=\"Center\"/>"
 "          </VBox>"
 "        </Overlay>"
 "      </VBox>"
-"      <VBox Name=\"panel.explorer\" Slot.Title=\"Explorer\" Slot.Dock=\"Left\" Slot.DockSize=\"0.2\" Slot.Closable=\"false\">"
-"        <WrapBox Spacing=\"0\" Slot.Padding=\"4,2\">"
-"          <ToolButton Text=\"New project\" Tip=\"A project that builds as it is (Ctrl+Shift+N)\" Do=\"project.new\"/>"
-"          <ToolButton Text=\"Open\" Tip=\"Open a project folder (Ctrl+Shift+O)\" Do=\"project.open\"/>"
-"          <ToolButton Text=\"Refresh\" Tip=\"Read the folder again\" Do=\"project.refresh\"/>"
-"        </WrapBox>"
-"        <Separator/>"
-"        <TreeView Name=\"explorer\" Slot.Fill=\"1\" Tooltip=\"Double click: open the file\"/>"
-"      </VBox>"
-"      <VBox Name=\"panel.widgets\" Slot.Title=\"Widgets\" Slot.Dock=\"Tab\" Slot.DockTo=\"panel.explorer\" Slot.Closable=\"false\">"
+"      <VBox Name=\"panel.widgets\" Slot.Title=\"Widgets\" Slot.Dock=\"Left\" Slot.DockSize=\"0.2\" Slot.Closable=\"false\">"
 "        <TextInput Name=\"palette.filter\" Placeholder=\"Search a widget\" Slot.Padding=\"6\" OnChanged=\"palette.filter\"/>"
 "        <ListView Name=\"palette\" Slot.Fill=\"1\" OnActivated=\"palette.add\" Tooltip=\"Double click to add inside the selected element\"/>"
 "        <Button Text=\"Add to the selection\" OnClicked=\"palette.add\" Slot.Padding=\"6\"/>"
 "      </VBox>",
-"      <VBox Name=\"panel.tree\" Slot.Title=\"Tree\" Slot.Dock=\"Bottom\" Slot.DockTo=\"panel.explorer\" Slot.DockSize=\"0.45\" Slot.Closable=\"false\">"
+"      <VBox Name=\"panel.tree\" Slot.Title=\"Tree\" Slot.Dock=\"Bottom\" Slot.DockTo=\"panel.widgets\" Slot.DockSize=\"0.45\" Slot.Closable=\"false\">"
 "        <WrapBox Spacing=\"0\" Slot.Padding=\"4,2\">"
 "          <ToolButton Text=\"Up\" Tip=\"Before the previous element (Alt+Up)\" Do=\"edit.up\"/>"
 "          <ToolButton Text=\"Down\" Tip=\"After the next element (Alt+Down)\" Do=\"edit.down\"/>"
@@ -426,6 +417,32 @@ Rid g_ide_center = R_INVALID_ID;
 Rid g_ide_dialog = R_INVALID_ID;
 /* the interface shown is the one of an .xmlc: saving goes through xmlc.c */
 static int g_is_xmlc = 0;
+/*
+ * An .xmlc is in the XML panel whole, scripts included: the visual editor
+ * works on its interface element, which starts on line g_iface_offset + 1
+ * of the file. The lines of the document are lines of that element.
+ */
+static int g_iface_offset = 0;
+
+/* The interface of a text: the text itself, or for an .xmlc its interface element (malloc), NULL when there is none. */
+static char* interface_of(const char* text, size_t* start, size_t* end) {
+	char* out;
+	int line = 1;
+	*start = 0;
+	*end = strlen(text);
+	if (!g_is_xmlc) {
+		g_iface_offset = 0;
+		out = (char*)malloc(*end + 1);
+		memcpy(out, text, *end + 1);
+		return out;
+	}
+	if (xmlc_find_interface(text, start, end, &line) <= 0) return NULL;
+	g_iface_offset = line - 1;
+	out = (char*)malloc(*end - *start + 1);
+	memcpy(out, text + *start, *end - *start);
+	out[*end - *start] = '\0';
+	return out;
+}
 
 /* ---------------------------------------------------------------------------
  *  Small things
@@ -513,6 +530,16 @@ static void add_problem(const char* text, int line, int error) {
 	if (g.problem_count >= MAX_PROBLEMS) return;
 	problem = &g.problems[g.problem_count++];
 	snprintf(problem->text, sizeof(problem->text), "%s", text);
+	/* (in an .xmlc, the lines of the interface are lines of the file: "line 3" of the element is said as the line of the file) */
+	if (g_iface_offset > 0 && line > 0) {
+		const char* at = strstr(text, "line ");
+		if (at && at[5] >= '0' && at[5] <= '9') {
+			const char* digits = at + 5;
+			while (*digits >= '0' && *digits <= '9') digits++;
+			snprintf(problem->text, sizeof(problem->text), "%.*sline %d%s", (int)(at - text), text, line + g_iface_offset, digits);
+		}
+		line += g_iface_offset;
+	}
 	problem->line = line;
 	problem->error = error;
 }
@@ -799,6 +826,24 @@ static void on_tree_selected(Rid tree, Rid item, void* user_data) {
 static void document_changed(int keep_inspector) {
 	const char* text = Rxml_document_to_string(g.document);
 	int line = g.selected != R_INVALID_ID && Rxml_node_is_valid(g.selected) ? Rxml_node_get_line(g.selected) : 0;
+	ide_buffer_t whole = { 0 };
+	if (g_is_xmlc) {
+		/* the element goes back in its place in the file, the scripts and the rest as they are */
+		const char* current = Rtext_editor_get_text(g.source);
+		size_t start, end, length = strlen(text);
+		char* old = interface_of(current, &start, &end);
+		while (length && (text[length - 1] == '\n' || text[length - 1] == '\r')) length--;
+		if (old) {
+			ide_buffer_add(&whole, current, start);
+			ide_buffer_add(&whole, text, length);
+			ide_buffer_add(&whole, current + end, strlen(current + end));
+			free(old);
+		} else {
+			ide_buffer_add(&whole, text, strlen(text));
+		}
+		text = whole.data ? whole.data : "";
+		if (line > 0) line += g_iface_offset;
+	}
 	g.syncing++;
 	Rtext_editor_set_text(g.source, text);
 	/* the text stays on what is being changed */
@@ -810,6 +855,7 @@ static void document_changed(int keep_inspector) {
 	g.broken = R_FALSE;
 	g.modified = R_TRUE;
 	history_push(text, R_FALSE);
+	ide_buffer_free(&whole);
 	rebuild_all(keep_inspector);
 	update_title();
 }
@@ -1057,6 +1103,7 @@ static void select_node(Rid node, int reveal) {
 	Rwidget_invalidate(g.outline);
 	/* the text shows where the element is written */
 	line = node != R_INVALID_ID ? Rxml_node_get_line(node) : 0;
+	if (line > 0) line += g_iface_offset;
 	if (reveal && line > 0 && !g.broken && !Rwidget_is_focused(g.source)) {
 		Rtext_editor_set_cursor(g.source, line - 1, 0);
 		Rtext_editor_scroll_to_line(g.source, line - 1);
@@ -1081,9 +1128,22 @@ static void rebuild_all(int keep_inspector) {
  */
 static int load_text(const char* text, int record) {
 	RXmlError error;
-	Rid document = Rxml_document_parse(text, strlen(text), &error);
+	size_t start, end;
+	char* ui = interface_of(text, &start, &end);
+	Rid document;
 	int path[32], depth = -1;
 
+	if (!ui) {
+		g.broken = R_TRUE;
+		g.problem_count = 0;
+		g_iface_offset = 0;
+		add_problem("The file has no interface element (or one that is not closed): write one, as <Window>...</Window>.", 1, R_TRUE);
+		show_problems();
+		set_status("No interface in the file: see the Problems tab.");
+		return R_FALSE;
+	}
+	document = Rxml_document_parse(ui, strlen(ui), &error);
+	free(ui);
 	if (document == R_INVALID_ID) {
 		char message[240];
 		g.broken = R_TRUE;
@@ -1193,7 +1253,7 @@ static void insert_xml(const char* xml) {
 	Rid target = g.selected, added;
 	int index = -1;
 	if (!g.has_document) {
-		set_status("Open an interface first (double-click one in the Explorer, or File > New).");
+		set_status("Open an interface first (Ctrl+Space: the content drawer, or File > New).");
 		return;
 	}
 	if (!flush_source()) return;
@@ -1464,7 +1524,9 @@ static void open_file(const char* path) {
 	}
 	base_path_of(path);
 	g_is_xmlc = 0;
+	g_iface_offset = 0;
 	Rdock_area_set_panel_title(g.dock, g.source, "XML");
+	Rtext_editor_set_language(g.source, "XML");
 	new_document(text, path);
 	Rmemory_free(text);
 	if (!g.broken) set_status("Opened %s", path);
@@ -1498,10 +1560,21 @@ static int save_file(int ask) {
 		chosen = copy_text(chosen);
 		free(g.path);
 		g.path = (char*)chosen;
-		/* saved as a plain .xml: the scripts stay in the .xmlc */
+		/* saved as a plain .xml: the interface alone, the scripts stay in the .xmlc */
 		if (g_is_xmlc) {
+			size_t start, end;
+			char* ui = interface_of(Rtext_editor_get_text(g.source), &start, &end);
 			xmlc_close();
 			g_is_xmlc = 0;
+			g_iface_offset = 0;
+			if (ui) {
+				g.syncing++;
+				Rtext_editor_set_text(g.source, ui);
+				g.syncing--;
+				free(ui);
+			}
+			Rdock_area_set_panel_title(g.dock, g.source, "XML");
+	Rtext_editor_set_language(g.source, "XML");
 		}
 	}
 	/* what is saved is the text as it is written, mistakes included: nothing typed is lost */
@@ -1527,6 +1600,7 @@ static void action_file(Rid sender, const char* action, void* user_data) {
 		if (g_is_xmlc) {
 			xmlc_close();
 			g_is_xmlc = 0;
+			g_iface_offset = 0;
 		}
 		new_document(strcmp(kind, "panel") == 0 ? TEMPLATE_PANEL : strcmp(kind, "form") == 0 ? TEMPLATE_FORM : TEMPLATE_WINDOW, NULL);
 		set_status("New document: File > Save writes it.");
@@ -1594,7 +1668,9 @@ void designer_load_interface(const char* text, const char* path, int is_xmlc) {
 	if (path) base_path_of(path);
 	g_is_xmlc = is_xmlc;
 	/* (the panel says that it holds the interface part of the file) */
-	Rdock_area_set_panel_title(g.dock, g.source, is_xmlc ? "Interface (XML)" : "XML");
+	Rdock_area_set_panel_title(g.dock, g.source, is_xmlc && path ? ide_basename(path) : "XML");
+	/* an .xmlc: its code colored in the language of the file (XMLC, XMLRS, XMLPY... of the text editor) */
+	Rtext_editor_set_language(g.source, is_xmlc && path && Rlanguage_for_file(path) ? Rlanguage_for_file(path) : "XML");
 	new_document(text, path);
 	if (!g.broken && path) set_status("Opened %s", path);
 }
@@ -1643,6 +1719,7 @@ void designer_close(void) {
 	g.parse_timer = R_INVALID_ID;
 	if (xmlc_is_open()) xmlc_close();
 	g_is_xmlc = 0;
+	g_iface_offset = 0;
 	free(g.path);
 	g.path = NULL;
 	history_clear();
@@ -1665,8 +1742,14 @@ void designer_close(void) {
 	Rlabel_set_text(Rwidget_find(g.window, "stage.size"), "");
 	Rlabel_set_text(g.path_label, "");
 	Rdock_area_set_panel_title(g.dock, g.source, "XML");
+	Rtext_editor_set_language(g.source, "XML");
 	show_document(R_FALSE);
 	update_title();
+}
+
+void designer_add_marker(int line, int column, int error, const char* message) {
+	if (line <= 0) return;
+	Rtext_editor_add_marker(g.source, line - 1, column > 0 ? column - 1 : 0, -1, error ? R_MARKER_ERROR : R_MARKER_WARNING, message);
 }
 
 void designer_go_to_line(int line) {
@@ -1816,7 +1899,7 @@ static void run_frames(int count) {
  *   expect TEXT    stops with an error unless the XML contains TEXT ('~' stands for a space)
  *   project DIR NAME LANGUAGE   creates the project DIR/NAME (C, C++, Rust, Python, Go, C#, Zig, Lua) and opens it
  *   prefix PATH    the folder of the Raven package (Build settings)
- *   open PATH      opens a file as the Explorer does, or a project folder
+ *   open PATH      opens a file as the content drawer does, or a project folder
  *   expectfile PATH TEXT   stops unless the file contains TEXT
  *   cell KEY COLUMN TEXT   writes a cell of the Translations panel
  *   language CODE  the language of the preview ('-': the first one)

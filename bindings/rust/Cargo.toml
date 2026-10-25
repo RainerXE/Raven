@@ -1,0 +1,9 @@
+[package]
+name = "raven"
+version = "0.1.0"
+edition = "2018"
+description = "Bindings for the Raven GUI library"
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"

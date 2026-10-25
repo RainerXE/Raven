@@ -102,6 +102,13 @@ typedef struct RLanguageDesc {
 	const char* annotation;
 	/** Bitmask of RLanguageFlags. */
 	Ruint flags;
+	/**
+	 * Markup with R_LANGUAGE_EMBEDS: the language of what is between
+	 * <script> and </script> (the name of a language: "C", "Rust"...).
+	 * NULL: JavaScript, as in HTML. The XMLC, XMLRS, XMLPY... languages of
+	 * Raven use it for the code of their files.
+	 */
+	const char* script_language;
 } RLanguageDesc;
 
 /** What a part of the text is, for the language of the editor (Rtext_editor_get_token). */

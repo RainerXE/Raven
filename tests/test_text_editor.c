@@ -747,6 +747,28 @@ static void test_languages(void) {
 	CHECK(tok_of(3, "font-family") == R_TOKEN_ATTRIBUTE);
 	CHECK(tok_of(3, "'Inter'") == R_TOKEN_STRING);
 
+	/* an interface with its code (ravenc): the code of the scripts in the language of the file */
+	CHECK_STR(Rlanguage_for_file("main.xmlc"), "XMLC");
+	CHECK_STR(Rlanguage_for_file("main.xmlrs"), "XMLRS");
+	Rtext_editor_set_language(g_editor, "XMLC");
+	Rtext_editor_set_text(g_editor,
+		"<script>\n"
+		"static int n = 42; /* c */\n"
+		"#include <stdio.h>\n"
+		"</script>\n"
+		"<Window Title=\"a\"/>");
+	CHECK(tok_of(1, "static") == R_TOKEN_KEYWORD);
+	CHECK(tok_of(1, "int") == R_TOKEN_TYPE || tok_of(1, "int") == R_TOKEN_KEYWORD);
+	CHECK(tok_of(1, "42") == R_TOKEN_NUMBER);
+	CHECK(tok_of(1, "c */") == R_TOKEN_COMMENT);
+	CHECK(tok(2, 0) == R_TOKEN_DIRECTIVE);
+	CHECK(tok_of(3, "script") == R_TOKEN_TAG);
+	CHECK(tok_of(4, "Window") == R_TOKEN_TAG);
+	CHECK(tok_of(4, "Title") == R_TOKEN_ATTRIBUTE);
+	Rtext_editor_set_language(g_editor, "XMLPY");
+	Rtext_editor_set_text(g_editor, "<script>\ndef f(): return None\n</script>");
+	CHECK(tok_of(1, "def") == R_TOKEN_KEYWORD);
+
 	/* HTML, with a script and a style inside */
 	Rtext_editor_set_language(g_editor, "HTML");
 	Rtext_editor_set_text(g_editor,

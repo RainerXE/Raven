@@ -1,0 +1,10 @@
+<script>
+	int main()
+	{
+		return 0;
+	}
+</script>
+
+<Window customHeader="true">
+
+</Window>

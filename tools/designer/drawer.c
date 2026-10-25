@@ -12,7 +12,7 @@
  *   search   the whole project, by name; each tile says where the file is
  *
  * A double click (or Enter) on a folder goes into it, on a file opens it as
- * the Explorer does (ide_open_file). Up goes to the folder above, never
+ * the IDE does for any file (ide_open_file). Up goes to the folder above, never
  * above the project.
  */
 

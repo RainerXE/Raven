@@ -2,7 +2,7 @@
  * Raven Designer - project.c
  * A project is a folder built with the tools of its language: CMake (C, C++),
  * Cargo (Rust), go (Go), dotnet (C#), zig build (Zig), or nothing to build
- * (Python, Lua). The Explorer shows its files; each opens where it belongs.
+ * (Python, Lua). The content drawer (Ctrl+Space) shows its files; each opens where it belongs.
  * New project writes one that builds as it is: its interface with its code
  * (main.xmlc, main.xmlrs...), what its tools need, and strings.csv.
  * The settings of the IDE for a project are in its file .raven-ide.
@@ -21,13 +21,6 @@
 
 char* g_project_dir = NULL;
 ide_settings_t g_settings;
-
-static struct {
-	Rid explorer;
-	char** paths;    /* what the items of the Explorer point at */
-	int path_count;
-	int entry_count;
-} g_p;
 
 /* ---------------------------------------------------------------------------
  *  Settings
@@ -99,77 +92,12 @@ void project_save_settings(void) {
 }
 
 /* ---------------------------------------------------------------------------
- *  Explorer
+ *  The files of the project: the content drawer (drawer.c, Ctrl+Space)
  * ------------------------------------------------------------------------- */
 
-static int skipped(const char* name, int is_dir) {
-	if (name[0] == '.') return R_TRUE;
-	if (is_dir && (ide_iequal(name, "build") || !strncmp(name, "build-", 6) || ide_iequal(name, "out") || ide_iequal(name, "node_modules")
-		|| ide_iequal(name, "CMakeFiles"))) return R_TRUE;
-	return R_FALSE;
-}
-
-static void explorer_add(Rid parent, const char* folder, int depth) {
-	ide_entry_t* entries;
-	int count, i;
-	if (depth > 8 || g_p.entry_count > 4000) return;
-	count = ide_list_dir(folder, &entries);
-	for (i = 0; i < count; i++) {
-		char* full;
-		Rid item;
-		if (skipped(entries[i].name, entries[i].is_dir)) continue;
-		full = ide_join(folder, entries[i].name);
-		item = Rtree_view_add_item(g_p.explorer, parent, entries[i].name);
-		g_p.paths = (char**)realloc(g_p.paths, sizeof(char*) * (size_t)(g_p.path_count + 1));
-		g_p.paths[g_p.path_count++] = full;
-		Rtree_item_set_user_handle(item, full);
-		g_p.entry_count++;
-		if (entries[i].is_dir) {
-			Rtree_item_set_expanded(item, depth < 1);
-			explorer_add(item, full, depth + 1);
-		} else {
-			const char* ext = ide_extension(entries[i].name);
-			float r = 0.85f, gr = 0.85f, b = 0.85f;
-			int colored = 1;
-			if (ide_interface_language(entries[i].name)) { r = 0.55f; gr = 0.75f; b = 1.0f; }
-			else if (ide_iequal(ext, "xml")) { r = 0.55f; gr = 0.85f; b = 0.75f; }
-			else if (ide_iequal(ext, "csv")) { r = 1.0f; gr = 0.8f; b = 0.45f; }
-			else if (ide_iequal(entries[i].name, "CMakeLists.txt")) { r = 0.9f; gr = 0.6f; b = 0.9f; }
-			else colored = 0;
-			if (colored) Rtree_item_set_text_color(item, r, gr, b, 1.0f);
-		}
-	}
-	free(entries);
-}
-
-static void free_paths(void) {
-	int i;
-	for (i = 0; i < g_p.path_count; i++) free(g_p.paths[i]);
-	free(g_p.paths);
-	g_p.paths = NULL;
-	g_p.path_count = 0;
-}
-
 void project_refresh_explorer(void) {
-	if (g_p.explorer == R_INVALID_ID) return;
-	Rtree_view_clear_items(g_p.explorer);
-	free_paths();
-	g_p.entry_count = 0;
-	if (!g_project_dir) {
-		Rtree_view_add_item(g_p.explorer, R_INVALID_ID, "No project: Project > Open folder, or New project");
-		return;
-	}
-	explorer_add(R_INVALID_ID, g_project_dir, 0);
-}
-
-static void on_explorer_activated(Rid tree, Rid item, void* user_data) {
-	const char* path;
-	(void)tree;
-	(void)user_data;
-	if (item == R_INVALID_ID) return;
-	path = (const char*)Rtree_item_get_user_handle(item);
-	if (!path || ide_is_dir(path)) return;
-	ide_open_file(path, 0);
+	/* (the drawer reads the folders each time it opens: an open one is read again) */
+	if (drawer_is_open()) drawer_open();
 }
 
 /* ---------------------------------------------------------------------------
@@ -201,20 +129,8 @@ void ide_open_file(const char* path, int line) {
 			if (!xmlc_open(path)) return;
 		}
 		Rdock_area_open_panel(g_ide_dock, g_ide_center);
-		if (line > 0) {
-			Rid script;
-			int editor_line;
-			if (xmlc_locate(line, &script, &editor_line)) {
-				if (script != R_INVALID_ID) {
-					Rdock_area_open_panel(g_ide_dock, script);
-					Rtext_editor_set_cursor(script, editor_line - 1, 0);
-					Rtext_editor_scroll_to_line(script, editor_line - 1);
-					Rwidget_focus(script);
-				} else {
-					designer_go_to_line(editor_line);
-				}
-			}
-		}
+		/* (the file is whole in the XML panel: a line of the file is a line of the panel) */
+		if (line > 0) designer_go_to_line(line);
 	} else if (ide_iequal(ext, "xml")) {
 		if (!(designer_get_path() && ide_same_path(designer_get_path(), path))) {
 			if (!interface_can_change()) return;
@@ -689,7 +605,6 @@ int project_close(void) {
 	load_settings();
 	project_refresh_explorer();
 	strings_reload();
-	Rdock_area_set_panel_title(g_ide_dock, Rwidget_find(g_ide_window, "panel.explorer"), "Explorer");
 	welcome_show();
 	designer_update_title();
 	ide_status("Project closed.");
@@ -721,12 +636,6 @@ int project_open(const char* folder) {
 	strings_reload();
 	welcome_hide();
 	recent_add(g_project_dir);
-	Rdock_area_show_panel(g_ide_dock, Rwidget_find(g_ide_window, "panel.explorer"));
-	{
-		char title[400];
-		snprintf(title, sizeof(title), "Explorer - %s", ide_basename(g_project_dir));
-		Rdock_area_set_panel_title(g_ide_dock, Rwidget_find(g_ide_window, "panel.explorer"), title);
-	}
 	/* the interface of the project, when there is one: main.xml?? at the top or in src/ */
 	{
 		static const char* const folders[] = { "", "src" };
@@ -1207,8 +1116,6 @@ static void action_project(Rid sender, const char* action, void* user_data) {
 }
 
 void project_init(void) {
-	g_p.explorer = Rwidget_find(g_ide_window, "explorer");
-	Rtree_view_set_activated_callback(g_p.explorer, on_explorer_activated, NULL);
 	Raction_bind("project.new", action_project, NULL);
 	Raction_bind("project.open", action_project, NULL);
 	Raction_bind("project.refresh", action_project, NULL);
@@ -1219,7 +1126,6 @@ void project_init(void) {
 }
 
 void project_shutdown(void) {
-	free_paths();
 	free(g_project_dir);
 	g_project_dir = NULL;
 }
