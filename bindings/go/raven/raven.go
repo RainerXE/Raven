@@ -894,9 +894,8 @@ func IsInitialized() int {
 	return int(C.Ris_initialized())
 }
 
-// IsFreeEdition: R_TRUE in the free edition of Raven (the default build): every window shows a small
-// watermark in its bottom right corner. R_FALSE in the paid edition (the library built with -DRAVEN_PAID=ON),
-// which shows none. Nothing else differs; what you make with either one is yours.
+// IsFreeEdition: @deprecated Raven no longer has editions: it is open source (Apache License 2.0) and never
+// shows a watermark. Always R_FALSE.
 func IsFreeEdition() int {
 	return int(C.Ris_free_edition())
 }
@@ -1284,9 +1283,7 @@ func WindowGetMousePosition(window ID) (x float32, y float32) {
 	return
 }
 
-// WindowGetWatermarkRect: Where the watermark of the free edition is drawn in the window (logical units).
-// R_FALSE, and zeros, in the paid edition. It never takes the mouse; this is for layouts and tests that read
-// pixels.
+// WindowGetWatermarkRect: @deprecated Raven no longer shows a watermark. Always R_FALSE, with zeros.
 func WindowGetWatermarkRect(window ID) (result int, x float32, y float32, width float32, height float32) {
 	var x_ C.float
 	var y_ C.float

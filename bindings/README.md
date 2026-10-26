@@ -27,6 +27,18 @@ Two parts of the API are left out everywhere, because they only make sense
 from C: `raven_backend.h` (writing a rendering backend) and `raven_vulkan.h`
 (sharing the Vulkan device of Raven).
 
+## Install
+
+| Language | From a registry | |
+|---|---|---|
+| Python | `pip install raven-gui` | the library is included |
+| C# | `dotnet add package Raven.Gui` | the library is included |
+| Rust | `raven-gui = "0.1"` (used as `raven`) | the library from a release, `RAVEN_LIB_DIR` |
+| LuaJIT | `luarocks install raven-gui` | the library from a release, `RAVEN_LIBRARY` |
+| C++, Go, Zig | the files of this folder | see below |
+
+How these packages are made and published: [PUBLISHING.md](PUBLISHING.md).
+
 ## The library
 
 All the bindings but C++ load or link the shared library: build Raven with
@@ -83,7 +95,7 @@ or put the library beside `raven.py`.
 **Rust**
 
     [dependencies]
-    raven = { path = "<raven>/bindings/rust" }
+    raven = { package = "raven-gui", path = "<raven>/bindings/rust" }   # or: raven-gui = "0.1"
 
     RAVEN_LIB_DIR=/path/to/lib cargo run
 
@@ -128,7 +140,7 @@ function that returns `{path: text}`, and its name to the list in
 Each binding can also take an interface written in Raven XML with its code
 in `<script>` blocks, compiled by `ravenc` (see the main README):
 
-- Rust: `rust-build/` (a build-dependency: `raven_build::compile("src/main.xmlrs")` in `build.rs`)
+- Rust: `rust-build/` (the build-dependency `raven-gui-build`: `raven_build::compile("src/main.xmlrs")` in `build.rs`)
 - Python: `python/raven_xmlpy.py` (`import raven_xmlpy`, then import the `.xmlpy` as a module)
 - Go: `go/raven/compiled.go` (used by the files `//go:generate ravenc` writes)
 - C#: `csharp/Raven.XmlCs.targets` (imported by the `.csproj`)

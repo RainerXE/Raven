@@ -2,6 +2,8 @@
 
 A lightweight, multithreaded GUI library in C for editors and tools.
 
+## Disclaimer : This project is still in active development and public API is subject to change.
+
 ## Build from source
 
 Raven builds with CMake and a C11 compiler, and has no dependency to install

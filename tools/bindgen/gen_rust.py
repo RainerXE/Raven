@@ -8,6 +8,16 @@ KEYWORDS = {"type", "ref", "box", "move", "match", "loop", "in", "fn", "self", "
             "struct", "final", "override", "macro", "abstract", "priv", "pub", "as", "dyn", "async", "await", "yield", "try"}
 
 
+def package_version():
+    """The version of the crate: the one of the CMake project (bindings/set_version.py keeps them equal)."""
+    import os
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(root, "CMakeLists.txt"), encoding="utf-8") as f:
+        match = re.search(r"project\(raven\s+VERSION\s+([0-9.]+)", f.read())
+    return match.group(1) if match else "0.1.0"
+
+
 def safe(name):
     return name + "_" if name in KEYWORDS else name
 
@@ -169,13 +179,24 @@ fn main() {
 '''
 
 CARGO = '''[package]
-name = "raven"
-version = "%(version)s.0"
+name = "raven-gui"
+version = "%(package_version)s"
 edition = "2018"
-description = "Bindings for the Raven GUI library"
+description = "Rust bindings for Raven, a lightweight multithreaded GUI library in C for editors and tools"
+license = "Apache-2.0"
+repository = "https://github.com/oscar-soirey/Raven"
+homepage = "https://github.com/oscar-soirey/Raven"
+documentation = "https://github.com/oscar-soirey/Raven/tree/main/bindings#readme"
+readme = "README.md"
+keywords = ["gui", "ui", "vulkan", "widgets", "editor"]
+categories = ["gui", "api-bindings"]
+links = "raven"
 build = "build.rs"
+include = ["src/**/*.rs", "examples/**/*.rs", "build.rs", "Cargo.toml", "README.md", "LICENSE"]
 
 [lib]
+# the crate is published as raven-gui, and used as `raven` (use raven::*;)
+name = "raven"
 path = "src/lib.rs"
 '''
 
@@ -338,6 +359,6 @@ def generate(api):
         "rust/src/sys.rs": "\n".join(out),
         "rust/src/lib.rs": LIB_RS % {"version": version},
         "rust/build.rs": BUILD_RS,
-        "rust/Cargo.toml": CARGO % {"version": version},
+        "rust/Cargo.toml": CARGO % {"package_version": package_version()},
         "rust/examples/hello.rs": EXAMPLE,
     }

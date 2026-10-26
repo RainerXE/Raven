@@ -1346,10 +1346,8 @@ extern "C" {
     /// render threads and releases the backend.
     pub fn Rshutdown();
     pub fn Ris_initialized() -> c_int;
-    /// R_TRUE in the free edition of Raven (the default build): every
-    /// window shows a small watermark in its bottom right corner. R_FALSE in the
-    /// paid edition (the library built with -DRAVEN_PAID=ON), which shows none.
-    /// Nothing else differs; what you make with either one is yours.
+    /// @deprecated Raven no longer has editions: it is open source (Apache
+    /// License 2.0) and never shows a watermark. Always R_FALSE.
     pub fn Ris_free_edition() -> c_int;
     /// Returns: The library version, e.g. "0.1.0".
     pub fn Rget_version() -> *const c_char;
@@ -1570,9 +1568,7 @@ extern "C" {
     /// Deepest widget under the cursor, or R_INVALID_ID.
     pub fn Rwindow_get_hovered_widget(window: Rid) -> Rid;
     pub fn Rwindow_get_mouse_position(window: Rid, x: *mut f32, y: *mut f32);
-    /// Where the watermark of the free edition is drawn in the
-    /// window (logical units). R_FALSE, and zeros, in the paid edition.
-    /// It never takes the mouse; this is for layouts and tests that read pixels.
+    /// @deprecated Raven no longer shows a watermark. Always R_FALSE, with zeros.
     pub fn Rwindow_get_watermark_rect(window: Rid, x: *mut f32, y: *mut f32, width: *mut f32, height: *mut f32) -> c_int;
     /// Inject input as if it came from the OS. Positions are in logical units.
     /// Useful for automated tests, replays and when Raven is driven by a host

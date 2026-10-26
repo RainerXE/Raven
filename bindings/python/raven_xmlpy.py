@@ -33,6 +33,14 @@ def _ravenc():
         for candidate in (os.path.join(folder, exe), os.path.join(folder, "..", "bin", exe)):
             if os.path.isfile(candidate):
                 return candidate
+    # the ravenc shipped in the pip package of Raven (raven/bin/)
+    try:
+        import raven as _raven_module
+        bundled = os.path.join(os.path.dirname(os.path.abspath(_raven_module.__file__)), "bin", exe)
+        if os.path.isfile(bundled):
+            return bundled
+    except (ImportError, OSError):
+        pass
     found = shutil.which("ravenc")
     if found:
         return found

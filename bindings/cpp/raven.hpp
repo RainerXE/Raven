@@ -1700,9 +1700,7 @@ public:
 
 	void get_mouse_position(float* x, float* y) const { Rwindow_get_mouse_position(id_, x, y); }
 
-	/// Where the watermark of the free edition is drawn in the
-	/// window (logical units). R_FALSE, and zeros, in the paid edition.
-	/// It never takes the mouse; this is for layouts and tests that read pixels.
+	/// @deprecated Raven no longer shows a watermark. Always R_FALSE, with zeros.
 	int get_watermark_rect(float* x, float* y, float* width, float* height) const { return Rwindow_get_watermark_rect(id_, x, y, width, height); }
 
 	/// Inject input as if it came from the OS. Positions are in logical units.
@@ -2124,10 +2122,8 @@ inline void shutdown() { Rshutdown(); }
 
 inline int is_initialized() { return Ris_initialized(); }
 
-/// R_TRUE in the free edition of Raven (the default build): every
-/// window shows a small watermark in its bottom right corner. R_FALSE in the
-/// paid edition (the library built with -DRAVEN_PAID=ON), which shows none.
-/// Nothing else differs; what you make with either one is yours.
+/// @deprecated Raven no longer has editions: it is open source (Apache
+/// License 2.0) and never shows a watermark. Always R_FALSE.
 inline int is_free_edition() { return Ris_free_edition(); }
 
 /// Returns: The library version, e.g. "0.1.0".

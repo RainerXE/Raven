@@ -1997,10 +1997,8 @@ _lib.Ris_free_edition.restype = ctypes.c_int
 
 
 def Ris_free_edition():
-    """R_TRUE in the free edition of Raven (the default build): every
-    window shows a small watermark in its bottom right corner. R_FALSE in the
-    paid edition (the library built with -DRAVEN_PAID=ON), which shows none.
-    Nothing else differs; what you make with either one is yours."""
+    """@deprecated Raven no longer has editions: it is open source (Apache
+    License 2.0) and never shows a watermark. Always R_FALSE."""
     return _lib.Ris_free_edition()
 
 
@@ -2911,9 +2909,7 @@ _lib.Rwindow_get_watermark_rect.restype = ctypes.c_int
 
 
 def Rwindow_get_watermark_rect(window):
-    """Where the watermark of the free edition is drawn in the
-    window (logical units). R_FALSE, and zeros, in the paid edition.
-    It never takes the mouse; this is for layouts and tests that read pixels."""
+    """@deprecated Raven no longer shows a watermark. Always R_FALSE, with zeros."""
     x_ = ctypes.c_float()
     y_ = ctypes.c_float()
     width_ = ctypes.c_float()

@@ -249,10 +249,10 @@ static const char CARGO_TOML[] =
 "edition = \"2021\"\n"
 "\n"
 "[dependencies]\n"
-"raven = { path = \"{{BINDINGS}}/rust\" }\n"
+"raven = { package = \"raven-gui\", path = \"{{BINDINGS}}/rust\" }\n"
 "\n"
 "[build-dependencies]\n"
-"raven-build = { path = \"{{BINDINGS}}/rust-build\" }\n";
+"raven-build = { package = \"raven-gui-build\", path = \"{{BINDINGS}}/rust-build\" }\n";
 
 static const char CARGO_BUILD_RS[] =
 "// ravenc turns src/main.xmlrs into Rust ($OUT_DIR/main.xmlrs.rs)\n"
