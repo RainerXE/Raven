@@ -195,6 +195,10 @@ int  editors_current_interface(const char** path, const char** text, unsigned* r
 Rid  editors_anchor(void);
 /** The code editors go back together, in the tabs of the preview (after the panels were reset). */
 void editors_regroup(void);
+/** An editor follows the zoom of the IDE (Ctrl + wheel in one zooms them all; kept in ide.ini). The code editors do by themselves. */
+void editors_zoom_attach(Rid editor);
+/** Every editor back to 100 %. */
+void editors_reset_zoom(void);
 /** Opens a piece of text with a name (a script of a .xmlc), written back through `save`. */
 typedef int (*ide_save_callback)(Rid editor, void* user_data);
 Rid  editors_open_virtual(const char* title, const char* key, const char* text, const char* language, ide_save_callback save, void* user_data);

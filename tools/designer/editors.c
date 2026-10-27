@@ -171,6 +171,7 @@ static editor_t* create(const char* title, const char* key, const char* path, co
 	Rtext_editor_set_tab_size(widget, 4);
 	Rtext_editor_set_changed_callback(widget, on_changed, NULL);
 	completion_attach(widget, (language && ide_iequal(language, "XML")) || is_interface(path));
+	editors_zoom_attach(widget);
 	g_e.list = (editor_t*)realloc(g_e.list, sizeof(editor_t) * (size_t)(g_e.count + 1));
 	e = &g_e.list[g_e.count++];
 	memset(e, 0, sizeof(*e));
@@ -182,6 +183,64 @@ static editor_t* create(const char* title, const char* key, const char* path, co
 	Rdock_area_show_panel(g_ide_dock, widget);
 	g_e.last = widget;
 	return e;
+}
+
+/* ---------------------------------------------------------------------------
+ *  Zoom: Ctrl + wheel (Ctrl + '+', '-', 0) in any editor zooms them all, and
+ *  the next start comes back to it (ide.ini, editor_zoom).
+ * ------------------------------------------------------------------------- */
+
+static struct {
+	float zoom;
+	int loaded;
+	/* the editors that are not code editors: the XML panel, the Output */
+	Rid others[8];
+	int other_count;
+} g_z;
+
+static float zoom_now(void) {
+	if (!g_z.loaded) {
+		float saved = (float)atof(prefs_get("editor_zoom"));
+		g_z.zoom = saved >= 0.5f && saved <= 4.0f ? saved : 1.0f;
+		g_z.loaded = R_TRUE;
+	}
+	return g_z.zoom;
+}
+
+/* Every editor of the IDE at one zoom (`from` already is: the user zoomed it). */
+static void zoom_all(float zoom, Rid from) {
+	int i;
+	char text[16];
+	g_z.zoom = zoom;
+	g_z.loaded = R_TRUE;
+	editors_forget_closed();
+	for (i = 0; i < g_e.count; i++) if (g_e.list[i].widget != from) Rtext_editor_set_zoom(g_e.list[i].widget, zoom);
+	for (i = 0; i < g_z.other_count; i++) {
+		if (g_z.others[i] != from && Rwidget_is_valid(g_z.others[i])) Rtext_editor_set_zoom(g_z.others[i], zoom);
+	}
+	snprintf(text, sizeof(text), "%.2f", zoom);
+	prefs_set("editor_zoom", text);
+}
+
+static void on_zoom(Rid editor, float zoom, void* user_data) {
+	(void)user_data;
+	zoom_all(zoom, editor);
+	ide_status("Text zoom: %d %%  (Ctrl + wheel, Ctrl + '+' / '-', Ctrl + 0: 100 %%)", (int)(zoom * 100.0f + 0.5f));
+}
+
+void editors_zoom_attach(Rid editor) {
+	int i, code = by_widget(editor) != NULL;
+	if (editor == R_INVALID_ID || !Rwidget_is_valid(editor)) return;
+	Rtext_editor_set_zoom(editor, zoom_now());
+	Rtext_editor_set_zoom_callback(editor, on_zoom, NULL);
+	if (code) return;
+	for (i = 0; i < g_z.other_count; i++) if (g_z.others[i] == editor) return;
+	if (g_z.other_count < (int)(sizeof(g_z.others) / sizeof(g_z.others[0]))) g_z.others[g_z.other_count++] = editor;
+}
+
+void editors_reset_zoom(void) {
+	zoom_all(1.0f, R_INVALID_ID);
+	ide_status("Text zoom: 100 %%");
 }
 
 /*

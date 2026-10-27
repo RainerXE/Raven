@@ -34,6 +34,7 @@
 
 #include "ide.h"
 
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -106,6 +107,7 @@ static const char* const DESIGNER_XML[] = {
 "          <Separator/>"
 "          <MenuItem Text=\"Content drawer\" Shortcut=\"Ctrl+Space\" OnClicked=\"drawer.toggle\"/>"
 "          <MenuItem Text=\"Reset the panels\" OnClicked=\"view.reset\"/>"
+"          <MenuItem Text=\"Text zoom 100 %  (Ctrl + wheel zooms)\" OnClicked=\"view.zoom.reset\"/>"
 "        </Menu>",
 "        <Menu Text=\"Project\">"
 "          <MenuItem Text=\"New project...\" Shortcut=\"Ctrl+Shift+N\" OnClicked=\"project.new\"/>"
@@ -1910,6 +1912,8 @@ static void action_view(Rid sender, const char* action, void* user_data) {
 		}
 	} else if (strcmp(action, "view.preview.close") == 0) {
 		designer_close_preview();
+	} else if (strcmp(action, "view.zoom.reset") == 0) {
+		editors_reset_zoom();
 	}
 }
 
@@ -1987,6 +1991,8 @@ static void run_frames(int count) {
  *   preview PATH   opens an interface in the visual editor (the Preview of the content drawer)
  *   expectisland NAME TEXT  stops unless the label NAME of the preview of the island shows TEXT ('-': no preview there)
  *   expectpanel NAME 0|1    stops unless the panel NAME of the IDE is open (1) or hidden (0)
+ *   wheel DY       turns the wheel (Ctrl held: key 302 2 first)
+ *   expectzoom Z   stops unless the XML panel, the Output and the code editor in front are zoomed Z (1.21)
  *   prefix PATH    the folder of the Raven package (Build settings)
  *   open PATH      opens a file as the content drawer does, or a project folder
  *   expectfile PATH TEXT   stops unless the file contains TEXT
@@ -2120,6 +2126,21 @@ static int designer_script(char* script) {
 			if (Rdock_area_is_panel_open(g.dock, find_anywhere(name)) != open) {
 				fprintf(stderr, "raven_designer: expected the panel %s to be %s\n", name, open ? "open" : "hidden");
 				return R_FALSE;
+			}
+		} else if (strcmp(token, "wheel") == 0) {
+			Rwindow_inject_mouse_wheel(g.window, 0.0f, (float)atof(next_token(&cursor)));
+		} else if (strcmp(token, "expectzoom") == 0) {
+			float zoom = (float)atof(next_token(&cursor));
+			Rid editors[3];
+			int k;
+			editors[0] = g.source;
+			editors[1] = Rwidget_find(g.window, "output");
+			editors[2] = editors_current_path() ? editors_find(editors_current_path()) : g.source;
+			for (k = 0; k < 3; k++) {
+				if (fabsf(Rtext_editor_get_zoom(editors[k]) - zoom) > 0.005f) {
+					fprintf(stderr, "raven_designer: expected the editors at zoom %.2f, one is at %.2f\n", zoom, Rtext_editor_get_zoom(editors[k]));
+					return R_FALSE;
+				}
 			}
 		} else if (strcmp(token, "prefix") == 0) {
 			snprintf(g_settings.raven_prefix, sizeof(g_settings.raven_prefix), "%s", next_token(&cursor));
@@ -2282,7 +2303,7 @@ static int build_interface(void) {
 		"file.save_all", "file.quit" };
 	static const char* const views[] = {
 		"view.theme.dark", "view.theme.light", "view.theme.glass_dark", "view.theme.glass_light", "view.interact", "view.interact.switch",
-		"view.run", "view.reset", "view.preview", "view.preview.close"
+		"view.run", "view.reset", "view.preview", "view.preview.close", "view.zoom.reset"
 	};
 	static const struct { const char* text; const char* action; } context[] = {
 		{ "Duplicate", "edit.duplicate" }, { "Delete", "edit.delete" }, { NULL, NULL }, { "Move up", "edit.up" }, { "Move down", "edit.down" },
@@ -2376,6 +2397,9 @@ static int build_interface(void) {
 	accessibility_init();
 	drawer_init(Rwidget_find(g.window, "main.overlay"));
 	island_init();
+	/* (after welcome_init: the zoom of the text is one of the preferences) */
+	editors_zoom_attach(g.source);
+	editors_zoom_attach(Rwidget_find(g.window, "output"));
 	Rdock_area_show_panel(g.dock, g.source);
 	return R_TRUE;
 }
