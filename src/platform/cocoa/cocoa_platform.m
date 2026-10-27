@@ -488,6 +488,10 @@ static void rvn_cocoa_pump(double timeout_seconds) {
         /* A zero timeout drains every event already queued, rather than only
            the first one. A positive timeout does not extend while processing. */
         if (timeout_seconds > 0.0 && [limit timeIntervalSinceNow] <= 0.0) break;
+        /* Like the other platforms, wait only for the first event: once
+           something arrived (an input or a wake), drain what is already
+           queued and return, so Raven can update and draw. */
+        limit = [NSDate distantPast];
     }
     [g_cocoa.pool drain]; g_cocoa.pool = [[NSAutoreleasePool alloc] init];
 }
