@@ -412,9 +412,10 @@ no viewport draw callbacks, only the built-in effects, GLES3/EGL only, EGL linke
 - `sg_impl.m` compiles `sokol_gfx.h` as Objective-C; CMake links Foundation, Metal and QuartzCore and builds the
   two `.m` files with ARC. Three samplers are bound for every API now (one per texture), which GL accepts.
 
-Verified here: the Linux GLES3 build is unchanged (28/28); `sg_metal.m` passes `clang -fsyntax-only -Wall`
-against stub Metal headers; the shared C files compile with the Metal macro. **Not verified:** that the MSL
-compiles in Metal, that the pipelines are created, and that frames match Vulkan. That is what the new
-`sokol-macos` CI job (Metal on a GitHub runner, whole test suite, `test_render` on Sokol) and the Mac of the
-maintainer are for. Expect a first round of small fixes.
+**Verified on the maintainer's Mac (first run, no fixes needed): `RAVEN_BACKEND=sokol ./build/bin/test_render` passes 175 checks, 0
+failures** (the same 175 as on Linux GLES3): the MSL compiles, the pipelines are created and the frames, glass and blur
+included, match the expected pixels, so the y-flip handling is right. Verified here before that: the Linux GLES3 build is unchanged (28/28); `sg_metal.m` passes `clang -fsyntax-only -Wall`
+against stub Metal headers; the shared C files compile with the Metal macro. **Not yet verified:** a frame-for-frame comparison with Vulkan on the Mac (`spikes/sokol_phase0`, needs MoltenVK for the
+Vulkan side), the effect scenes beyond what `test_render` checks, the `sokol-macos` CI job (Actions is not enabled on the
+fork), and anything about presenting to a window (not implemented).
 
