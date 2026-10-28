@@ -2,6 +2,7 @@
 
 Status: proposal. Based on a read of the code (no prototype yet).
 Goal: add `R_BACKEND_SOKOL` next to `R_BACKEND_VULKAN`, selectable at `Rinit`.
+Platform order (decided): **macOS (Metal) first, then Linux (GL/EGL), then Windows (D3D11).**
 Vulkan stays, and stays the default, until the Sokol backend reaches parity.
 Raven may change below the public widget/XML API (the render, backend-interface,
 shader-pipeline and platform layers) wherever that makes the parts fit.
@@ -104,7 +105,7 @@ on upload (4 MB per 1024² page, trivial). Optimize later by sampling `.r` for
 
 ### 3.6 Platform layer (small, targeted)
 
-- **Win32:** transparent windows need `WS_EX_NOREDIRECTIONBITMAP` and a DirectComposition
+- **Win32 (last):** transparent windows need `WS_EX_NOREDIRECTIONBITMAP` and a DirectComposition
   swapchain; this must be decided when the HWND is created. Add a `backend_hints` argument
   to platform window creation (Rinit knows the backend). Opaque windows need no change.
 - **X11:** EGL surface creation needs the window's visual; `RNativeWindow.visual` already
@@ -130,13 +131,16 @@ Estimates are for one developer who knows the code; treat as ±40%.
 | 0 | Spike (Linux GL, headless) | Vendor sokol_gfx; port `ui.vert/frag` via sokol-shdc; EGL surfaceless context; render a rect+text frame offscreen; read back | PNG matches Vulkan output of the same draw list within tolerance. Also confirm: UBYTE4 instance layout, `gl_VertexIndex` handling, varying count | 3–4 days |
 | 1 | Interface + build plumbing | 3.1, 3.3, CMake option `RAVEN_BACKEND_SOKOL` (default OFF), THIRD_PARTY update | Vulkan build unchanged and green; Sokol builds | ~1 wk |
 | 2 | Core Sokol backend (offscreen) | Instance buffer, pipelines (UI + erase), textures incl. atlas, uniforms, readback, headless surface, `R_DRAW_CALLBACK` hook | `test_render` runs headless on Sokol/GL llvmpipe in CI; all non-glass cases pass | 1.5 wk |
-| 3 | Presentation | `present/d3d11`, `present/metal`, `present/egl`; resize, vsync, DPI, minimized windows, many windows (popups/tool windows), device-lost handling | Examples `hello`, `editor`, `workspace` run interactively on Win/mac/Linux | 2–3 wk |
+| 3a | Presentation: macOS | `present/metal` on the existing `CAMetalLayer`; resize, vsync, DPI, occluded windows, many windows (popups/tool windows) | Examples `hello`, `editor`, `workspace` run interactively on macOS | 1–1.5 wk |
+| 3b | Presentation: Linux | `present/egl` (X11 visual from `RNativeWindow`), one shared context, make-current per window; same checks | Same examples on X11 (Mesa and one vendor driver) | 1 wk |
+| 3c | Presentation: Windows | `present/d3d11` (DXGI flip swapchain), resize, device loss; opaque windows only | Same examples on Windows | 1 wk |
 | 4 | Glass + effects | 3.2 bundles + tool; `sg_glass.c` (scene target, capture, down/up chain, scissor re-capture); BLUR, CURVE, SHADER primitives | `glass`, `effects` examples match Vulkan visually; 8 built-ins work | 1.5–2 wk |
-| 5 | Transparency + interop | DirectComposition path, Metal/X11 alpha, `raven_sokol.h`, viewport callback with native handles | `R_WINDOW_TRANSPARENT` and a viewport example work on each API | 1–1.5 wk |
+| 5 | Transparency + interop | Metal/X11 alpha first, DirectComposition path last, `raven_sokol.h`, viewport callback with native handles | `R_WINDOW_TRANSPARENT` and a viewport example work on each API | 1–1.5 wk |
 | 6 | Hardening | Perf vs Vulkan (`raven_benchmark`), docs (ARCHITECTURE, README, reference), bindings regen, CI matrix | Parity matrix (section 6) reviewed; decide default per platform | 1–2 wk |
 
-D3D11 + Metal parity: roughly 7–10 weeks. Linux GL polish is extra (about 1–2 weeks) and
-optional while Vulkan remains the Linux default.
+Metal + GL + D3D11 parity: roughly 8–11 weeks. Because macOS comes first, the first
+usable Sokol build (Metal, no transparency) should land after phase 3a, about 5–6 weeks in.
+Linux stays on Vulkan by default until phase 6 even though GL support is built second.
 
 ## 5. Build, test and CI
 
@@ -147,8 +151,8 @@ optional while Vulkan remains the Linux default.
   prefix, so an application using its own sokol cannot clash.
 - `test_render`: parametrize by `RAVEN_BACKEND`; golden comparison with a small perceptual
   tolerance (APIs differ in rounding). Report skipped when the API is unavailable.
-- CI additions: Windows (D3D11 WARP), macOS (Metal), Linux (Mesa llvmpipe under Xvfb or
-  surfaceless EGL). Existing headless tests are unaffected.
+- CI additions, in platform order: macOS (Metal), Linux (Mesa llvmpipe under Xvfb or
+  surfaceless EGL), Windows (D3D11 WARP). Existing headless tests are unaffected.
 
 ## 6. Parity matrix (the acceptance checklist)
 
@@ -161,25 +165,28 @@ resize/minimize · multi-window · hot-plug/device lost · HiDPI scale change.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Win32 transparency needs DirectComposition and creation-time window flags | Medium | Phase 3 ships opaque first; 3.6 hint added early |
+| Win32 transparency needs DirectComposition and creation-time window flags | Low now (Windows is last) | Phase 3c ships opaque; transparency in phase 5; 3.6 hint added early |
 | Glass in sokol passes (mid-frame pass break, scissored recapture) harder than expected | High for look | Prototype in phase 0/2 on GL before D3D11/Metal |
 | Effect format change annoys existing `.spv` users | Medium | `.spv` stays valid on Vulkan; clear error + fallback on Sokol; migration note in `docs/shaders.html` |
 | No upstream readback | Medium | Native readback per API; isolated in `sg_readback.c` |
 | Sokol API churn | Medium | Pin commit, upgrade as a dedicated task |
 | Linux quality on GL 4.1 / driver variance | Medium | Vulkan stays default on Linux |
-| Metal/D3D11 can't be tested in this Linux dev environment | Medium | Phase 0 and 2 on Linux GL; D3D11/Metal verified by CI and on your machines |
+| Metal/D3D11 can't be tested in this Linux dev environment | Medium | Phases 0–2 on Linux GL; Metal (first target) verified on your Mac and in CI; D3D11 later |
 
-## 8. Decisions requested
+## 8. Decisions
 
-1. **Effect format:** bundles (`.rfx`), with optional SPIRV-Cross later. (Recommended.)
-2. **Platform priority:** Windows D3D11 → macOS Metal → Linux GL. Confirm order.
-3. **Default backend:** keep Vulkan everywhere until phase 6; revisit per platform then.
-4. **HRL / Vulkan device sharing:** is it required? If yes, it is a permanent reason to keep
-   Vulkan, and the Sokol backend is for everything else.
-5. **Transparency scope:** required for first Sokol release, or phase 5 is acceptable?
+1. **Effect format:** `.rfx` bundles, with optional SPIRV-Cross later. *Decided: yes.*
+2. **Platform priority:** macOS (Metal), then Linux (GL/EGL), then Windows (D3D11). *Decided.*
+3. **HRL / Vulkan device sharing:** *Decided: not a requirement.* (HRL appears only as an
+   example in the comments of `raven_vulkan.h` and `raven_backend.h`: an external renderer
+   that could hand Raven its Vulkan device. Nothing in Raven depends on it.) The Vulkan
+   interop API (`Rvulkan_set_external_device`, wrapped image views, shared textures) stays
+   Vulkan-only and is not reproduced for Sokol.
+4. **Transparency:** *Decided: phase 5 is fine.* The first Sokol builds are opaque-only.
 
 ## 9. First step
 
 Phase 0 on Linux (Mesa llvmpipe, headless). It is small, runs in this environment, and
 answers the three open technical questions (instance layout, shader cross-compile, glass
-pass structure) before any interface change is committed.
+pass structure) before any interface change is committed. The result carries over to
+Metal, since sokol-shdc emits MSL from the same shader source.
