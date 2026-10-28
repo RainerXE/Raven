@@ -156,13 +156,10 @@ change. All of it is below the public widget/XML API; the only new public API is
    `window_set_position`, `begin_move`, `min_size` are emulated by the core. Where a feature
    makes no sense (tear-off docks) it is refused with a clear error and the dock stays docked.
    This touches `widget/window.c` and `dock_area.c`, not the widgets themselves.
-3. **Touch and soft keyboard.** New `rvn_pevent_t` types: touch begin/move/end/cancel,
-   and pinch/pan/long-press as an optional gesture layer. The core maps one finger to the
-   existing mouse path by default, so existing widgets work with the mouse model first,
-   and gets real touch behaviour (scroll inertia, larger hit targets, long-press = right
-   click) in a later step. Add `window_show_keyboard(bool)`, `window_get_safe_area()`,
-   and a text-input field rect so the OS can scroll/avoid it. IME composition needs a
-   `RVN_PEVENT_TEXT_COMPOSE` event (marked text) on both platforms.
+3. **Touch (required, see 3.9) and soft keyboard.** New `rvn_pevent_t` types: touch
+   begin/move/end/cancel with an id and position. Add `window_show_keyboard(bool)`,
+   `window_get_safe_area()`, and a text-input field rect so the OS can scroll/avoid it.
+   IME composition needs a `RVN_PEVENT_TEXT_COMPOSE` event (marked text) on both platforms.
 4. **Platform implementations.** Two choices; recommendation is the first:
    - **A. `sokol_app` as the platform for iOS and Web** (single window, owns the
      swapchain/canvas, runs the loop, delivers touch/key events). Fastest route, and it
@@ -184,9 +181,38 @@ change. All of it is below the public widget/XML API; the only new public API is
    or `xcodegen` template for the app; render thread stays enabled (Metal handles it);
    safe-area insets, rotation, keyboard avoidance; `raven_web`, `fs_watch`, file dialogs
    compiled out; sandbox paths for `Rfile_*`; `UIDocumentPicker` for dialogs later.
-7. **Product question (see section 8):** desktop-style Raven on iPad with keyboard/pointer is
-   a small step; a touch-first phone UI (menus, docks, hover states) is a design project on
-   top of all of the above.
+7. **Touch-first is required** (decided). It is planned work, not a follow-up: see 3.9.
+
+### 3.9 Touch support: what Sokol gives and what Raven must build
+
+What `sokol_app` provides (from its header, first part read; re-verify against the pinned
+version): raw multitouch events (began/moved/ended/cancelled, up to 8 points, id + position)
+on iOS, Android and the browser; `sapp_show_keyboard()` on iOS; character events as UTF-32;
+a main loop that works on iOS and Emscripten. What it does **not** provide, as far as I found:
+gesture recognition (pinch, pan, long-press), pressure/radius, IME composition (marked text),
+safe-area insets (we can get them from UIKit/CSS directly), and on the web the soft keyboard
+and clipboard are limited (clipboard only inside short-lived event handlers). So Raven builds:
+
+1. **Touch event path in the core.** Platform-independent, fed by any platform (`sokol_app`
+   now, native touchscreens on Windows/Linux later).
+2. **Gesture recognizer** (`widget/gesture.c`): tap, double-tap, long-press, pan with
+   velocity (kinetic scroll), pinch/zoom, two-finger pan, with the usual slop/timing rules
+   and arbitration between competing widgets (scroll box inside a list, slider inside a scroll box).
+3. **Widget behaviour:** touch-sized hit targets (themeable minimum 44 pt), no hover
+   dependence (hover-only affordances get a touch equivalent), long-press = context menu,
+   kinetic scrolling in `scroll_box`/`list_view`/`tree_view`/`text_editor`, drag handles for
+   `slider`/`splitter`/`dock_area`, text selection handles and magnifier in `text_input`/`text_editor`,
+   popups anchored to touch points, pinch zoom in `viewport`/`node_graph`/`timeline`.
+4. **Touch theme:** a spacing/size theme variant (`R_THEME_TOUCH` or a density setting) so
+   the same XML works at touch density.
+5. **Soft keyboard and text input:** keyboard avoidance (scroll the focused input into view
+   above the keyboard), IME composition events, and on the web a hidden `<textarea>` owned by
+   our platform code because `sokol_app` does not do it.
+6. **Testing:** synthetic touch events in the headless tests; gesture recognizer unit tests;
+   iOS simulator and a real iPad; Chrome DevTools touch emulation plus a real phone.
+
+The recognizer and the widget behaviour are the large part; a first slice (tap, pan with
+inertia, long-press, keyboard avoidance) covers most of the editor-style apps.
 
 ### 3.7 Frame/capture contract
 
@@ -208,6 +234,7 @@ Estimates are for one developer who knows the code; treat as ±40%.
 | 3b | Single-surface core work | 3.8 items 1–3: `Rrun`, virtual windows, touch/IME/safe-area events; exercised first on macOS with a "single surface" test mode and the mouse model | `hello` and `editor` run with one OS window only, popups and dialogs in-surface | 3–4 wk |
 | 3c | Presentation: iOS | `sokol_app` platform (or `platform/uikit`), Metal swapchain, rotation, soft keyboard, simulator + device | `hello` and `editor` run on an iPad (simulator and device), with pointer/keyboard and basic touch | 2–3 wk |
 | 3d | Presentation: Web | Emscripten build, `sokol_app` canvas platform, WebGL2 via GLES3, single-threaded; later WebGPU wasm | `hello`, `editor`, `glass` run in Chrome, Safari and Firefox from a static page | 3–4 wk |
+| 3g | Touch UX | 3.9 items 1–5; first slice on iOS (tap, pan + inertia, long-press, text selection, keyboard avoidance), then pinch, then Web parity | `editor` and a touch-density `hello` are usable by finger on iPad and on a phone browser | 4–6 wk |
 | 3e | Presentation: Linux | `present/egl` (X11 visual from `RNativeWindow`), one shared context, make-current per window | Same examples on X11 (Mesa and one vendor driver) | 1 wk |
 | 3f | Presentation: Windows | `present/d3d11` (DXGI flip swapchain), resize, device loss; opaque windows only | Same examples on Windows | 1 wk |
 | 4 | Glass + effects | 3.2 bundles + tool; `sg_glass.c` (scene target, capture, down/up chain, scissor re-capture); BLUR, CURVE, SHADER primitives | `glass`, `effects` examples match Vulkan visually; 8 built-ins work | 1.5–2 wk |
@@ -216,9 +243,11 @@ Estimates are for one developer who knows the code; treat as ±40%.
 
 Milestones (one developer; the backend phases are ±40%, the platform phases 3b–3d ±60%):
 - **~5–6 weeks:** first usable Sokol build on macOS (Metal, no transparency, no MoltenVK).
-- **~9–11 weeks:** iOS running (simulator + device), mouse/keyboard model plus basic touch.
-- **~13–16 weeks:** Web (WebGL2) running. WebGPU, glass-on-web tuning and real touch UX are extra.
-- **~16–21 weeks:** Linux GL and Windows D3D11 parity, hardening (phase 6).
+- **~9–11 weeks:** iOS running (simulator + device) with the mouse/keyboard model.
+- **~13–16 weeks:** Web (WebGL2) running with the mouse/keyboard model.
+- **~17–22 weeks:** touch-first usable on iOS and Web (phase 3g runs partly in parallel).
+  WebGPU and glass-on-web tuning are extra.
+- **~21–26 weeks:** Linux GL and Windows D3D11 parity, hardening (phase 6).
 Linux and Windows stay on Vulkan by default until phase 6.
 
 ## 5. Build, test and CI
@@ -266,25 +295,21 @@ resize/minimize · multi-window · hot-plug/device lost · HiDPI scale change.
 
 Decided:
 1. **Effect format:** `.rfx` bundles, with optional SPIRV-Cross later.
-2. **Platform order (earlier):** macOS, then Linux, then Windows.
-3. **HRL / Vulkan device sharing:** not a requirement. (HRL appears only as an example in the
-   comments of `raven_vulkan.h` and `raven_backend.h`.) The Vulkan interop API stays
+2. **HRL / Vulkan device sharing:** not a requirement. The Vulkan interop API stays
    Vulkan-only and is not reproduced for Sokol.
-4. **Transparency:** phase 5 is fine; first Sokol builds are opaque-only.
-5. **Priority (new):** Sokol is wanted mainly for macOS, iOS and Web.
+3. **Transparency:** phase 5 is fine; first Sokol builds are opaque-only.
+4. **Priority:** Sokol is wanted mainly for macOS, iOS and Web.
+5. **Platform order:** macOS -> iOS -> Web -> Linux -> Windows.
+6. **Touch-first is required** for iOS and Web. `sokol_app` supplies raw touches only;
+   Raven builds the gesture layer and touch widget behaviour (3.9).
+7. **Platform layer for iOS/Web:** start with `sokol_app`; replace parts with own
+   UIKit/DOM code only if IME, accessibility, safe-area or clipboard force it.
+8. **Web graphics:** WebGL2 (Sokol GLES3) first, WebGPU as a second wasm.
+9. **Apple default:** after phase 3a plus one release of soak time, Sokol/Metal becomes the
+   default on macOS and iOS. **Our Vulkan backend stays in the tree and selectable**
+   (`RAVEN_BACKEND=vulkan`, `RInitDesc.backend`); MoltenVK remains an opt-in path.
 
-Open, with my recommendation:
-6. **Order with iOS and Web:** macOS -> iOS -> Web -> Linux -> Windows. (This replaces the
-   earlier macOS -> Linux -> Windows order. Linux/Windows move later because they already
-   work on Vulkan.)
-7. **iOS/Web target UX:** first iPad/desktop-browser with keyboard and pointer, touch-first
-   phone UI later. Tell me if a phone-first UI is required for the first release.
-8. **Platform layer for iOS/Web:** start with `sokol_app` (option A in 3.8), replace parts
-   with own UIKit/DOM code only if IME, accessibility or clipboard force it.
-9. **Web graphics:** WebGL2 first, WebGPU as a second wasm.
-10. **Apple default:** once phase 3a passes, make Sokol/Metal the default on macOS and iOS
-    (Vulkan/MoltenVK stays selectable) or only after phase 6? I would do it at 3a plus one
-    release of soak time.
+Open: none blocking. New questions will come from phase 0.
 
 ## 9. First steps
 
