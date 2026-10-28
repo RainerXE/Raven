@@ -309,7 +309,7 @@ resize/minimize · multi-window · hot-plug/device lost · HiDPI scale change.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| iOS/Web need single-surface support (virtual windows, inverted loop, touch) that the core never had | High: the largest unknown in the plan | Phase 0b builds the core for wasm and iOS with the null backend first; phase 3b lands on macOS where it can be tested quickly |
+| iOS/Web need single-surface support (virtual windows, inverted loop, touch) that the core never had | High: the largest unknown in the plan, but it is now only that: the core itself builds and passes its tests as wasm (section 14) | Phase 3b lands on macOS where it can be tested quickly |
 | Widgets are desktop-style (hover, menus, docks, small targets); touch-first UX is a design effort | Medium to High | Scope iOS/Web first as iPad/desktop-browser with pointer; treat touch-first as a separate follow-up |
 | `sokol_app` is thin on IME composition, accessibility and clipboard | Medium | Start with it, keep the platform table so pieces can be replaced with UIKit/DOM code |
 | WebGL2 limits (varying count, no readback, context loss) and WebGPU browser variance | Medium | Check varying count and the glass shader in the phase 0 spike (GLES3 profile); ship WebGL2 first, WebGPU as a second wasm |
@@ -344,10 +344,7 @@ Open: none blocking. New questions will come from phase 0.
 
 ## 9. Next steps
 
-- **Phase 0b (portability probe):** build the Raven core with `RAVEN_PLATFORM=null` and the
-  null backend for Emscripten (run `test_layout`, `test_widgets` in Node) and for the iOS
-  simulator. A few days; tells us how much of the core already ports before we commit to 3b.
-  Needs the Emscripten SDK, and Xcode for iOS.
+- **Phase 0b (portability probe): done for the web, script ready for iOS** (section 14).
 - **Phase 1 (interface and build plumbing)** can start now: sections 3.1 and 3.3 and the CMake
   option, since the spike removed the main technical uncertainty of the backend itself.
 - **Metal check:** run the spike's shaders and frames on a Mac early (sokol Metal backend takes
@@ -444,4 +441,27 @@ The harmless log lines of `sokol_gfx` (information, unused sampler names) are no
 machine (EGL, real GPU), after building from the branch. Metal presentation was written without a Mac and worked on its first run.
 **Not verified:** transparent windows and applications' own effects (neither is implemented), pixel-for-pixel comparison with Vulkan on
 real GPUs.
+
+## 14. Phase 0b results: the core ports
+
+Details and reproduction: `spikes/portability_probe/README.md`.
+
+**WebAssembly (Emscripten 3.1.6, Node 22), tested here.** The whole core compiles (88 files; one source change: no
+subprocesses, see below). Its 15 headless test programs (about 24,500 checks) **pass with threads, 0 failures**; without threads
+only the checks that need a thread fail, and Raven degrades by design (render thread falls back to the UI thread). A 12,000-widget
+tree repaints in 1.70 ms as threaded wasm (1.59 ms native, 2.09 ms single-threaded). The Sokol GLES3 backend compiles for wasm
+unchanged; its native part (EGL window surfaces) is replaced by a WebGL canvas context in phase 3d.
+
+**iOS: statically scanned, not built.** The only things that cannot compile for iOS are the `fork`/`exec` users (open a URL,
+`curl` download, native file dialogs). A new `RVN_NO_SUBPROCESS` (set for Emscripten and iOS, or by hand) replaces them with
+stubs, and with `window.open` for `Ropen_url` on the web; forcing it on in a Linux build passes the whole suite. `probe_ios.sh`
+builds for the simulator and runs the tests there; it needs a Mac.
+
+**What this changes in the plan:**
+- The risk that the *core* does not port is retired for the web. What remains is the work this plan already lists: the platform
+  layers, single-surface semantics (`Rrun`, in-surface windows), touch, text input, and the web graphics context.
+- Phase 3d (Web) can start from a library that already builds and runs. Threads in a browser need cross-origin isolation, so
+  the first web build should be single-threaded (it works: all but the thread checks pass), with threads as an option.
+- Remaining web-specific items found: asynchronous URL download, file dialogs, `fs_watch` (hot reload) is unused there,
+  and `ALLOW_MEMORY_GROWTH` with pthreads is slower on non-wasm paths (Emscripten warns).
 

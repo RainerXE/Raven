@@ -89,7 +89,8 @@ int rvn_sg_context_init(const RBackendInitInfo* info, sg_environment* environmen
 		return R_FALSE;
 	}
 	no_config = rvn_sg_egl_has(eglQueryString(g_egl.display, EGL_EXTENSIONS), "EGL_KHR_no_config_context");
-	context = eglCreateContext(g_egl.display, no_config ? EGL_NO_CONFIG_KHR : g_egl.config, EGL_NO_CONTEXT, context_attributes);
+	if (no_config) context = eglCreateContext(g_egl.display, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, context_attributes);
+	else context = eglCreateContext(g_egl.display, g_egl.config, EGL_NO_CONTEXT, context_attributes);
 	if (context == EGL_NO_CONTEXT) {
 		rvn_error(R_ERROR_BACKEND, R_SEVERITY_ERROR, "Sokol: cannot create a GLES 3.0 context");
 		return R_FALSE;
