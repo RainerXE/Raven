@@ -234,24 +234,28 @@ deleted, a swapchain is resized), never in a steady frame.
 (`third_party/sokol/`), whose Metal, GLES3, D3D11 and WebGPU drivers are meant to carry Raven to macOS,
 iOS and the Web. The plan, the decisions and the state of each phase are in
 [SOKOL_BACKEND_PLAN.md](SOKOL_BACKEND_PLAN.md). Today it renders offscreen (headless runs, tests and
-`Rwindow_capture`, GLES 3.0 through EGL); presenting to windows, viewport draw callbacks and effect bundles
+`Rwindow_capture`), through GLES 3.0 and EGL on Linux or through Metal on macOS (written without a Mac at
+hand, first run by the macOS CI job); presenting to windows, viewport draw callbacks and effect bundles
 for applications are later phases.
 
 - `sg_impl.c` is the only file that compiles `sokol_gfx.h`; every function of it is renamed with the
   `rvn_sokol_` prefix (`sg_prefix.h`, written by `gen_prefix.py`), so an application with its own sokol cannot
   clash. The graphics API is fixed when Raven is built (`RAVEN_SOKOL_API`), as sokol compiles one per library.
-- `sg_egl.c` is the native-API part: the context and the read-back. A Metal or D3D11 build replaces this file.
+- `sg_egl.c` (GLES3) and `sg_metal.m` (Metal) are the native-API part: the context or device, the read-back, and
+  the autorelease pool every entry of the table runs in. A D3D11 build gets its own file.
 - `sg_texture.c`: textures; uploads are queued and written together at the start of a frame, because sokol
   accepts all the writes of a frame into its staging buffer only before the first copy.
 - `sg_pipeline.c`: the UI, erase and blur pipelines, and effects. The UI shaders are the Vulkan GLSL translated
-  by `gen_shaders.py` (glslang, SPIRV-Cross) and committed in `generated/`. A built-in effect is found by the
+  by `gen_shaders.py` (glslang, SPIRV-Cross, for GLSL ES 3.00 and MSL) and committed in `generated/`. A built-in effect is found by the
   hash of its SPIR-V; any other SPIR-V is refused (drawn as a rectangle) until effect bundles exist.
 - `sg_glass.c`: the same scene / backdrop / dual-filter structure as `vk_glass.c`.
 - `sg_backend.c`: the table, surfaces and frames.
 
-Raven draws with pixel row 0 at the top and NDC y pointing down on every API. On GL that stores the UI top in
-framebuffer row 0, so offscreen images, backdrop sampling and read-back need no flip; viewport and scissor
-rectangles use `sg_query_features().origin_top_left` to stay in that space. `Rbackend_get_caps()` tells what the
+Raven draws with pixel row 0 at the top and NDC y pointing down (the Vulkan convention). On GL that stores the UI
+top in framebuffer row 0, so offscreen images, backdrop sampling and read-back need no flip. Metal, D3D11 and
+WebGPU have the origin at the top left but NDC y up: the transform flips y (`rvn_sg_flip_y`), and the generated
+shaders carry two small adjustments (`gen_shaders.py`). Viewport and scissor rectangles use
+`sg_query_features().origin_top_left` to stay in memory-row space. `Rbackend_get_caps()` tells what the
 backend in use can do (`R_BACKEND_CAP_*`); the tests use it to skip what a backend does not offer yet.
 
 ## Platforms

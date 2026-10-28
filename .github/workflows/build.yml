@@ -217,6 +217,31 @@ jobs:
         run: xvfb-run -a ctest --test-dir build --output-on-failure
 
   # ---------------------------------------------------------------------------
+  #  Sokol backend (macOS): Metal, offscreen frames read back for the tests.
+  #  The Vulkan backend is off (MoltenVK is not installed on the runner); the whole test suite runs,
+  #  test_render on Sokol. See docs/SOKOL_BACKEND_PLAN.md.
+  # ---------------------------------------------------------------------------
+  sokol-macos:
+    name: macos (Sokol/Metal backend tests)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRAVEN_BACKEND_VULKAN=OFF \
+            -DRAVEN_BACKEND_SOKOL=ON \
+            -DRAVEN_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # ---------------------------------------------------------------------------
   #  GitHub Release, for a tag v*
   # ---------------------------------------------------------------------------
   release:

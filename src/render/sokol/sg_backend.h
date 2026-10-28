@@ -3,16 +3,20 @@
  * State shared by the files of the sokol_gfx backend.
  *
  *   sg_impl.c       the one translation unit that compiles sokol_gfx.h (every function prefixed rvn_)
- *   sg_egl.c        GLES3 context (EGL, surfaceless) and read-back; the native-API part of the backend
+ *   sg_egl.c        GLES3 context (EGL, surfaceless) and read-back; the native-API part of the backend (Linux)
+ *   sg_metal.m      the same for Metal (macOS, iOS)
  *   sg_texture.c    textures, queued uploads
  *   sg_pipeline.c   shaders, pipelines, effects
  *   sg_glass.c      render targets, backdrop of the glass primitives
  *   sg_backend.c    the RBackendVTable, surfaces, frames
  *
- * Raven draws in "Vulkan convention": pixel row 0 is the top of the UI and NDC y points down. On GL that
- * stores the UI top in framebuffer row 0, so offscreen images, backdrop sampling, gl_FragCoord and
- * read-back need no flip (only presenting to a GL default framebuffer does). Viewport and scissor
- * rectangles are therefore given in memory-row space: see rvn_sg_origin().
+ * Raven draws in "Vulkan convention": pixel row 0 is the top of the UI and NDC y points down.
+ *  - GL (origin bottom left, NDC y up): that stores the UI top in framebuffer row 0, so offscreen images,
+ *    backdrop sampling, gl_FragCoord and read-back need no flip (only presenting to a GL default
+ *    framebuffer does).
+ *  - Metal, D3D11, WebGPU (origin top left, NDC y up): the transform flips y (rvn_sg_flip_y()), and the
+ *    shaders are generated with the two adjustments that follow from it (gen_shaders.py).
+ * Viewport and scissor rectangles are given in memory-row space: see rvn_sg_origin().
  *
  * Everything here runs on the render thread.
  */
@@ -112,16 +116,28 @@ extern rvn_sg_state_t g_sg;
  *  sg_egl.c : the native API
  * ------------------------------------------------------------------------- */
 
-/** Creates the graphics context and makes it current on this thread. R_FALSE: no usable GPU/driver. */
-int  rvn_sg_context_init(const RBackendInitInfo* info);
+/**
+ * Creates the graphics context (GL: made current on this thread; Metal: the device) and fills what sg_setup
+ * needs of the native API in `environment`. R_FALSE: no usable GPU/driver.
+ */
+int  rvn_sg_context_init(const RBackendInitInfo* info, sg_environment* environment);
 void rvn_sg_context_shutdown(void);
 /** Blocks until the GPU finished all submitted work. */
 void rvn_sg_context_finish(void);
 /** RGBA8 pixels of a target, top row first, allocated with Rpixels_alloc. Calls sg_reset_state_cache(). */
 uint8_t* rvn_sg_read_target(const rvn_sg_target_t* target);
 
+/**
+ * Autorelease pool of the render thread (Metal: Objective-C objects made by a call live until the pool is
+ * popped; GL: nothing). Every entry of the backend table runs between a push and a pop.
+ */
+void* rvn_sg_pool_push(void);
+void  rvn_sg_pool_pop(void* pool);
+
 /** Argument `origin_top_left` of sg_apply_viewport / sg_apply_scissor_rect: rectangles in memory-row space. */
 bool rvn_sg_origin(void);
+/** R_TRUE when y of the transform must be flipped (the API has its origin at the top left, NDC y up). */
+bool rvn_sg_flip_y(void);
 
 /* ---------------------------------------------------------------------------
  *  sg_texture.c

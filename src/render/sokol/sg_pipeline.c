@@ -15,21 +15,28 @@
 
 #include "sg_backend.h"
 
-#if defined(RAVEN_SOKOL_GLES3)
-/* (the GLSL sources are strings of up to 16 KB: longer than the 4 KB ISO C promises, fine for every compiler Raven supports) */
+/* (the shader sources are strings of up to 16 KB: longer than the 4 KB ISO C promises, fine for every compiler Raven supports) */
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Woverlength-strings"
 #endif
 #include "generated/sg_shaders.h"
 #include "generated/sg_effects.h"
+
+#if defined(RAVEN_SOKOL_GLES3)
 #define RVN_SG_UI_VERT rvn_sg_ui_vert_es300
 #define RVN_SG_UI_FRAG rvn_sg_ui_frag_es300
 #define RVN_SG_BLUR_VERT rvn_sg_blur_vert_es300
 #define RVN_SG_BLUR_FRAG rvn_sg_blur_frag_es300
-#define RVN_SG_EFFECT_SOURCE(entry) ((entry)->es300)
+#elif defined(RAVEN_SOKOL_METAL)
+#define RVN_SG_UI_VERT rvn_sg_ui_vert_msl
+#define RVN_SG_UI_FRAG rvn_sg_ui_frag_msl
+#define RVN_SG_BLUR_VERT rvn_sg_blur_vert_msl
+#define RVN_SG_BLUR_FRAG rvn_sg_blur_frag_msl
 #else
 #error "Raven: no shader sources for this sokol graphics API yet"
 #endif
+/* Entry point of a function of a generated shader: SPIRV-Cross renames main() for MSL, and GL ignores the name. */
+#define RVN_SG_ENTRY "main0"
 
 static const char* const g_ui_samplers[3] = { "u_texture", "u_backdrop", "u_backdrop_blur" };
 static const char* const g_effect_samplers[3] = { "rvn_texture", "rvn_backdrop", "rvn_backdrop_blur" };
@@ -41,7 +48,9 @@ static sg_shader rvn_sg_shader_make_ui(const char* fragment, const char* const s
 	int i;
 	memset(&desc, 0, sizeof(desc));
 	desc.vertex_func.source = RVN_SG_UI_VERT;
+	desc.vertex_func.entry = RVN_SG_ENTRY;
 	desc.fragment_func.source = fragment;
+	desc.fragment_func.entry = RVN_SG_ENTRY;
 	for (i = 0; i < 8; i++) {
 		desc.attrs[i].glsl_name = attributes[i];
 		desc.attrs[i].base_type = i == 7 ? SG_SHADERATTRBASETYPE_UINT : SG_SHADERATTRBASETYPE_FLOAT;
@@ -53,19 +62,24 @@ static sg_shader rvn_sg_shader_make_ui(const char* fragment, const char* const s
 	desc.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
 	desc.uniform_blocks[0].glsl_uniforms[0].array_count = 2;
 	desc.uniform_blocks[0].glsl_uniforms[0].glsl_name = "PushConstants";
-	/* texture of the command, then the sharp and the blurred backdrop (set 0 and set 1 of the Vulkan pipeline) */
+	desc.uniform_blocks[0].msl_buffer_n = 0;
+	/*
+	 * Texture of the command, then the sharp and the blurred backdrop (set 0 and set 1 of the Vulkan pipeline),
+	 * each with a sampler of its own: bindings.samplers[i] goes with bindings.views[i]. GL names the combined
+	 * sampler (glsl_name), Metal numbers the slots (gen_shaders.py gives texture(i) and sampler(i)).
+	 */
 	for (i = 0; i < 3; i++) {
 		desc.views[i].texture.stage = SG_SHADERSTAGE_FRAGMENT;
 		desc.views[i].texture.image_type = SG_IMAGETYPE_2D;
 		desc.views[i].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
-		desc.texture_sampler_pairs[i].stage = SG_SHADERSTAGE_FRAGMENT;
-		desc.texture_sampler_pairs[i].view_slot = (uint8_t)i;
-		desc.texture_sampler_pairs[i].sampler_slot = i == 0 ? 0 : 1;
-		desc.texture_sampler_pairs[i].glsl_name = sampler_names[i];
-	}
-	for (i = 0; i < 2; i++) {
+		desc.views[i].texture.msl_texture_n = (uint8_t)i;
 		desc.samplers[i].stage = SG_SHADERSTAGE_FRAGMENT;
 		desc.samplers[i].sampler_type = SG_SAMPLERTYPE_FILTERING;
+		desc.samplers[i].msl_sampler_n = (uint8_t)i;
+		desc.texture_sampler_pairs[i].stage = SG_SHADERSTAGE_FRAGMENT;
+		desc.texture_sampler_pairs[i].view_slot = (uint8_t)i;
+		desc.texture_sampler_pairs[i].sampler_slot = (uint8_t)i;
+		desc.texture_sampler_pairs[i].glsl_name = sampler_names[i];
 	}
 	desc.label = label;
 	return sg_make_shader(&desc);
@@ -105,18 +119,23 @@ static int rvn_sg_blur_init(void) {
 	sg_pipeline_desc pipeline;
 	memset(&shader, 0, sizeof(shader));
 	shader.vertex_func.source = RVN_SG_BLUR_VERT;
+	shader.vertex_func.entry = RVN_SG_ENTRY;
 	shader.fragment_func.source = RVN_SG_BLUR_FRAG;
+	shader.fragment_func.entry = RVN_SG_ENTRY;
 	shader.uniform_blocks[0].stage = SG_SHADERSTAGE_FRAGMENT;
 	shader.uniform_blocks[0].size = 16;
 	shader.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
 	shader.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
 	shader.uniform_blocks[0].glsl_uniforms[0].array_count = 1;
 	shader.uniform_blocks[0].glsl_uniforms[0].glsl_name = "PushConstants";
+	shader.uniform_blocks[0].msl_buffer_n = 0;
 	shader.views[0].texture.stage = SG_SHADERSTAGE_FRAGMENT;
 	shader.views[0].texture.image_type = SG_IMAGETYPE_2D;
 	shader.views[0].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
+	shader.views[0].texture.msl_texture_n = 0;
 	shader.samplers[0].stage = SG_SHADERSTAGE_FRAGMENT;
 	shader.samplers[0].sampler_type = SG_SAMPLERTYPE_FILTERING;
+	shader.samplers[0].msl_sampler_n = 0;
 	shader.texture_sampler_pairs[0].stage = SG_SHADERSTAGE_FRAGMENT;
 	shader.texture_sampler_pairs[0].view_slot = 0;
 	shader.texture_sampler_pairs[0].sampler_slot = 0;
@@ -182,7 +201,7 @@ int rvn_sg_shader_create(Rid shader, const uint32_t* spirv, size_t size) {
 	for (i = 0; i < sizeof(rvn_sg_effects) / sizeof(rvn_sg_effects[0]); i++) {
 		if (rvn_sg_effects[i].hash != hash) continue;
 		memset(effect, 0, sizeof(*effect));
-		effect->shader = rvn_sg_shader_make_ui(RVN_SG_EFFECT_SOURCE(&rvn_sg_effects[i]), g_effect_samplers, rvn_sg_effects[i].name);
+		effect->shader = rvn_sg_shader_make_ui(rvn_sg_effects[i].source, g_effect_samplers, rvn_sg_effects[i].name);
 		if (sg_query_shader_state(effect->shader) != SG_RESOURCESTATE_VALID) return R_FALSE;
 		effect->pipeline = rvn_sg_pipeline_make_ui(effect->shader, R_FALSE, rvn_sg_effects[i].name);
 		effect->used = sg_query_pipeline_state(effect->pipeline) == SG_RESOURCESTATE_VALID;

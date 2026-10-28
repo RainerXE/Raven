@@ -29,5 +29,5 @@ Needed to build but not part of the repository:
 
 The SPIR-V in `src/render/vulkan/generated/` is compiled from the GLSL
 shaders next to it with glslang. The GLSL ES sources in
-`src/render/sokol/generated/` are translated from the same shaders with glslang and SPIRV-Cross
+`src/render/sokol/generated/` are translated from the same shaders with glslang and SPIRV-Cross, into GLSL ES 3.00 and Metal Shading Language
 (`src/render/sokol/gen_shaders.py`).

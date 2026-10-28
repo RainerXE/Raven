@@ -18,7 +18,7 @@ static struct {
 	EGLContext context;
 } g_egl;
 
-int rvn_sg_context_init(const RBackendInitInfo* info) {
+int rvn_sg_context_init(const RBackendInitInfo* info, sg_environment* environment) {
 	static const EGLint config_attributes[] = {
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT, EGL_SURFACE_TYPE, 0,
 		EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_NONE
@@ -28,6 +28,7 @@ int rvn_sg_context_init(const RBackendInitInfo* info) {
 	EGLConfig config;
 	EGLint count = 0, major, minor;
 	RVN_UNUSED(info);
+	RVN_UNUSED(environment);
 
 	g_egl.display = get_display ? get_display(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL) : EGL_NO_DISPLAY;
 	if (g_egl.display == EGL_NO_DISPLAY) g_egl.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -79,7 +80,10 @@ uint8_t* rvn_sg_read_target(const rvn_sg_target_t* target) {
 	return pixels;
 }
 
-bool rvn_sg_origin(void) {
-	/* false on GL, true on Metal / D3D11 / WebGPU */
-	return sg_query_features().origin_top_left;
+void* rvn_sg_pool_push(void) {
+	return NULL;
+}
+
+void rvn_sg_pool_pop(void* pool) {
+	RVN_UNUSED(pool);
 }

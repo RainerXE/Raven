@@ -396,3 +396,25 @@ The 18 checks that only the Vulkan run has are the viewport draw callback (`R_BA
 Known limits (not regressions): no presentation to a window (frames are offscreen; `Rwindow_capture` works),
 no viewport draw callbacks, only the built-in effects, GLES3/EGL only, EGL linked rather than loaded at run time.
 
+## 12. Metal path (phase 3a, first part): written without a Mac
+
+`RAVEN_SOKOL_API=metal` (the default on Apple) builds the same backend on Metal:
+
+- `gen_shaders.py` emits MSL next to GLSL ES 3.00 (SPIRV-Cross `--msl`). Checked by reading the output: attribute
+  slots 0-7, push constants at `[[buffer(0)]]`, `[[texture(0..2)]]` and `[[sampler(0..2)]]`, entry `main0`, vertex
+  outputs and fragment inputs matching by `[[user(locnN)]]`.
+- Adjustments the Metal convention needs (origin top left, NDC y up, the reverse of Vulkan): the transform flips y;
+  `ui.vert` takes `abs()` of the scale for the backdrop coordinates and `blur.vert` reads its source with
+  `v = 1 - y` (patches in `gen_shaders.py`, only in the MSL target); descriptor bindings are remapped so the three
+  textures get distinct slots. GL is unchanged (the Vulkan convention already lands right there).
+- `sg_metal.m`: device (`MTLCreateSystemDefaultDevice`), read-back (blit to a shared buffer on sokol's command
+  queue), and an autorelease pool around every entry of the backend table (the render thread has no run loop).
+- `sg_impl.m` compiles `sokol_gfx.h` as Objective-C; CMake links Foundation, Metal and QuartzCore and builds the
+  two `.m` files with ARC. Three samplers are bound for every API now (one per texture), which GL accepts.
+
+Verified here: the Linux GLES3 build is unchanged (28/28); `sg_metal.m` passes `clang -fsyntax-only -Wall`
+against stub Metal headers; the shared C files compile with the Metal macro. **Not verified:** that the MSL
+compiles in Metal, that the pipelines are created, and that frames match Vulkan. That is what the new
+`sokol-macos` CI job (Metal on a GitHub runner, whole test suite, `test_render` on Sokol) and the Mac of the
+maintainer are for. Expect a first round of small fixes.
+
