@@ -71,6 +71,18 @@ static const scene_t g_scenes[] = {
 		"</VBox>"
 		"<Border Material=\"Glass\" Width=\"160\" Height=\"90\" Slot.HAlign=\"Right\" Slot.VAlign=\"Bottom\" Slot.Padding=\"12\"/>"
 		"</Overlay></Window>" },
+	{ "effects", NULL,
+		"<Window Width=\"520\" Height=\"260\" ClearColor=\"#101018\"><VBox Slot.Padding=\"10\" Spacing=\"10\">"
+		"<HBox Spacing=\"10\"><Border Effect=\"aurora\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/><Border Effect=\"mesh\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/>"
+		"<Border Effect=\"neon\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/><Border Effect=\"plasma\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/></HBox>"
+		"<HBox Spacing=\"10\"><Border Effect=\"shimmer\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/><Border Effect=\"grain\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/>"
+		"<Border Effect=\"spotlight\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/><Border Effect=\"ripple\" CornerRadius=\"14\" Width=\"110\" Height=\"100\"/></HBox>"
+		"</VBox></Window>" },
+	{ "effects_user", NULL,
+		"<Window Width=\"300\" Height=\"130\" ClearColor=\"#101018\"><HBox Slot.Padding=\"10\" Spacing=\"10\">"
+		"<Border Effect=\"EXAMPLES/wave.spv\" EffectColor=\"#0A84FF\" EffectColor2=\"#BF5AF2\" CornerRadius=\"16\" Width=\"130\" Height=\"100\"/>"
+		"<Border Effect=\"EXAMPLES/liquid.spv\" EffectColor=\"#30D158\" EffectColor2=\"#0A84FF\" CornerRadius=\"16\" Width=\"130\" Height=\"100\"/>"
+		"</HBox></Window>" },
 	{ "blur", NULL,
 		"<Window Width=\"320\" Height=\"120\" ClearColor=\"#000000\"><Overlay>"
 		"<HBox Name=\"stripes\"><Border Width=\"40\" Background=\"#FFFFFF\"/><Border Width=\"40\" Background=\"#FF3030\"/><Border Width=\"40\" Background=\"#30FF30\"/><Border Width=\"40\" Background=\"#3030FF\"/><Border Width=\"40\" Background=\"#FFFFFF\"/><Border Width=\"40\" Background=\"#FF3030\"/><Border Width=\"40\" Background=\"#30FF30\"/><Border Width=\"40\" Background=\"#3030FF\"/></HBox>"
@@ -90,6 +102,54 @@ static void write_ppm(const char* dir, const char* name, const uint8_t* rgba, in
 	fprintf(f, "P6\n%d %d\n255\n", w, h);
 	for (i = 0; i < w * h; i++) fwrite(rgba + (size_t)i * 4, 1, 3, f);
 	fclose(f);
+}
+
+static void emit(const char* dir, const char* name, Rid window) {
+	int w = 0, h = 0;
+	uint8_t* pixels = Rwindow_capture(window, &w, &h);
+	if (!pixels) { fprintf(stderr, "%s: no capture\n", name); return; }
+	write_ppm(dir, name, pixels, w, h);
+	printf("%-14s %dx%d\n", name, w, h);
+	Rpixels_free(pixels);
+}
+
+/* Several frames of the same windows: reused targets, partial backdrop captures, resizes, a second window. */
+static void stress(const char* dir) {
+	static const char* glass_xml =
+		"<Window Width=\"420\" Height=\"320\"><Overlay>"
+		"<VBox Spacing=\"10\" Slot.Padding=\"20\">"
+		"<HBox Spacing=\"8\"><Button Text=\"Glass\"/><Button Text=\"Tinted\" Style=\"Primary\"/></HBox>"
+		"<Slider Name=\"s\" Value=\"0.2\"/><TextInput Placeholder=\"Text\"/>"
+		"<ProgressBar Name=\"p\" Value=\"0.3\"/>"
+		"</VBox>"
+		"<Border Material=\"Glass\" Width=\"160\" Height=\"90\" Slot.HAlign=\"Right\" Slot.VAlign=\"Bottom\" Slot.Padding=\"12\"/>"
+		"</Overlay></Window>";
+	static const char* other_xml =
+		"<Window Width=\"200\" Height=\"120\" ClearColor=\"#204060\"><Canvas>"
+		"<Border Slot.Position=\"20,20\" Slot.Size=\"80,60\" Background=\"#FF8800\" CornerRadius=\"12\" BorderWidth=\"0\"/></Canvas></Window>";
+	Rid window, second;
+	Rtheme_apply(R_THEME_GLASS_DARK);
+	window = Rwindow_create_from_xml(glass_xml, strlen(glass_xml));
+	Rdraw_frame();
+	emit(dir, "stress_1_first", window);
+	Rslider_set_value(Rwidget_find(window, "s"), 0.8f);
+	Rprogress_bar_set_value(Rwidget_find(window, "p"), 0.9f);
+	Rdraw_frame();
+	emit(dir, "stress_2_changed", window);
+	second = Rwindow_create_from_xml(other_xml, strlen(other_xml));
+	Rdraw_frame();
+	emit(dir, "stress_3_second", second);
+	Rwindow_set_size(window, 520, 400);
+	Rdraw_frame(); Rdraw_frame();
+	emit(dir, "stress_4_grown", window);
+	Rwindow_set_size(window, 300, 240);
+	Rdraw_frame(); Rdraw_frame();
+	emit(dir, "stress_5_shrunk", window);
+	Rwindow_destroy(second);
+	Rslider_set_value(Rwidget_find(window, "s"), 0.5f);
+	Rdraw_frame();
+	emit(dir, "stress_6_after", window);
+	Rwindow_destroy(window);
 }
 
 int main(int argc, char** argv) {
@@ -116,7 +176,26 @@ int main(int argc, char** argv) {
 		if (s->theme && strcmp(s->theme, "light") == 0) Rtheme_apply(R_THEME_LIGHT);
 		else if (s->theme && strcmp(s->theme, "glass_dark") == 0) Rtheme_apply(R_THEME_GLASS_DARK);
 		else Rtheme_apply(R_THEME_DARK);
-		window = Rwindow_create_from_xml(s->xml, strlen(s->xml));
+		{
+			/* "EXAMPLES/" stands for the folder of the effect examples (argv[3]) */
+			char* xml = (char*)malloc(strlen(s->xml) + 1024);
+			const char* at = strstr(s->xml, "EXAMPLES");
+			if (at && argc > 3) {
+				size_t head = (size_t)(at - s->xml);
+				memcpy(xml, s->xml, head); xml[head] = 0;
+				strcat(xml, argv[3]);
+				strcat(xml, at + strlen("EXAMPLES"));
+				/* second occurrence */
+				{
+					char* second = strstr(xml + head + strlen(argv[3]), "EXAMPLES");
+					if (second) { char* tail = (char*)malloc(strlen(second) + 1); strcpy(tail, second + 8); strcpy(second, argv[3]); strcat(xml, tail); free(tail); }
+				}
+			} else {
+				strcpy(xml, s->xml);
+			}
+			window = Rwindow_create_from_xml(xml, strlen(xml));
+			free(xml);
+		}
 		Rdraw_frame();
 		pixels = Rwindow_capture(window, &w, &h);
 		if (!pixels) { fprintf(stderr, "%s: no capture\n", s->name); }
@@ -127,6 +206,7 @@ int main(int argc, char** argv) {
 		}
 		Rwindow_destroy(window);
 	}
+	stress(argv[2]);
 	Rshutdown();
 	return 0;
 }

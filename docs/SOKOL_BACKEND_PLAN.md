@@ -1,6 +1,6 @@
 # Plan: a selectable Sokol rendering backend
 
-Status: proposal. Based on a read of the code (no prototype yet).
+Status: proposal; phase 0 spike done (`spikes/sokol_phase0`, results in section 10).
 Goal: add `R_BACKEND_SOKOL` next to `R_BACKEND_VULKAN`, selectable at `Rinit`.
 
 **Why (the strategic reason):** Sokol is the better renderer for **macOS, iOS and the Web**.
@@ -54,7 +54,7 @@ ours. That, plus effects and readback, is where the work is.
 | Effects | `Rshader_create(spirv)`, `.spv` in `Effect=`, `raven_effect.glsl` assume SPIR-V at run time | Needs a new multi-target effect format (section 3.2) |
 | Capture | `Rwindow_capture` and `tests/test_render.c` read pixels back; sokol has no readback (planned upstream) | Native readback per API, via offscreen target |
 | Glyph atlas | `R_TEXTURE_ALPHA8` relies on a Vulkan view swizzle (1,1,1,a) | Expand on upload, or branch in shader (3.4) |
-| Vertex data | `RDrawInstance` has `uint32` colors/flags | Declare as `UBYTE4(N)` and rebuild in shader; verify UINT support before relying on it |
+| Vertex data | `RDrawInstance` has `uint32` colors/flags | Confirmed in the spike: `UBYTE4N` colors and `SG_VERTEXFORMAT_UINT` flags work, no struct change |
 | Vulkan public API | `raven_vulkan.h`, `RViewportDrawInfo.command_buffer`, shared textures | Stay Vulkan-only; add `raven_sokol.h` equivalent (3.5) |
 | Upstream churn | sokol_gfx had several breaking API changes in 2026 | Vendor a pinned commit; upgrade deliberately |
 | Linux | X11-only platform; Sokol means GL 4.1/GLES3 there | Vulkan remains the Linux default |
@@ -95,6 +95,11 @@ Decision (recommended): **effect bundles, not run-time SPIR-V translation.**
 - `Rshader_create_from_bundle`, and `Effect="x.rfx"` in XML. `.spv` keeps working on
   Vulkan; on Sokol it logs the existing "cannot use this effect" error and draws the
   rounded rectangle (current fallback behavior, so no new failure mode).
+- Spike findings for the translation step: GLES 3.0 / WebGL2 link varyings *by name*, so the tool
+  renames the fragment inputs by location to the names of the UI vertex shader
+  (`spirv-cross --rename-interface-variable`); and it records which of the three samplers a variant
+  really uses (the GL compiler drops unused ones and sokol warns). Verified on all 8 built-ins and
+  the two user effects of `examples/effects`.
 - `rvn_shader_t` stores the blob; the renderer hands it to whichever backend is running.
 - Optional later: `RAVEN_WITH_SPIRV_CROSS=ON` translates `.spv` at run time for users who
   accept a C++ dependency. Off by default.
@@ -106,15 +111,18 @@ Decision (recommended): **effect bundles, not run-time SPIR-V translation.**
 Move `ui.vert`, `ui.frag`, `blur.vert/frag` and the effect shaders to a neutral
 `render/shaders/` folder with a thin wrapper per compiler (glslang for Vulkan, sokol-shdc
 `@vs/@fs` for Sokol). Logic is shared, so glass/blur/curve look the same on both.
+`blur.frag` needs one change for the GL targets: its push constants mix a `vec2` and an `int`, which
+SPIRV-Cross cannot flatten, so they become one `vec4` (the spike does exactly this). The UI shaders
+`ui.vert`/`ui.frag` compile unmodified through glslang -> SPIR-V -> SPIRV-Cross for ES 3.00 and GL 4.10.
 Generated outputs are committed (as `generated/*_spv.h` is today) plus
 `render/sokol/generated/*.h`; `cmake/RavenSokolShaders.cmake` regenerates them only when
 `RAVEN_REGENERATE_SHADERS=ON` and sokol-shdc is found.
 
 ### 3.4 Glyph atlas
 
-Spike default: the Sokol backend stores `R_TEXTURE_ALPHA8` as RGBA8 (1,1,1,a) by expanding
-on upload (4 MB per 1024² page, trivial). Optimize later by sampling `.r` for
-`R_PRIM_GLYPH` in the Sokol shader variant. No change to `font.c`.
+Verified in the spike: the Sokol backend stores `R_TEXTURE_ALPHA8` as RGBA8 (1,1,1,a) by expanding
+on upload (4 MB per 1024² page, trivial); text renders identically. Optimize later by sampling `.r`
+for `R_PRIM_GLYPH` in the Sokol shader variant. No change to `font.c`.
 
 ### 3.5 Native interop (new `include/raven/raven_sokol.h`)
 
@@ -139,6 +147,24 @@ on upload (4 MB per 1024² page, trivial). Optimize later by sampling `.r` for
   capture is requested; map `vsync` to `displaySyncEnabled`.
 - Add a "present context" notion for GL: one shared context, `make current` per window on
   the render thread.
+
+### 3.10 Backend implementation rules found in the spike
+
+- **Y convention.** Keep Raven's "pixel row 0 = top, NDC y down" convention on every API. On GL
+  this stores the UI top in framebuffer row 0, so offscreen targets, backdrop sampling,
+  `gl_FragCoord` and read-back need no flip; only presenting to a GL default framebuffer does.
+  Metal, D3D11 and WebGPU are top-left natively. Viewport/scissor rectangles are passed with
+  `origin_top_left = sg_query_features().origin_top_left`, so they stay in memory-row space.
+- **Uploads.** All `sg_write_buffer_transient` writes of a frame must come before the first copy
+  from that staging buffer. Texture and atlas updates are queued and flushed together at the start
+  of the next frame, outside a pass (`sg_copy_buffer_to_image`, `bytes_per_slice` set).
+- **Instances.** One `write_transient` vertex buffer per backend, grown by powers of two; ES 3.0 has
+  no base instance, so `first_instance` becomes a vertex-buffer offset in `sg_bindings`.
+- **Passes.** Frame, scene and backdrop targets are plain `color_attachment` images with a
+  color-attachment view and a texture view. A backdrop capture ends the scene pass, filters with
+  `LOAD` (partial) or `DONTCARE` (full) and scissor, then resumes the scene with `LOAD`.
+- **Frames.** One `sg_commit()` per `RenderFrame`; read-back through the native API of the backend,
+  then `sg_reset_state_cache()`.
 
 ### 3.8 Single-surface platforms: iOS and Web (new platform layer work)
 
@@ -227,7 +253,7 @@ Estimates are for one developer who knows the code; treat as ±40%.
 
 | # | Phase | Work | Exit criterion | Est. |
 |---|---|---|---|---|
-| 0 | Spike (Linux GL, headless) | Vendor sokol_gfx; port `ui.vert/frag` via sokol-shdc; EGL surfaceless context; render a rect+text frame offscreen; read back | PNG matches Vulkan output of the same draw list within tolerance. Also confirm: UBYTE4 instance layout, `gl_VertexIndex` handling, varying count | 3–4 days |
+| 0 | Spike (Linux GL, headless) **DONE** | Vendored sokol_gfx; UI, blur and effect shaders through glslang + SPIRV-Cross; EGL surfaceless context; offscreen frames; glass, effects, atlas, erase; read-back | 16 frames match the Vulkan output (max difference 0, one scene 1/255). Instance layout, `gl_VertexIndex`, varying count and glass pass structure confirmed (section 10) | done (~1 day) |
 | 1 | Interface + build plumbing | 3.1, 3.3, CMake option `RAVEN_BACKEND_SOKOL` (default OFF), THIRD_PARTY update | Vulkan build unchanged and green; Sokol builds | ~1 wk |
 | 2 | Core Sokol backend (offscreen) | Instance buffer, pipelines (UI + erase), textures incl. atlas, uniforms, readback, headless surface, `R_DRAW_CALLBACK` hook | `test_render` runs headless on Sokol/GL llvmpipe in CI; all non-glass cases pass | 1.5 wk |
 | 3a | Presentation: macOS | `present/metal` on the existing `CAMetalLayer`; resize, vsync/ProMotion pacing, DPI, occluded windows, many windows (popups/tool windows) | Examples `hello`, `editor`, `workspace` run interactively on macOS without MoltenVK | 1–1.5 wk |
@@ -284,7 +310,7 @@ resize/minimize · multi-window · hot-plug/device lost · HiDPI scale change.
 | WebGL2 limits (varying count, no readback, context loss) and WebGPU browser variance | Medium | Check varying count and the glass shader in the phase 0 spike (GLES3 profile); ship WebGL2 first, WebGPU as a second wasm |
 | Wasm size and load time (Raven core + fonts + sokol) | Low to Medium | Measure early in 0b; fonts are already subset; strip unused widgets via build options if needed |
 | Win32 transparency needs DirectComposition and creation-time window flags | Low now (Windows is last) | Phase 3c ships opaque; transparency in phase 5; 3.6 hint added early |
-| Glass in sokol passes (mid-frame pass break, scissored recapture) harder than expected | High for look | Prototype in phase 0/2 on GL before D3D11/Metal |
+| Glass in sokol passes (mid-frame pass break, scissored recapture) harder than expected | Largely retired: identical to Vulkan on GL in the spike | Re-verify on Metal and WebGL2 in phases 3a/3d |
 | Effect format change annoys existing `.spv` users | Medium | `.spv` stays valid on Vulkan; clear error + fallback on Sokol; migration note in `docs/shaders.html` |
 | No upstream readback | Medium | Native readback per API; isolated in `sg_readback.c` |
 | Sokol API churn | Medium | Pin commit, upgrade as a dedicated task |
@@ -311,13 +337,25 @@ Decided:
 
 Open: none blocking. New questions will come from phase 0.
 
-## 9. First steps
+## 9. Next steps
 
-- **Phase 0 (Linux, headless GL / GLES3):** runs in this environment, answers the open
-  technical questions (instance layout, shader cross-compile, glass pass structure, varying
-  count under the WebGL2 limit). The result carries over to Metal, since sokol-shdc emits
-  MSL from the same shader source, and to WebGL2.
 - **Phase 0b (portability probe):** build the Raven core with `RAVEN_PLATFORM=null` and the
   null backend for Emscripten (run `test_layout`, `test_widgets` in Node) and for the iOS
-  simulator. This costs a few days and tells us how much of the core already ports before we
-  commit to 3b. Needs the Emscripten SDK, and Xcode for iOS.
+  simulator. A few days; tells us how much of the core already ports before we commit to 3b.
+  Needs the Emscripten SDK, and Xcode for iOS.
+- **Phase 1 (interface and build plumbing)** can start now: sections 3.1 and 3.3 and the CMake
+  option, since the spike removed the main technical uncertainty of the backend itself.
+- **Metal check:** run the spike's shaders and frames on a Mac early (sokol Metal backend takes
+  MSL; the same SPIR-V goes through SPIRV-Cross `--msl`), before building phase 3a on assumptions.
+
+## 10. Phase 0 results (spike)
+
+`spikes/sokol_phase0`: a standalone sokol_gfx (GLES 3.0, headless EGL on Mesa llvmpipe) backend of
+about 880 lines against the public `RBackendVTable`, compared with the Vulkan backend (lavapipe) on
+16 frames: the shapes, clipping, text, light and dark controls, glass, glass theme, background blur,
+the 8 built-in effects, two user-written effects, and a stress sequence (re-draw, partial
+backdrop re-capture, grow, shrink, a second window). All identical except the built-in effects
+scene (max 1/255 on a few pixels). It ran on Raven's render thread. Both sides use llvmpipe, so
+real GPUs will add normal rounding differences, which `test_render` already tolerates (3/255).
+Details, reproduction steps and the list of what is not covered: `spikes/sokol_phase0/README.md`.
+Not covered: Metal, D3D11, WebGL2/WebGPU runs, presentation, viewport draw callback, transparency.

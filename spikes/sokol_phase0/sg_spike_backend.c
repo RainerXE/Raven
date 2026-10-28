@@ -22,15 +22,18 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "shaders/shader_sources.h"
+#include "shaders/effect_sources.h"
 
 #define SPK_MAX_TEXTURES 4096
 #define SPK_MAX_SURFACES 64
 #define SPK_BLUR_LEVELS 3
+#define SPK_MAX_EFFECTS 256
 
 /* ---------------------------------------------------------------------------
  *  State
@@ -72,6 +75,12 @@ typedef struct spk_upload_t {
 	uint8_t* pixels; /* RGBA8, owned */
 } spk_upload_t;
 
+typedef struct spk_effect_t {
+	int used;
+	sg_shader shader;
+	sg_pipeline pipeline;
+} spk_effect_t;
+
 static struct {
 	int initialized;
 	EGLDisplay display;
@@ -80,11 +89,14 @@ static struct {
 	sg_shader shader;
 	sg_pipeline pipeline;       /* UI: (ONE, 1-SRC_A) */
 	sg_pipeline erase_pipeline; /* (ZERO, 1-SRC_A) */
+	sg_shader blur_shader;
+	sg_pipeline blur_pipeline;  /* full-screen triangle, no blending: reduce / enlarge / copy */
 	sg_sampler linear, nearest;
 	spk_texture_t white;
 
 	spk_texture_t textures[SPK_MAX_TEXTURES];
 	spk_surface_t surfaces[SPK_MAX_SURFACES];
+	spk_effect_t effects[SPK_MAX_EFFECTS];
 
 	sg_buffer instances;
 	size_t instances_size;
@@ -318,16 +330,14 @@ static int spk_target_create(spk_target_t* t, int width, int height, const char*
 	return 1;
 }
 
-static int spk_pipelines_create(void) {
+/* The UI vertex shader with a fragment shader: the UI itself, or an effect (same inputs and bindings). */
+static sg_shader spk_make_ui_shader(const char* fragment, const char* const sampler_names[3], const char* label) {
 	sg_shader_desc shader;
-	sg_pipeline_desc pipeline;
 	static const char* names[8] = { "in_rect", "in_uv", "in_clip", "in_radii", "in_color", "in_border_color", "in_border_width", "in_flags" };
-	static const char* samplers[3] = { "u_texture", "u_backdrop", "u_backdrop_blur" };
 	int i;
-
 	memset(&shader, 0, sizeof(shader));
 	shader.vertex_func.source = spk_ui_vert_es300;
-	shader.fragment_func.source = spk_ui_frag_es300;
+	shader.fragment_func.source = fragment;
 	for (i = 0; i < 8; i++) {
 		shader.attrs[i].glsl_name = names[i];
 		shader.attrs[i].base_type = i == 7 ? SG_SHADERATTRBASETYPE_UINT : SG_SHADERATTRBASETYPE_FLOAT;
@@ -345,18 +355,20 @@ static int spk_pipelines_create(void) {
 		shader.texture_sampler_pairs[i].stage = SG_SHADERSTAGE_FRAGMENT;
 		shader.texture_sampler_pairs[i].view_slot = (uint8_t)i;
 		shader.texture_sampler_pairs[i].sampler_slot = i == 0 ? 0 : 1;
-		shader.texture_sampler_pairs[i].glsl_name = samplers[i];
+		shader.texture_sampler_pairs[i].glsl_name = sampler_names[i];
 	}
 	for (i = 0; i < 2; i++) {
 		shader.samplers[i].stage = SG_SHADERSTAGE_FRAGMENT;
 		shader.samplers[i].sampler_type = SG_SAMPLERTYPE_FILTERING;
 	}
-	shader.label = "raven-ui";
-	g.shader = sg_make_shader(&shader);
-	if (sg_query_shader_state(g.shader) != SG_RESOURCESTATE_VALID) return 0;
+	shader.label = label;
+	return sg_make_shader(&shader);
+}
 
+static sg_pipeline spk_make_ui_pipeline(sg_shader shader, int erase, const char* label) {
+	sg_pipeline_desc pipeline;
 	memset(&pipeline, 0, sizeof(pipeline));
-	pipeline.shader = g.shader;
+	pipeline.shader = shader;
 	pipeline.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
 	pipeline.layout.buffers[0].stride = (int)sizeof(RDrawInstance);
 	pipeline.layout.buffers[0].step_func = SG_VERTEXSTEP_PER_INSTANCE;
@@ -371,18 +383,56 @@ static int spk_pipelines_create(void) {
 	pipeline.color_count = 1;
 	pipeline.colors[0].pixel_format = SG_PIXELFORMAT_RGBA8;
 	pipeline.colors[0].blend.enabled = true;
-	pipeline.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_ONE;
+	pipeline.colors[0].blend.src_factor_rgb = erase ? SG_BLENDFACTOR_ZERO : SG_BLENDFACTOR_ONE;
 	pipeline.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-	pipeline.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+	pipeline.colors[0].blend.src_factor_alpha = erase ? SG_BLENDFACTOR_ZERO : SG_BLENDFACTOR_ONE;
 	pipeline.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
 	pipeline.depth.pixel_format = SG_PIXELFORMAT_NONE;
-	pipeline.label = "raven-ui";
-	g.pipeline = sg_make_pipeline(&pipeline);
-	pipeline.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_ZERO;
-	pipeline.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ZERO;
-	pipeline.label = "raven-erase";
-	g.erase_pipeline = sg_make_pipeline(&pipeline);
-	return sg_query_pipeline_state(g.pipeline) == SG_RESOURCESTATE_VALID && sg_query_pipeline_state(g.erase_pipeline) == SG_RESOURCESTATE_VALID;
+	pipeline.label = label;
+	return sg_make_pipeline(&pipeline);
+}
+
+static int spk_pipelines_create(void) {
+	sg_shader_desc shader;
+	sg_pipeline_desc pipeline;
+	static const char* const ui_samplers[3] = { "u_texture", "u_backdrop", "u_backdrop_blur" };
+	g.shader = spk_make_ui_shader(spk_ui_frag_es300, ui_samplers, "raven-ui");
+	if (sg_query_shader_state(g.shader) != SG_RESOURCESTATE_VALID) return 0;
+	g.pipeline = spk_make_ui_pipeline(g.shader, 0, "raven-ui");
+	g.erase_pipeline = spk_make_ui_pipeline(g.shader, 1, "raven-erase");
+	if (sg_query_pipeline_state(g.pipeline) != SG_RESOURCESTATE_VALID || sg_query_pipeline_state(g.erase_pipeline) != SG_RESOURCESTATE_VALID) return 0;
+
+	/* the backdrop filter (blur.frag): one fragment uniform vec4 (xy = step, z = mode), one texture */
+	memset(&shader, 0, sizeof(shader));
+	shader.vertex_func.source = spk_blur_vert_es300;
+	shader.fragment_func.source = spk_blur_frag_es300;
+	shader.uniform_blocks[0].stage = SG_SHADERSTAGE_FRAGMENT;
+	shader.uniform_blocks[0].size = 16;
+	shader.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+	shader.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+	shader.uniform_blocks[0].glsl_uniforms[0].array_count = 1;
+	shader.uniform_blocks[0].glsl_uniforms[0].glsl_name = "PushConstants";
+	shader.views[0].texture.stage = SG_SHADERSTAGE_FRAGMENT;
+	shader.views[0].texture.image_type = SG_IMAGETYPE_2D;
+	shader.views[0].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
+	shader.samplers[0].stage = SG_SHADERSTAGE_FRAGMENT;
+	shader.samplers[0].sampler_type = SG_SAMPLERTYPE_FILTERING;
+	shader.texture_sampler_pairs[0].stage = SG_SHADERSTAGE_FRAGMENT;
+	shader.texture_sampler_pairs[0].view_slot = 0;
+	shader.texture_sampler_pairs[0].sampler_slot = 0;
+	shader.texture_sampler_pairs[0].glsl_name = "u_source";
+	shader.label = "raven-blur";
+	g.blur_shader = sg_make_shader(&shader);
+	if (sg_query_shader_state(g.blur_shader) != SG_RESOURCESTATE_VALID) return 0;
+	memset(&pipeline, 0, sizeof(pipeline));
+	pipeline.shader = g.blur_shader;
+	pipeline.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
+	pipeline.color_count = 1;
+	pipeline.colors[0].pixel_format = SG_PIXELFORMAT_RGBA8;
+	pipeline.depth.pixel_format = SG_PIXELFORMAT_NONE;
+	pipeline.label = "raven-blur";
+	g.blur_pipeline = sg_make_pipeline(&pipeline);
+	return sg_query_pipeline_state(g.blur_pipeline) == SG_RESOURCESTATE_VALID;
 }
 
 /* ---------------------------------------------------------------------------
@@ -510,9 +560,19 @@ static void spk_apply_ui_bindings(const spk_surface_t* s, const RDrawData* data,
 	(void)s; (void)data;
 }
 
-static void spk_draw_commands(spk_surface_t* s, const RDrawData* data) {
+/*
+ * Raven draws in "Vulkan convention": pixel row 0 is the top of the UI and NDC y points down. On GL
+ * that stores the UI top in framebuffer row 0, so images and read-backs need no flip, but the
+ * viewport/scissor `origin_top_left` argument of sokol must then be what the backend reports natively
+ * (false on GL, true on Metal / D3D11 / WebGPU): rectangles are given in memory-row space.
+ */
+static bool spk_origin(void) {
+	return sg_query_features().origin_top_left;
+}
+
+static void spk_apply_uniforms_ui(const spk_surface_t* s, const RDrawData* data) {
 	float uniforms[8];
-	uint32_t i;
+	sg_range range;
 	uniforms[0] = 2.0f / (float)s->width;
 	uniforms[1] = 2.0f / (float)s->height;
 	uniforms[2] = -1.0f;
@@ -520,35 +580,186 @@ static void spk_draw_commands(spk_surface_t* s, const RDrawData* data) {
 	uniforms[4] = data->pointer[0];
 	uniforms[5] = data->pointer[1];
 	uniforms[6] = uniforms[7] = 0.0f;
+	range.ptr = uniforms;
+	range.size = sizeof(uniforms);
+	sg_apply_uniforms(0, &range);
+}
 
-	sg_apply_viewport(0, 0, s->width, s->height, true);
+/* ---- glass: scene, backdrop capture (dual filter), present (port of vk_glass.c) ---- */
+
+static int spk_glass_prepare(spk_surface_t* s) {
+	int i;
+	if (s->glass_ready) return 1;
+	if (!spk_target_create(&s->scene, s->width, s->height, "raven-scene")) goto failed;
+	for (i = 0; i < SPK_BLUR_LEVELS; i++) {
+		int w = s->width >> (i + 1), h = s->height >> (i + 1);
+		if (w < 1) w = 1;
+		if (h < 1) h = 1;
+		if (!spk_target_create(&s->down[i], w, h, "raven-down")) goto failed;
+		if (i + 1 < SPK_BLUR_LEVELS && !spk_target_create(&s->up[i], w, h, "raven-up")) goto failed;
+	}
+	s->glass_ready = 1;
+	s->glass_filled = 0;
+	return 1;
+failed:
+	spk_surface_release_glass(s);
+	return 0;
+}
+
+/* Filters `source` into `target`: all of it, or only `area` (pixels of the target), the rest keeping its content. */
+static void spk_glass_filter(const spk_target_t* source, const spk_target_t* target, int mode, float spread, const int* area) {
+	sg_pass pass;
+	sg_bindings bindings;
+	float params[4];
+	sg_range range;
+	memset(&pass, 0, sizeof(pass));
+	pass.action.colors[0].load_action = area ? SG_LOADACTION_LOAD : SG_LOADACTION_DONTCARE;
+	pass.action.colors[0].store_action = SG_STOREACTION_STORE;
+	pass.attachments.colors[0] = target->color;
+	sg_begin_pass(&pass);
+	sg_apply_viewport(0, 0, target->width, target->height, spk_origin());
+	if (area) sg_apply_scissor_rect(area[0], area[1], area[2], area[3], spk_origin());
+	sg_apply_pipeline(g.blur_pipeline);
+	memset(&bindings, 0, sizeof(bindings));
+	bindings.views[0] = source->sample;
+	bindings.samplers[0] = g.linear;
+	sg_apply_bindings(&bindings);
+	/* offsets are in texels of the source: a whole one when reducing, halves when enlarging */
+	params[0] = spread * (mode == 0 ? 1.0f : 0.5f) / (float)source->width;
+	params[1] = spread * (mode == 0 ? 1.0f : 0.5f) / (float)source->height;
+	params[2] = (float)mode;
+	params[3] = 0.0f;
+	range.ptr = params;
+	range.size = sizeof(params);
+	sg_apply_uniforms(0, &range);
+	sg_draw(0, 3, 1);
+	sg_end_pass();
+}
+
+static int spk_glass_area(const spk_surface_t* s, const spk_target_t* target, float x0, float y0, float x1, float y1, int area[4]) {
+	float fx = (float)target->width / (float)s->width;
+	float fy = (float)target->height / (float)s->height;
+	int ax0 = (int)floorf(x0 * fx), ay0 = (int)floorf(y0 * fy);
+	int ax1 = (int)ceilf(x1 * fx), ay1 = (int)ceilf(y1 * fy);
+	if (ax0 < 0) ax0 = 0;
+	if (ay0 < 0) ay0 = 0;
+	if (ax1 > target->width) ax1 = target->width;
+	if (ay1 > target->height) ay1 = target->height;
+	if (ax1 <= ax0 || ay1 <= ay0) return 0;
+	area[0] = ax0; area[1] = ay0; area[2] = ax1 - ax0; area[3] = ay1 - ay0;
+	return 1;
+}
+
+/* Between two scene passes: copies and blurs the frame drawn so far into the backdrop images. */
+static void spk_glass_capture(spk_surface_t* s, float scale, const int rect[4]) {
+	float spread = scale * 0.5f + 0.5f;
+	float margin, x0, y0, x1, y1, width = (float)s->width, height = (float)s->height;
+	int partial, i, area[4];
+	if (spread < 1.0f) spread = 1.0f;
+	if (spread > 2.5f) spread = 2.5f;
+	margin = 18.0f * spread + 20.0f;
+	x0 = (float)rect[0] - margin; y0 = (float)rect[1] - margin;
+	x1 = (float)(rect[0] + rect[2]) + margin; y1 = (float)(rect[1] + rect[3]) + margin;
+	if (rect[2] <= 0 || rect[3] <= 0) { x0 = y0 = 0.0f; x1 = width; y1 = height; }
+	if (x0 < 0.0f) x0 = 0.0f;
+	if (y0 < 0.0f) y0 = 0.0f;
+	if (x1 > width) x1 = width;
+	if (y1 > height) y1 = height;
+	if (x1 <= x0 || y1 <= y0) return;
+	partial = s->glass_filled && (x1 - x0) * (y1 - y0) < width * height * 0.8f;
+
+	/* scene -> 1/2 -> 1/4 -> 1/8: down[0] doubles as the sharp backdrop */
+	for (i = 0; i < SPK_BLUR_LEVELS; i++) {
+		const spk_target_t* source = i == 0 ? &s->scene : &s->down[i - 1];
+		if (partial && !spk_glass_area(s, &s->down[i], x0, y0, x1, y1, area)) continue;
+		spk_glass_filter(source, &s->down[i], 0, i == 0 ? 1.0f : spread, partial ? area : NULL);
+	}
+	/* ... and back up to half size: up[0] is the blurred backdrop */
+	for (i = SPK_BLUR_LEVELS - 2; i >= 0; i--) {
+		const spk_target_t* source = i == SPK_BLUR_LEVELS - 2 ? &s->down[SPK_BLUR_LEVELS - 1] : &s->up[i + 1];
+		if (partial && !spk_glass_area(s, &s->up[i], x0, y0, x1, y1, area)) continue;
+		spk_glass_filter(source, &s->up[i], 1, spread, partial ? area : NULL);
+	}
+	s->glass_filled = 1;
+}
+
+static void spk_begin_ui_pass(const spk_target_t* target, const sg_color* clear) {
+	sg_pass pass;
+	memset(&pass, 0, sizeof(pass));
+	pass.action.colors[0].load_action = clear ? SG_LOADACTION_CLEAR : SG_LOADACTION_LOAD;
+	pass.action.colors[0].store_action = SG_STOREACTION_STORE;
+	if (clear) pass.action.colors[0].clear_value = *clear;
+	pass.attachments.colors[0] = target->color;
+	sg_begin_pass(&pass);
+}
+
+static void spk_draw_commands(spk_surface_t* s, const RDrawData* data, int glass) {
+	uint32_t i;
+	sg_view sharp = glass ? s->down[0].sample : g.white.view;
+	sg_view blurred = glass ? s->up[0].sample : g.white.view;
+	const spk_target_t* target = glass ? &s->scene : &s->frame;
+
+	sg_apply_viewport(0, 0, target->width, target->height, spk_origin());
 	sg_apply_pipeline(g.pipeline);
-	{ sg_range range = { uniforms, sizeof(uniforms) }; sg_apply_uniforms(0, &range); }
+	spk_apply_uniforms_ui(s, data);
 	for (i = 0; i < data->command_count; i++) {
 		const RDrawCommand* command = &data->commands[i];
 		const spk_texture_t* texture;
-		if (command->type != R_DRAW_INSTANCES && command->type != R_DRAW_ERASE) continue;
+		if (command->type == R_DRAW_BACKDROP) {
+			sg_color clear_unused = { 0, 0, 0, 0 };
+			(void)clear_unused;
+			if (!glass) continue;
+			sg_end_pass();
+			spk_glass_capture(s, data->scale, command->rect);
+			spk_begin_ui_pass(&s->scene, NULL);
+			sg_apply_viewport(0, 0, target->width, target->height, spk_origin());
+			sg_apply_pipeline(g.pipeline);
+			spk_apply_uniforms_ui(s, data);
+			continue;
+		}
+		if (command->type != R_DRAW_INSTANCES && command->type != R_DRAW_ERASE && command->type != R_DRAW_SHADER) continue;
+		if (command->type == R_DRAW_SHADER && (R_ID_INDEX(command->shader) >= SPK_MAX_EFFECTS || !g.effects[R_ID_INDEX(command->shader)].used)) continue;
 		if (command->instance_count == 0 || command->first_instance + command->instance_count > data->instance_count) continue;
 		texture = &g.white;
 		if (command->texture != R_INVALID_ID && R_ID_INDEX(command->texture) < SPK_MAX_TEXTURES && g.textures[R_ID_INDEX(command->texture)].used) {
 			texture = &g.textures[R_ID_INDEX(command->texture)];
 		}
-		if (command->type == R_DRAW_ERASE) sg_apply_pipeline(g.erase_pipeline);
-		spk_apply_ui_bindings(s, data, command, texture, g.white.view, g.white.view);
-		if (command->type == R_DRAW_ERASE) { sg_range range = { uniforms, sizeof(uniforms) }; sg_apply_uniforms(0, &range); }
+		if (command->type == R_DRAW_ERASE || command->type == R_DRAW_SHADER) {
+			sg_apply_pipeline(command->type == R_DRAW_ERASE ? g.erase_pipeline : g.effects[R_ID_INDEX(command->shader)].pipeline);
+			spk_apply_uniforms_ui(s, data);
+		}
+		spk_apply_ui_bindings(s, data, command, texture, sharp, blurred);
 		sg_draw(0, 4, (int)command->instance_count);
-		if (command->type == R_DRAW_ERASE) {
-			sg_range range = { uniforms, sizeof(uniforms) };
+		if (command->type == R_DRAW_ERASE || command->type == R_DRAW_SHADER) {
 			sg_apply_pipeline(g.pipeline);
-			sg_apply_uniforms(0, &range);
+			spk_apply_uniforms_ui(s, data);
 		}
 	}
 }
 
+/* Inside the frame pass: draws the finished scene (blur.frag mode 2 = copy). */
+static void spk_glass_present(spk_surface_t* s) {
+	sg_bindings bindings;
+	float params[4] = { 0.0f, 0.0f, 2.0f, 0.0f };
+	sg_range range = { params, sizeof(params) };
+	spk_begin_ui_pass(&s->frame, NULL);
+	sg_apply_viewport(0, 0, s->width, s->height, spk_origin());
+	sg_apply_pipeline(g.blur_pipeline);
+	memset(&bindings, 0, sizeof(bindings));
+	bindings.views[0] = s->scene.sample;
+	bindings.samplers[0] = g.linear;
+	sg_apply_bindings(&bindings);
+	sg_apply_uniforms(0, &range);
+	sg_draw(0, 3, 1);
+	sg_end_pass();
+}
+
 static void spk_render_frame(const RDrawData* data, RCapture* capture) {
 	spk_surface_t* s;
-	sg_pass pass;
 	size_t needed;
+	uint32_t i;
+	int glass = 0;
+	sg_color clear;
 
 	if (capture) memset(capture, 0, sizeof(*capture));
 	if (R_ID_INDEX(data->window) >= SPK_MAX_SURFACES) return;
@@ -561,6 +772,8 @@ static void spk_render_frame(const RDrawData* data, RCapture* capture) {
 		s->height = (int)data->framebuffer_height;
 		if (!spk_target_create(&s->frame, s->width, s->height, "raven-frame")) return;
 	}
+	for (i = 0; i < data->command_count && !glass; i++) glass = data->commands[i].type == R_DRAW_BACKDROP;
+	if (glass && !spk_glass_prepare(s)) glass = 0;
 
 	spk_flush_uploads();
 
@@ -587,14 +800,11 @@ static void spk_render_frame(const RDrawData* data, RCapture* capture) {
 		sg_write_buffer_transient(&write);
 	}
 
-	memset(&pass, 0, sizeof(pass));
-	pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
-	pass.action.colors[0].store_action = SG_STOREACTION_STORE;
-	pass.action.colors[0].clear_value = (sg_color){ data->clear_color[0], data->clear_color[1], data->clear_color[2], data->clear_color[3] };
-	pass.attachments.colors[0] = s->frame.color;
-	sg_begin_pass(&pass);
-	if (needed) spk_draw_commands(s, data);
+	clear = (sg_color){ data->clear_color[0], data->clear_color[1], data->clear_color[2], data->clear_color[3] };
+	spk_begin_ui_pass(glass ? &s->scene : &s->frame, &clear);
+	if (needed) spk_draw_commands(s, data, glass);
 	sg_end_pass();
+	if (glass) spk_glass_present(s);
 	sg_commit();
 
 	if (capture) {
@@ -602,6 +812,49 @@ static void spk_render_frame(const RDrawData* data, RCapture* capture) {
 		capture->width = s->width;
 		capture->height = s->height;
 	}
+}
+
+/* ---------------------------------------------------------------------------
+ *  Effects (raven_shader.h): the SPIR-V cannot be translated here, so the precompiled GLES3 variant
+ *  is looked up by the hash of the SPIR-V (the stand-in for an .rfx bundle).
+ * ------------------------------------------------------------------------- */
+
+static uint64_t spk_fnv(const void* data, size_t size) {
+	const uint8_t* p = (const uint8_t*)data;
+	uint64_t h = 0xcbf29ce484222325ull;
+	size_t i;
+	for (i = 0; i < size; i++) h = (h ^ p[i]) * 0x100000001b3ull;
+	return h;
+}
+
+static int spk_create_shader(Rid shader, const uint32_t* spirv, size_t size) {
+	static const char* const fx_samplers[3] = { "rvn_texture", "rvn_backdrop", "rvn_backdrop_blur" };
+	uint64_t hash = spk_fnv(spirv, size);
+	size_t i;
+	spk_effect_t* e;
+	if (R_ID_INDEX(shader) >= SPK_MAX_EFFECTS) return 0;
+	for (i = 0; i < sizeof(spk_fx_table) / sizeof(spk_fx_table[0]); i++) {
+		if (spk_fx_table[i].hash != hash) continue;
+		e = &g.effects[R_ID_INDEX(shader)];
+		memset(e, 0, sizeof(*e));
+		e->shader = spk_make_ui_shader(spk_fx_table[i].glsl, fx_samplers, spk_fx_table[i].name);
+		if (sg_query_shader_state(e->shader) != SG_RESOURCESTATE_VALID) return 0;
+		e->pipeline = spk_make_ui_pipeline(e->shader, 0, spk_fx_table[i].name);
+		e->used = sg_query_pipeline_state(e->pipeline) == SG_RESOURCESTATE_VALID;
+		return e->used;
+	}
+	fprintf(stderr, "spike: no precompiled GLES3 variant for this effect (hash %016llx): drawn as rectangles\n", (unsigned long long)hash);
+	return 0;
+}
+
+static void spk_destroy_shader(Rid shader) {
+	spk_effect_t* e;
+	if (R_ID_INDEX(shader) >= SPK_MAX_EFFECTS) return;
+	e = &g.effects[R_ID_INDEX(shader)];
+	if (!e->used) return;
+	sg_destroy_pipeline(e->pipeline);
+	sg_destroy_shader(e->shader);
+	e->used = 0;
 }
 
 const RBackendVTable* spk_backend(void) {
@@ -617,8 +870,8 @@ const RBackendVTable* spk_backend(void) {
 		spk_destroy_texture,
 		spk_render_frame,
 		spk_wait_idle,
-		NULL,
-		NULL
+		spk_create_shader,
+		spk_destroy_shader
 	};
 	return &vtable;
 }
