@@ -233,10 +233,17 @@ deleted, a swapchain is resized), never in a steady frame.
 `-DRAVEN_BACKEND_SOKOL=ON`. It draws the same instances with the same shaders on top of `sokol_gfx`
 (`third_party/sokol/`), whose Metal, GLES3, D3D11 and WebGPU drivers are meant to carry Raven to macOS,
 iOS and the Web. The plan, the decisions and the state of each phase are in
-[SOKOL_BACKEND_PLAN.md](SOKOL_BACKEND_PLAN.md). Today it renders offscreen (headless runs, tests and
-`Rwindow_capture`), through GLES 3.0 and EGL on Linux or through Metal on macOS (written without a Mac at
-hand, first run by the macOS CI job); presenting to windows, viewport draw callbacks and effect bundles
-for applications are later phases.
+[SOKOL_BACKEND_PLAN.md](SOKOL_BACKEND_PLAN.md). It runs on GLES 3.0 and EGL (Linux, X11) or on Metal (macOS), headless or with windows. Viewport draw
+callbacks, effect bundles for the effects of applications, transparent windows and the other platforms are
+later phases.
+
+A window is rendered like a headless one, into an offscreen image (the *frame*), and then *presented*: one more
+pass draws the frame into the swapchain of the window. That keeps `Rwindow_capture`, glass and the tests identical
+in both cases, and costs one full-screen copy. The native API decides what the swapchain is: on Linux an EGL
+window surface per window (the display is made from the X11 connection of the platform, the configuration is the
+one of the visual of the window, the context has no configuration, `EGL_KHR_no_config_context`); on macOS the next
+drawable of the `CAMetalLayer` of the window, presented by `sokol_gfx` in `sg_commit()`. A GL window has its origin
+at the bottom left, so its copy flips the frame; Metal's does not.
 
 - `sg_impl.c` is the only file that compiles `sokol_gfx.h`; every function of it is renamed with the
   `rvn_sokol_` prefix (`sg_prefix.h`, written by `gen_prefix.py`), so an application with its own sokol cannot

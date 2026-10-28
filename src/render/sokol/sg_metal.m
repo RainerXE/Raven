@@ -3,14 +3,19 @@
  * The Metal part of the sokol_gfx backend (the counterpart of sg_egl.c): the device, the read-back, and
  * the autorelease pool of the render thread. Compiled with ARC (CMakeLists.txt).
  *
- * Like the GLES3 build, this renders into offscreen images that Rwindow_capture reads back; presenting to
- * the CAMetalLayer of a window is phase 3a of docs/SOKOL_BACKEND_PLAN.md.
+ * Like the GLES3 build, every window renders its frame into an offscreen image first (which Rwindow_capture
+ * reads back); a window of the window system is presented by drawing that image into the next drawable of
+ * its CAMetalLayer (the layer the Cocoa platform installs, RNativeWindow::window). sokol_gfx presents the
+ * drawable itself in sg_commit().
  *
- * Status: written without a Mac at hand; the first runs are those of the macOS job of the CI.
+ * Status: written without a Mac at hand. The offscreen part passed test_render on a Mac at its first run;
+ * presentation is verified by looking at the examples.
  */
 
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
+#include <TargetConditionals.h>
 
 #include "sg_backend.h"
 
@@ -28,6 +33,8 @@ int rvn_sg_context_init(const RBackendInitInfo* info, sg_environment* environmen
 		return R_FALSE;
 	}
 	environment->metal.device = (__bridge const void*)g_device;
+	/* the pixel format of a CAMetalLayer (the Cocoa platform sets it); the frames are RGBA8 images drawn into it */
+	environment->defaults.color_format = SG_PIXELFORMAT_BGRA8;
 	return R_TRUE;
 }
 
@@ -79,4 +86,69 @@ void* rvn_sg_pool_push(void) {
 
 void rvn_sg_pool_pop(void* pool) {
 	objc_autoreleasePoolPop(pool);
+}
+
+/* ---------------------------------------------------------------------------
+ *  Windows
+ * ------------------------------------------------------------------------- */
+
+typedef struct rvn_sg_mtl_window_t {
+	/** The layer of the window; the window system owns it and outlives the surface. */
+	const void* layer;
+	/** The drawable of the frame being presented (retained), or NULL. */
+	void* drawable;
+} rvn_sg_mtl_window_t;
+
+int rvn_sg_present_create(rvn_sg_surface_t* surface, const RNativeWindow* native) {
+	rvn_sg_mtl_window_t* window;
+	CAMetalLayer* layer;
+	if (native->system != R_WINDOW_SYSTEM_COCOA || !native->window) return R_FALSE;
+	layer = (__bridge CAMetalLayer*)(void*)native->window;
+	if (![layer isKindOfClass:[CAMetalLayer class]]) return R_FALSE;
+	/* the layer draws with the device of sokol_gfx, in the format of the swapchain pass */
+	layer.device = g_device;
+	layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+	layer.framebufferOnly = YES;
+	window = (rvn_sg_mtl_window_t*)rvn_calloc(sizeof(*window));
+	window->layer = (const void*)native->window;
+	surface->present = window;
+	return R_TRUE;
+}
+
+void rvn_sg_present_destroy(rvn_sg_surface_t* surface) {
+	rvn_sg_mtl_window_t* window = (rvn_sg_mtl_window_t*)surface->present;
+	if (!window) return;
+	if (window->drawable) CFBridgingRelease(window->drawable);
+	rvn_free(window);
+	surface->present = NULL;
+}
+
+int rvn_sg_present_begin(rvn_sg_surface_t* surface, int vsync, sg_swapchain* swapchain) {
+	rvn_sg_mtl_window_t* window = (rvn_sg_mtl_window_t*)surface->present;
+	CAMetalLayer* layer = (__bridge CAMetalLayer*)window->layer;
+	CGSize size = CGSizeMake((CGFloat)surface->width, (CGFloat)surface->height);
+	id<CAMetalDrawable> drawable;
+	/* the layer was installed by the window system, which does not follow the size of the frame */
+	if (layer.drawableSize.width != size.width || layer.drawableSize.height != size.height) layer.drawableSize = size;
+#if TARGET_OS_OSX
+	if (layer.displaySyncEnabled != (vsync ? YES : NO)) layer.displaySyncEnabled = vsync ? YES : NO;
+#else
+	(void)vsync;
+#endif
+	drawable = [layer nextDrawable];
+	if (!drawable) return R_FALSE;
+	window->drawable = (void*)CFBridgingRetain(drawable);
+	swapchain->width = surface->width;
+	swapchain->height = surface->height;
+	swapchain->metal.current_drawable = (__bridge const void*)drawable;
+	return R_TRUE;
+}
+
+void rvn_sg_present_end(rvn_sg_surface_t* surface) {
+	rvn_sg_mtl_window_t* window = (rvn_sg_mtl_window_t*)surface->present;
+	/* sg_commit() has queued the presentation, which keeps the drawable alive */
+	if (window->drawable) {
+		CFBridgingRelease(window->drawable);
+		window->drawable = NULL;
+	}
 }

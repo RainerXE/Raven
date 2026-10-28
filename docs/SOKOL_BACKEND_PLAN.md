@@ -261,12 +261,12 @@ Estimates are for one developer who knows the code; treat as ±40%.
 | 0 | Spike (Linux GL, headless) **DONE** | Vendored sokol_gfx; UI, blur and effect shaders through glslang + SPIRV-Cross; EGL surfaceless context; offscreen frames; glass, effects, atlas, erase; read-back | 16 frames match the Vulkan output (max difference 0, one scene 1/255). Instance layout, `gl_VertexIndex`, varying count and glass pass structure confirmed (section 10) | done (~1 day) |
 | 1 | Interface + build plumbing **DONE** | 3.1, CMake option `RAVEN_BACKEND_SOKOL` (default OFF), vendored pinned `sokol_gfx.h` with symbol prefix, THIRD_PARTY, CI job; the spike backend promoted into `src/render/sokol/` | Vulkan build unchanged and green (27/27); Sokol builds; `test_render` passes on Sokol (section 11) | done |
 | 2 | Core Sokol backend (offscreen) | Instance buffer, pipelines (UI + erase), textures incl. atlas, uniforms, readback, headless surface, `R_DRAW_CALLBACK` hook | `test_render` runs headless on Sokol/GL llvmpipe in CI; all non-glass cases pass | 1.5 wk |
-| 3a | Presentation: macOS | `present/metal` on the existing `CAMetalLayer`; resize, vsync/ProMotion pacing, DPI, occluded windows, many windows (popups/tool windows) | Examples `hello`, `editor`, `workspace` run interactively on macOS without MoltenVK | 1–1.5 wk |
+| 3a | Presentation: macOS **DONE (verification on a Mac pending)** | `present/metal` on the existing `CAMetalLayer`; resize, vsync/ProMotion pacing, DPI, occluded windows, many windows (popups/tool windows) | Examples `hello`, `editor`, `workspace` run interactively on macOS without MoltenVK | 1–1.5 wk |
 | 3b | Single-surface core work | 3.8 items 1–3: `Rrun`, virtual windows, touch/IME/safe-area events; exercised first on macOS with a "single surface" test mode and the mouse model | `hello` and `editor` run with one OS window only, popups and dialogs in-surface | 3–4 wk |
 | 3c | Presentation: iOS | `sokol_app` platform (or `platform/uikit`), Metal swapchain, rotation, soft keyboard, simulator + device | `hello` and `editor` run on an iPad (simulator and device), with pointer/keyboard and basic touch | 2–3 wk |
 | 3d | Presentation: Web | Emscripten build, `sokol_app` canvas platform, WebGL2 via GLES3, single-threaded; later WebGPU wasm | `hello`, `editor`, `glass` run in Chrome, Safari and Firefox from a static page | 3–4 wk |
 | 3g | Touch UX | 3.9 items 1–5; first slice on iOS (tap, pan + inertia, long-press, text selection, keyboard avoidance), then pinch, then Web parity | `editor` and a touch-density `hello` are usable by finger on iPad and on a phone browser | 4–6 wk |
-| 3e | Presentation: Linux | `present/egl` (X11 visual from `RNativeWindow`), one shared context, make-current per window | Same examples on X11 (Mesa and one vendor driver) | 1 wk |
+| 3e | Presentation: Linux **DONE** | `present/egl` (X11 visual from `RNativeWindow`), one shared context, make-current per window | Same examples on X11 (Mesa and one vendor driver) | 1 wk |
 | 3f | Presentation: Windows | `present/d3d11` (DXGI flip swapchain), resize, device loss; opaque windows only | Same examples on Windows | 1 wk |
 | 4 | Glass + effects | 3.2 bundles + tool; `sg_glass.c` (scene target, capture, down/up chain, scissor re-capture); BLUR, CURVE, SHADER primitives | `glass`, `effects` examples match Vulkan visually; 8 built-ins work | 1.5–2 wk |
 | 5 | Transparency + interop | Metal/X11 alpha first, DirectComposition path last, `raven_sokol.h`, viewport callback with native handles | `R_WINDOW_TRANSPARENT` and a viewport example work on each API | 1–1.5 wk |
@@ -418,4 +418,28 @@ included, match the expected pixels, so the y-flip handling is right. Verified h
 against stub Metal headers; the shared C files compile with the Metal macro. **Not yet verified:** a frame-for-frame comparison with Vulkan on the Mac (`spikes/sokol_phase0`, needs MoltenVK for the
 Vulkan side), the effect scenes beyond what `test_render` checks, the `sokol-macos` CI job (Actions is not enabled on the
 fork), and anything about presenting to a window (not implemented).
+
+## 13. Presentation (phase 3a for macOS, 3e for Linux)
+
+Windows are now shown, not only captured. Common design (`sg_backend.c`): the frame is still rendered offscreen, then one
+more pass (`present_pipeline`, the blur shader in copy mode, whose fourth parameter flips the image) draws it into the
+swapchain of the window. The platform-specific part is four functions per native API (`present_create`, `begin`,
+`end`, `destroy`).
+
+- **Linux (`sg_egl.c`)**: the EGL display is made from the X11 connection of the platform (`RBackendInitInfo::native_display`);
+  one window surface per window, with the configuration whose native visual is the visual of the window; the context is
+  created without a configuration (`EGL_KHR_no_config_context`) so it fits all of them; the surface is made current for the
+  present pass, the swap interval follows `Rset_vsync`, `eglSwapBuffers` follows `sg_commit()`. A window that cannot be
+  presented is still rendered and captured (a warning says so).
+- **macOS (`sg_metal.m`)**: the layer is the `CAMetalLayer` that the Cocoa platform installs; `drawableSize` follows the frame,
+  `displaySyncEnabled` follows vsync, and `nextDrawable` gives the drawable that `sokol_gfx` presents at `sg_commit()`. The
+  swapchain format is BGRA8 (the frame stays RGBA8).
+- Examples now honor `RAVEN_BACKEND` (they forced Vulkan): `RAVEN_BACKEND=sokol ./bin/raven_hello`.
+
+Verified on Linux, here, by looking and by comparing: `hello` shown upright through the real X window; the `glass` and
+`workspace` (several windows, docks) examples are **pixel-identical** to Vulkan in an Xvfb screenshot; the eight built-in
+effects render in `effects`; `test_render` with real windows (created, resized and destroyed while presenting) passes 175/175.
+The harmless log lines of `sokol_gfx` (information, unused sampler names) are no longer reported as warnings.
+**Not verified:** Metal presentation (written without a Mac, syntax-checked against stub headers only), a real GPU on Linux
+(the sandbox has Mesa's software renderer), transparent windows, and applications' own effects.
 

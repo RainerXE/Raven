@@ -97,8 +97,10 @@ def main():
         for name, src in (("ui_vert", "ui.vert"), ("ui_frag", "ui.frag"), ("blur_vert", "blur.vert"), ("blur_frag", "blur.frag")):
             patches = list(PATCHES.get(target, {}).get(src, []))
             if name == "blur_frag":
-                # a vec2 and an int cannot be flattened for GL: one vec4 (xy = step, z = mode), in every target
+                # a vec2 and an int cannot be flattened for GL: one vec4 (xy = step, z = mode, w = flip), in every target
                 patches += [("vec2 step;", "vec4 p;"), ("int mode;", ""), ("pc.step", "pc.p.xy"), ("pc.mode", "int(pc.p.z + 0.5)")]
+                # the copy (mode 2) can flip the image: presenting to a GL window, whose origin is the bottom left (p.w = 1)
+                patches += [("out_color = textureLod(u_source, v_uv, 0.0);", "out_color = textureLod(u_source, vec2(v_uv.x, mix(v_uv.y, 1.0 - v_uv.y, pc.p.w)), 0.0);")]
             spv = compile_glsl(os.path.join(VK, "shaders", src), patches, os.path.join(tmp, f"{name}_{target}.spv"))
             if target == "msl" and name == "ui_frag":
                 data = remap_descriptors(open(spv, "rb").read())

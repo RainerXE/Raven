@@ -26,18 +26,22 @@ static void example_on_error(RError code, RSeverity severity, const char* detail
 	fprintf(stderr, "[Raven] %s (%s): %s\n", Rerror_to_string(code), Rseverity_to_string(severity), detail);
 }
 
-/** Starts Raven with the Vulkan backend. Returns R_FALSE on failure. */
+/**
+ * Starts Raven. The backend is Vulkan, or the one named by the environment variable RAVEN_BACKEND
+ * (RAVEN_BACKEND=sokol: the sokol_gfx backend, in a build with -DRAVEN_BACKEND_SOKOL=ON).
+ * Returns R_FALSE on failure.
+ */
 static int example_init(const char* name) {
 	RInitDesc desc;
 	memset(&desc, 0, sizeof(desc));
-	desc.backend = R_BACKEND_VULKAN;
+	desc.backend = 0;
 	desc.app_name = name;
 #ifndef NDEBUG
 	desc.enable_validation = R_TRUE;
 #endif
 	Rerror_set_callback(example_on_error);
 	if (!Rinit_ex(&desc)) {
-		fprintf(stderr, "%s: cannot start Raven (is a Vulkan driver installed?)\n", name);
+		fprintf(stderr, "%s: cannot start Raven (is a graphics driver installed? RAVEN_BACKEND=%s)\n", name, getenv("RAVEN_BACKEND") ? getenv("RAVEN_BACKEND") : "vulkan");
 		return R_FALSE;
 	}
 	return R_TRUE;

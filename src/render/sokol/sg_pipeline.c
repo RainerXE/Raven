@@ -151,7 +151,12 @@ static int rvn_sg_blur_init(void) {
 	pipeline.depth.pixel_format = SG_PIXELFORMAT_NONE;
 	pipeline.label = "raven-blur";
 	g_sg.blur_pipeline = sg_make_pipeline(&pipeline);
-	return sg_query_pipeline_state(g_sg.blur_pipeline) == SG_RESOURCESTATE_VALID;
+	if (sg_query_pipeline_state(g_sg.blur_pipeline) != SG_RESOURCESTATE_VALID) return R_FALSE;
+	/* the same filter drawing into a window: the pixel format is the one of its swapchain (RGBA8 on GL, BGRA8 on Metal) */
+	pipeline.colors[0].pixel_format = sg_query_desc().environment.defaults.color_format;
+	pipeline.label = "raven-present";
+	g_sg.present_pipeline = sg_make_pipeline(&pipeline);
+	return sg_query_pipeline_state(g_sg.present_pipeline) == SG_RESOURCESTATE_VALID;
 }
 
 int rvn_sg_pipelines_init(void) {

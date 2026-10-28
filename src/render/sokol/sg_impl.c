@@ -22,3 +22,18 @@
 	#error "Raven: no sokol graphics API selected (RAVEN_SOKOL_API)"
 #endif
 #include "../../../third_party/sokol/sokol_gfx.h"
+
+/*
+ * Log items that are not a problem, known here because the ids of sokol_gfx are only public in its
+ * implementation: the GL compiler drops the samplers an effect does not use, and sokol_gfx then warns that
+ * their name was not found (effect bundles will record which samplers a variant uses).
+ */
+int rvn_sg_log_is_harmless(uint32_t item) {
+#if defined(RAVEN_SOKOL_GLES3)
+	return item == SG_LOGITEM_GL_IMAGE_SAMPLER_NAME_NOT_FOUND_IN_SHADER;
+#else
+	(void)item;
+	return 0;
+#endif
+}
+

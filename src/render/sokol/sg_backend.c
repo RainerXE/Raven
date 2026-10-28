@@ -25,16 +25,11 @@ bool rvn_sg_flip_y(void) {
 
 static void rvn_sg_log(const char* tag, uint32_t level, uint32_t item, const char* message, uint32_t line, const char* file, void* user) {
 	RVN_UNUSED(tag);
-	RVN_UNUSED(item);
 	RVN_UNUSED(line);
 	RVN_UNUSED(file);
 	RVN_UNUSED(user);
-	if (!message) return;
-	/*
-	 * The GL compiler drops the samplers an effect does not use, and sokol_gfx then warns about its
-	 * binding: not a problem. (Effect bundles will record the samplers a variant uses.)
-	 */
-	if (level >= 2 && strstr(message, "image-sampler name not found")) return;
+	/* errors and warnings only (level 3 is information); some warnings are not a problem */
+	if (!message || level >= 3 || rvn_sg_log_is_harmless(item)) return;
 	rvn_error(R_ERROR_BACKEND, level <= 1 ? R_SEVERITY_ERROR : R_SEVERITY_WARNING, "sokol_gfx: %s", message);
 }
 
@@ -46,12 +41,12 @@ static int rvn_sg_init(const RBackendInitInfo* info) {
 	sg_desc desc;
 	g_sg.info = *info;
 	memset(&desc, 0, sizeof(desc));
-	if (!rvn_sg_context_init(info, &desc.environment)) return R_FALSE;
-
-	desc.logger.func = rvn_sg_log;
+	/* the pixel format of the swapchains: the native API may change it (Metal: BGRA8) */
 	desc.environment.defaults.color_format = SG_PIXELFORMAT_RGBA8;
 	desc.environment.defaults.depth_format = SG_PIXELFORMAT_NONE;
 	desc.environment.defaults.sample_count = 1;
+	if (!rvn_sg_context_init(info, &desc.environment)) return R_FALSE;
+	desc.logger.func = rvn_sg_log;
 	sg_setup(&desc);
 	if (!sg_isvalid()) {
 		rvn_sg_context_shutdown();
@@ -68,6 +63,7 @@ static int rvn_sg_init(const RBackendInitInfo* info) {
 }
 
 static void rvn_sg_surface_release(rvn_sg_surface_t* surface) {
+	/* (a resize keeps the native target: only the images follow the size) */
 	rvn_sg_glass_release(surface);
 	rvn_sg_target_destroy(&surface->frame);
 }
@@ -76,7 +72,9 @@ static void rvn_sg_shutdown(void) {
 	uint32_t i;
 	if (!g_sg.initialized) return;
 	for (i = 0; i < RVN_SG_MAX_SURFACES; i++) {
-		if (g_sg.surfaces[i].used) rvn_sg_surface_release(&g_sg.surfaces[i]);
+		if (!g_sg.surfaces[i].used) continue;
+		rvn_sg_present_destroy(&g_sg.surfaces[i]);
+		rvn_sg_surface_release(&g_sg.surfaces[i]);
 	}
 	rvn_sg_textures_shutdown();
 	rvn_sg_pipelines_shutdown();
@@ -108,12 +106,18 @@ static int rvn_sg_surface_create(Rid window, const RNativeWindow* native, Ruint 
 		surface->used = R_FALSE;
 		return R_FALSE;
 	}
+	/* a window of the window system is presented; without one (headless runs) frames are only rendered and captured */
+	if (native && native->system != R_WINDOW_SYSTEM_NONE && !rvn_sg_present_create(surface, native)) {
+		rvn_error(R_ERROR_BACKEND, R_SEVERITY_WARNING,
+			"Sokol: this window cannot be presented by the graphics API of the backend; it is rendered offscreen only");
+	}
 	return R_TRUE;
 }
 
 static void rvn_sg_surface_destroy(Rid window) {
 	uint32_t index = R_ID_INDEX(window);
 	if (index >= RVN_SG_MAX_SURFACES || !g_sg.surfaces[index].used) return;
+	rvn_sg_present_destroy(&g_sg.surfaces[index]);
 	rvn_sg_surface_release(&g_sg.surfaces[index]);
 	g_sg.surfaces[index].used = R_FALSE;
 }
@@ -226,6 +230,36 @@ static void rvn_sg_record_commands(rvn_sg_surface_t* surface, const RDrawData* d
 	}
 }
 
+/* Draws the finished frame into the swapchain of the window (a pass of its own: the frame is an image). */
+static int rvn_sg_present_frame(rvn_sg_surface_t* surface, int vsync) {
+	sg_pass pass;
+	sg_bindings bindings;
+	float params[4];
+	sg_range range;
+	if (!surface->present) return R_FALSE;
+	memset(&pass, 0, sizeof(pass));
+	if (!rvn_sg_present_begin(surface, vsync, &pass.swapchain)) return R_FALSE;
+	pass.action.colors[0].load_action = SG_LOADACTION_DONTCARE;
+	pass.action.colors[0].store_action = SG_STOREACTION_STORE;
+	sg_begin_pass(&pass);
+	sg_apply_viewport(0, 0, surface->width, surface->height, rvn_sg_origin());
+	sg_apply_pipeline(g_sg.present_pipeline);
+	memset(&bindings, 0, sizeof(bindings));
+	bindings.views[0] = surface->frame.sample;
+	bindings.samplers[0] = g_sg.linear;
+	sg_apply_bindings(&bindings);
+	/* copy; the frame has the UI top in its first row, which a GL window (origin bottom left) shows upside down: flip it */
+	params[0] = params[1] = 0.0f;
+	params[2] = 2.0f;
+	params[3] = rvn_sg_flip_y() ? 0.0f : 1.0f;
+	range.ptr = params;
+	range.size = sizeof(params);
+	sg_apply_uniforms(0, &range);
+	sg_draw(0, 3, 1);
+	sg_end_pass();
+	return R_TRUE;
+}
+
 /* Copies the instances of the frame into the transient vertex buffer. */
 static int rvn_sg_upload_instances(const RDrawData* data) {
 	size_t needed = (size_t)data->instance_count * sizeof(RDrawInstance);
@@ -257,7 +291,7 @@ static void rvn_sg_render_frame(const RDrawData* data, RCapture* capture) {
 	rvn_sg_surface_t* surface = rvn_sg_surface_find(data->window);
 	sg_color clear;
 	uint32_t i;
-	int glass = R_FALSE;
+	int glass = R_FALSE, presented;
 
 	if (capture) memset(capture, 0, sizeof(*capture));
 	if (!surface || data->framebuffer_width == 0 || data->framebuffer_height == 0) return;
@@ -283,7 +317,9 @@ static void rvn_sg_render_frame(const RDrawData* data, RCapture* capture) {
 	if (data->instance_count) rvn_sg_record_commands(surface, data, glass);
 	sg_end_pass();
 	if (glass) rvn_sg_glass_present(surface);
+	presented = rvn_sg_present_frame(surface, data->vsync);
 	sg_commit();
+	if (presented) rvn_sg_present_end(surface);
 
 	if (capture) {
 		uint8_t* pixels = rvn_sg_read_target(&surface->frame);

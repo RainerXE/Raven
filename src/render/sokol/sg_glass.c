@@ -184,6 +184,7 @@ void rvn_sg_glass_present(rvn_sg_surface_t* surface) {
 	/* the whole scene into the frame: the "filter" in copy mode, no spread */
 	sg_pass pass;
 	sg_bindings bindings;
+	/* copy, no spread, no flip */
 	float params[4] = { 0.0f, 0.0f, 2.0f, 0.0f };
 	sg_range range = { params, sizeof(params) };
 

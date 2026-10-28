@@ -60,8 +60,10 @@ typedef struct rvn_sg_surface_t {
 	int width, height;
 	/** The window can be seen through: the frame carries alpha. */
 	int transparent;
-	/** The frame itself (this backend does not present yet: phase 3). */
+	/** The frame itself; presented to the window from here, and read back by Rwindow_capture. */
 	rvn_sg_target_t frame;
+	/** The native presentation target of the window (sg_egl.c: EGL surface, sg_metal.m: layer), or NULL: headless. */
+	void* present;
 
 	/* glass (sg_glass.c): created the first time a frame of the window contains a backdrop command */
 	int glass_ready;
@@ -95,6 +97,8 @@ typedef struct rvn_sg_state_t {
 	/** Full-screen triangle that reduces, enlarges or copies (blur.frag). */
 	sg_shader blur_shader;
 	sg_pipeline blur_pipeline;
+	/** The same, drawing into the swapchain of a window (its pixel format is the one of the window system). */
+	sg_pipeline present_pipeline;
 	sg_sampler linear, nearest;
 	rvn_sg_effect_t effects[RVN_SG_MAX_EFFECTS];
 
@@ -133,6 +137,22 @@ uint8_t* rvn_sg_read_target(const rvn_sg_target_t* target);
  */
 void* rvn_sg_pool_push(void);
 void  rvn_sg_pool_pop(void* pool);
+
+/**
+ * Presentation of a window (the part of the native API; NULL `present` of a surface = headless):
+ *  create   makes the native target of the window from its handles. R_FALSE: the window is not presented
+ *           (its frames are still rendered and can be captured).
+ *  begin    makes it current and fills the swapchain of the pass that draws the frame into it. R_FALSE: skip
+ *           this frame (a window that is hidden has no drawable).
+ *  end      after sg_commit(): swaps buffers (GL); Metal presents in sg_commit() itself.
+ */
+int  rvn_sg_present_create(rvn_sg_surface_t* surface, const RNativeWindow* native);
+void rvn_sg_present_destroy(rvn_sg_surface_t* surface);
+int  rvn_sg_present_begin(rvn_sg_surface_t* surface, int vsync, sg_swapchain* swapchain);
+void rvn_sg_present_end(rvn_sg_surface_t* surface);
+
+/** sg_impl.c: R_TRUE for a log item of sokol_gfx that is not worth reporting (see there). */
+int rvn_sg_log_is_harmless(uint32_t item);
 
 /** Argument `origin_top_left` of sg_apply_viewport / sg_apply_scissor_rect: rectangles in memory-row space. */
 bool rvn_sg_origin(void);

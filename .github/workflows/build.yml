@@ -216,6 +216,9 @@ jobs:
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
         run: xvfb-run -a ctest --test-dir build --output-on-failure
 
+      - name: Test with real windows (windows presented through EGL on Xvfb)
+        run: RAVEN_TEST_WINDOWED=1 RAVEN_BACKEND=sokol xvfb-run -a build/bin/test_render
+
   # ---------------------------------------------------------------------------
   #  Sokol backend (macOS): Metal, offscreen frames read back for the tests.
   #  The Vulkan backend is off (MoltenVK is not installed on the runner); the whole test suite runs,
