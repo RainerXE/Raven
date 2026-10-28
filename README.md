@@ -435,6 +435,8 @@ options go after `--`: `generate-cmake.bat -- -DRAVEN_WARNINGS_AS_ERRORS=ON`.
 | `RAVEN_BUILD_TOOLS` | `ON` when top level | `raven_designer` |
 | `RAVEN_BUILD_WEB` | `ON` | web pages (`raven_web.h`, [docs/WEB.md](docs/WEB.md)), compiled into the Raven library itself; it needs nothing more to build |
 | `RAVEN_BACKEND_VULKAN` | `ON` | `OFF` builds without any GPU code (custom backend or headless) |
+| `RAVEN_BACKEND_SOKOL` | `OFF` | also compile the `sokol_gfx` backend, selected with `R_BACKEND_SOKOL` or `RAVEN_BACKEND=sokol` (in progress, offscreen only: [docs/SOKOL_BACKEND_PLAN.md](docs/SOKOL_BACKEND_PLAN.md)); needs the EGL and GLES development files on Linux |
+| `RAVEN_SOKOL_API` | `auto` | graphics API of the Sokol backend, fixed at build time (`gles3` for now) |
 | `RAVEN_PLATFORM` | `auto` | `win32`, `x11`, `cocoa` (macOS) or `null` |
 | `RAVEN_WITH_STB_IMAGE` | `ON` | PNG / JPEG / BMP / TGA decoding |
 | `RAVEN_FETCH_VULKAN_HEADERS` | `ON` | download the Khronos headers when no SDK is found |

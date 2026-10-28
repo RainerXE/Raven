@@ -27,6 +27,9 @@ option(RAVEN_BUILD_TESTS "Build the tests and the benchmark" ${RAVEN_IS_TOP_LEVE
 option(RAVEN_BUILD_TOOLS "Build the tools (the designer)" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_WEB "Compile the web pages (raven_web.h: they drive an installed Chromium-based browser) into the library" ON)
 option(RAVEN_BACKEND_VULKAN "Compile the Vulkan backend" ON)
+option(RAVEN_BACKEND_SOKOL "Compile the sokol_gfx backend, selectable with R_BACKEND_SOKOL (docs/SOKOL_BACKEND_PLAN.md)" OFF)
+set(RAVEN_SOKOL_API "auto" CACHE STRING "Graphics API of the Sokol backend (fixed when Raven is built): auto or gles3")
+set_property(CACHE RAVEN_SOKOL_API PROPERTY STRINGS auto gles3)
 option(RAVEN_WITH_STB_IMAGE "Decode PNG / JPEG / BMP / TGA textures with stb_image" ON)
 option(RAVEN_FETCH_VULKAN_HEADERS "Download the Vulkan headers when no Vulkan SDK is found" ON)
 option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator or glslc)" OFF)
@@ -319,6 +322,39 @@ if(RAVEN_BACKEND_VULKAN)
 	endif()
 endif()
 
+# Sokol backend: sokol_gfx.h is compiled into the library (third_party/sokol); the graphics API is chosen here
+if(RAVEN_BACKEND_SOKOL)
+	set(RAVEN_SOKOL_API_SELECTED "${RAVEN_SOKOL_API}")
+	if(RAVEN_SOKOL_API_SELECTED STREQUAL "auto")
+		if(APPLE OR WIN32 OR EMSCRIPTEN)
+			message(FATAL_ERROR "Raven: the Sokol backend has no graphics API for this platform yet (only gles3 on Linux/BSD: docs/SOKOL_BACKEND_PLAN.md)")
+		endif()
+		set(RAVEN_SOKOL_API_SELECTED "gles3")
+	endif()
+	if(NOT RAVEN_SOKOL_API_SELECTED STREQUAL "gles3")
+		message(FATAL_ERROR "Raven: unknown RAVEN_SOKOL_API '${RAVEN_SOKOL_API_SELECTED}' (expected auto or gles3)")
+	endif()
+	find_path(RAVEN_EGL_INCLUDE_DIR EGL/egl.h)
+	find_path(RAVEN_GLES_INCLUDE_DIR GLES3/gl3.h)
+	find_library(RAVEN_EGL_LIBRARY EGL)
+	find_library(RAVEN_GLES_LIBRARY NAMES GLESv2 GLESv3)
+	if(NOT RAVEN_EGL_INCLUDE_DIR OR NOT RAVEN_GLES_INCLUDE_DIR OR NOT RAVEN_EGL_LIBRARY OR NOT RAVEN_GLES_LIBRARY)
+		message(FATAL_ERROR "Raven: the Sokol backend (gles3) needs the EGL and GLESv2 development files (Debian: libegl-dev libgles-dev; Fedora: mesa-libEGL-devel mesa-libGLES-devel)")
+	endif()
+	list(APPEND RAVEN_RENDER_SOURCES
+		src/render/sokol/sg_backend.c
+		src/render/sokol/sg_backend.h
+		src/render/sokol/sg_egl.c
+		src/render/sokol/sg_glass.c
+		src/render/sokol/sg_impl.c
+		src/render/sokol/sg_pipeline.c
+		src/render/sokol/sg_prefix.h
+		src/render/sokol/sg_texture.c
+	)
+	list(APPEND RAVEN_DEFINITIONS RAVEN_BACKEND_SOKOL_ENABLED RAVEN_SOKOL_GLES3)
+	list(APPEND RAVEN_LIBRARIES ${RAVEN_EGL_LIBRARY} ${RAVEN_GLES_LIBRARY})
+endif()
+
 if(RAVEN_WITH_STB_IMAGE)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_WITH_STB_IMAGE)
 endif()
@@ -402,8 +438,11 @@ endif()
 if(RAVEN_BACKEND_VULKAN)
 	target_include_directories(raven PRIVATE ${RAVEN_VULKAN_INCLUDE_DIR})
 endif()
+if(RAVEN_BACKEND_SOKOL)
+	target_include_directories(raven PRIVATE ${RAVEN_EGL_INCLUDE_DIR} ${RAVEN_GLES_INCLUDE_DIR})
+endif()
 
-message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SELECTED} vulkan=${RAVEN_BACKEND_VULKAN} shared=${RAVEN_BUILD_SHARED}")
+message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SELECTED} vulkan=${RAVEN_BACKEND_VULKAN} sokol=${RAVEN_BACKEND_SOKOL} shared=${RAVEN_BUILD_SHARED}")
 
 # ---------------------------------------------------------------------------
 #  Examples, tools and tests

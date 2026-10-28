@@ -66,6 +66,10 @@ static struct {
 	void (*wait_service)(void);
 } g_renderer;
 
+Ruint Rbackend_get_caps(void) {
+	return g_renderer.running ? g_renderer.backend.caps : 0;
+}
+
 /* ---------------------------------------------------------------------------
  *  Execution (render thread, or the UI thread when not threaded)
  * ------------------------------------------------------------------------- */

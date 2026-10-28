@@ -7,6 +7,7 @@ in the repository and compiled into the library.
 |---|---|---|---|
 | stb_truetype 1.26 (Sean Barrett) | `third_party/stb/stb_truetype.h` | public domain or MIT, see `third_party/stb/LICENSE` | glyph outlines and rasterization |
 | stb_image 2.30 (Sean Barrett) | `third_party/stb/stb_image.h` | public domain or MIT, see `third_party/stb/LICENSE` | PNG / JPEG / BMP / TGA decoding; optional (`RAVEN_WITH_STB_IMAGE`) |
+| sokol_gfx (Andre Weissflog) | `third_party/sokol/sokol_gfx.h` | zlib, see the header | renderer of the optional Sokol backend (`RAVEN_BACKEND_SOKOL`); compiled once with its functions renamed `rvn_sokol_*`; pinned commit in `third_party/sokol/README.md` |
 | Roboto Regular (Google) | `third_party/roboto/Roboto-Regular-subset.ttf`, embedded as `src/resources/default_font.c` | Apache License 2.0, see `third_party/roboto/LICENSE` | default font |
 | Roboto Mono Regular (The Roboto Mono Project Authors) | `third_party/roboto-mono/RobotoMono-Regular-subset.ttf`, embedded as `src/resources/mono_font.c` | SIL Open Font License 1.1, see `third_party/roboto-mono/LICENSE` | fixed-width font of the text editor (`Rfont_get_monospace`) |
 
@@ -27,4 +28,6 @@ Needed to build but not part of the repository:
 | Vulkan-Headers (Khronos) | Apache 2.0 or MIT | from the Vulkan SDK, or downloaded by CMake (`RAVEN_FETCH_VULKAN_HEADERS`) |
 
 The SPIR-V in `src/render/vulkan/generated/` is compiled from the GLSL
-shaders next to it with glslang.
+shaders next to it with glslang. The GLSL ES sources in
+`src/render/sokol/generated/` are translated from the same shaders with glslang and SPIRV-Cross
+(`src/render/sokol/gen_shaders.py`).

@@ -1,6 +1,7 @@
 # Plan: a selectable Sokol rendering backend
 
-Status: proposal; phase 0 spike done (`spikes/sokol_phase0`, results in section 10).
+Status: phase 0 (spike, section 10) and phase 1 (interface and build plumbing, section 11) are done; the offscreen core of the
+backend (most of phase 2) already runs inside the library on GLES3.
 Goal: add `R_BACKEND_SOKOL` next to `R_BACKEND_VULKAN`, selectable at `Rinit`.
 
 **Why (the strategic reason):** Sokol is the better renderer for **macOS, iOS and the Web**.
@@ -70,15 +71,17 @@ ours. That, plus effects and readback, is where the work is.
 
 ### 3.1 Backend interface v2 (`include/raven/raven_backend.h`, `render/renderer.*`, `core/context.c`)
 
-- Add a leading `size`/version field and trailing optional members to `RBackendVTable`;
-  `Rbackend_register` keeps requiring only the original members, so existing custom
-  backends still work.
-- Add `caps` flags the core can query: `GLASS`, `ERASE`, `SPIRV_EFFECTS`,
-  `BUNDLE_EFFECTS`, `READBACK`, `NATIVE_CALLBACK`, `SHARED_TEXTURE`. The core uses them to
-  degrade gracefully (today it assumes "NULL entry = no effect").
-- Add `CreateShaderEx(Rid, const RShaderBlob*)` (3.2). `CreateShader(spirv)` stays.
-- Add `R_BACKEND_SOKOL` to `RBackend`; `Rinit` honors `RAVEN_BACKEND=vulkan|sokol`
-  (env override, for tests and users). The Sokol API (Metal, GLES3, WebGPU, GL, D3D11) is a
+- **Done:** a trailing optional `caps` member in `RBackendVTable` (`R_BACKEND_CAP_GLASS`, `ERASE`, `SHADERS`,
+  `READBACK`, `CALLBACK`, `PRESENT`) and `Rbackend_get_caps()`. `Rbackend_register` still requires only the original
+  members. Caveat: a custom backend compiled against the old header and registered with a new library
+  reads `caps` past the end of its table; the library is at 0.1 and its API is declared unstable, so no
+  version field was added. Tests use the caps to skip what a backend does not offer yet.
+- Later: `BUNDLE_EFFECTS`, `SHARED_TEXTURE` caps with the features they describe.
+- ~~Add `CreateShaderEx(Rid, const RShaderBlob*)` (3.2).~~ Deferred to phase 4 with the bundle format, so that no
+  unused API is published. `CreateShader(spirv)` stays.
+- **Done:** `R_BACKEND_SOKOL` (last value of `RBackend`, so existing values do not move), `Rget_backend()`, and
+  `RAVEN_BACKEND=vulkan|sokol|null`, which applies when `RInitDesc.backend` is 0 (the default), so an
+  application that asks for a backend explicitly keeps it. Bindings regenerated. The Sokol API (Metal, GLES3, WebGPU, GL, D3D11) is a
   build option, not a run-time one; `Rsokol_get_api()` reports which one was built.
 - `RBackendInitInfo` gains a headless flag and a "single surface, owned by the platform" flag.
 
@@ -111,7 +114,9 @@ Decision (recommended): **effect bundles, not run-time SPIR-V translation.**
 Move `ui.vert`, `ui.frag`, `blur.vert/frag` and the effect shaders to a neutral
 `render/shaders/` folder with a thin wrapper per compiler (glslang for Vulkan, sokol-shdc
 `@vs/@fs` for Sokol). Logic is shared, so glass/blur/curve look the same on both.
-`blur.frag` needs one change for the GL targets: its push constants mix a `vec2` and an `int`, which
+Phase 1 did not move the shader sources: `src/render/sokol/gen_shaders.py` reads them from
+`src/render/vulkan/shaders` (the folder name is the only thing that is Vulkan-specific; it moves when a
+second compiler wrapper is needed, for example for Metal). `blur.frag` needs one change for the GL targets: its push constants mix a `vec2` and an `int`, which
 SPIRV-Cross cannot flatten, so they become one `vec4` (the spike does exactly this). The UI shaders
 `ui.vert`/`ui.frag` compile unmodified through glslang -> SPIR-V -> SPIRV-Cross for ES 3.00 and GL 4.10.
 Generated outputs are committed (as `generated/*_spv.h` is today) plus
@@ -254,7 +259,7 @@ Estimates are for one developer who knows the code; treat as ±40%.
 | # | Phase | Work | Exit criterion | Est. |
 |---|---|---|---|---|
 | 0 | Spike (Linux GL, headless) **DONE** | Vendored sokol_gfx; UI, blur and effect shaders through glslang + SPIRV-Cross; EGL surfaceless context; offscreen frames; glass, effects, atlas, erase; read-back | 16 frames match the Vulkan output (max difference 0, one scene 1/255). Instance layout, `gl_VertexIndex`, varying count and glass pass structure confirmed (section 10) | done (~1 day) |
-| 1 | Interface + build plumbing | 3.1, 3.3, CMake option `RAVEN_BACKEND_SOKOL` (default OFF), THIRD_PARTY update | Vulkan build unchanged and green; Sokol builds | ~1 wk |
+| 1 | Interface + build plumbing **DONE** | 3.1, CMake option `RAVEN_BACKEND_SOKOL` (default OFF), vendored pinned `sokol_gfx.h` with symbol prefix, THIRD_PARTY, CI job; the spike backend promoted into `src/render/sokol/` | Vulkan build unchanged and green (27/27); Sokol builds; `test_render` passes on Sokol (section 11) | done |
 | 2 | Core Sokol backend (offscreen) | Instance buffer, pipelines (UI + erase), textures incl. atlas, uniforms, readback, headless surface, `R_DRAW_CALLBACK` hook | `test_render` runs headless on Sokol/GL llvmpipe in CI; all non-glass cases pass | 1.5 wk |
 | 3a | Presentation: macOS | `present/metal` on the existing `CAMetalLayer`; resize, vsync/ProMotion pacing, DPI, occluded windows, many windows (popups/tool windows) | Examples `hello`, `editor`, `workspace` run interactively on macOS without MoltenVK | 1–1.5 wk |
 | 3b | Single-surface core work | 3.8 items 1–3: `Rrun`, virtual windows, touch/IME/safe-area events; exercised first on macOS with a "single surface" test mode and the mouse model | `hello` and `editor` run with one OS window only, popups and dialogs in-surface | 3–4 wk |
@@ -359,3 +364,35 @@ scene (max 1/255 on a few pixels). It ran on Raven's render thread. Both sides u
 real GPUs will add normal rounding differences, which `test_render` already tolerates (3/255).
 Details, reproduction steps and the list of what is not covered: `spikes/sokol_phase0/README.md`.
 Not covered: Metal, D3D11, WebGL2/WebGPU runs, presentation, viewport draw callback, transparency.
+
+## 11. Phase 1 results (interface, plumbing, and the offscreen core in the library)
+
+Implemented (commits on `claude/vibrant-tesla-tosmjt`):
+
+- `include/raven/raven_core.h`: `R_BACKEND_SOKOL`, `Rget_backend()`, `RAVEN_BACKEND` environment override.
+  `include/raven/raven_backend.h`: `R_BACKEND_CAP_*`, `RBackendVTable::caps`, `Rbackend_get_caps()`. Vulkan and the
+  null backend report their caps. Bindings regenerated (`tools/bindgen`, `bindings_up_to_date` passes).
+- `third_party/sokol/sokol_gfx.h` (pinned, unmodified) compiled once in `src/render/sokol/sg_impl.c` with every
+  function renamed `rvn_sokol_*` (`gen_prefix.py`), so an application's own sokol cannot clash.
+- `src/render/sokol/`: the backend, split by layer: `sg_egl.c` (native API: GLES3 context, read-back),
+  `sg_texture.c`, `sg_pipeline.c`, `sg_glass.c`, `sg_backend.c`; shaders generated by `gen_shaders.py`.
+- CMake: `RAVEN_BACKEND_SOKOL` (OFF), `RAVEN_SOKOL_API` (`gles3`); builds with Vulkan on or off.
+- Tests: `test_render` runs on the backend named by `RAVEN_BACKEND`; ctest has `test_render_sokol` in a build with both
+  backends. CI: a `sokol` job (Linux, Mesa software GLES3 + lavapipe) runs the whole suite; it has not run on
+  GitHub yet, only its commands locally.
+
+Verified here (Mesa llvmpipe / lavapipe, Linux):
+
+| Configuration | Result |
+|---|---|
+| Default (Vulkan only, Sokol OFF) | ctest 27/27, `test_render` 193 checks |
+| Vulkan + Sokol | ctest 28/28; `test_render` 193 (Vulkan), `test_render_sokol` 175 (headless and with an Xvfb window, which is rendered offscreen) |
+| Sokol only (Vulkan OFF) | ctest 27/27, `test_render` 175 on Sokol |
+| Spike scenes, in-library backend vs Vulkan | 15 of 16 frames identical (effects within 1/255); the 16th uses user-written SPIR-V effects, which are refused (drawn as rectangles) until effect bundles exist |
+
+The 18 checks that only the Vulkan run has are the viewport draw callback (`R_BACKEND_CAP_CALLBACK`) and the
+`Rvulkan_*` API; both are gated by the caps, not removed.
+
+Known limits (not regressions): no presentation to a window (frames are offscreen; `Rwindow_capture` works),
+no viewport draw callbacks, only the built-in effects, GLES3/EGL only, EGL linked rather than loaded at run time.
+

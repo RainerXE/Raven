@@ -46,6 +46,11 @@ namespace Raven
         /// Backend supplied with Rbackend_register (see raven_backend.h).
         /// </summary>
         R_BACKEND_CUSTOM = 3,
+        /// <summary>
+        /// Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
+        /// Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
+        /// </summary>
+        R_BACKEND_SOKOL = 4,
     }
 
     public enum RError : int
@@ -1307,7 +1312,8 @@ namespace Raven
     public struct RInitDesc
     {
         /// <summary>
-        /// Rendering backend. 0 selects R_BACKEND_VULKAN.
+        /// Rendering backend. 0 selects the one named by the environment variable RAVEN_BACKEND (vulkan,
+        /// sokol or null) when it is set, else R_BACKEND_VULKAN.
         /// </summary>
         public RBackend backend;
         /// <summary>
@@ -2277,6 +2283,12 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rinit_ex(IntPtr desc);
+
+        /// <summary>
+        /// The rendering backend in use, or 0 before Rinit.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern RBackend Rget_backend();
 
         /// <summary>
         /// Destroys every window, widget and resource, stops the worker and

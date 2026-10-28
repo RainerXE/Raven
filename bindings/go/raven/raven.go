@@ -119,6 +119,7 @@ const (
 	R_BACKEND_VULKAN RBackend = 1
 	R_BACKEND_NULL   RBackend = 2
 	R_BACKEND_CUSTOM RBackend = 3
+	R_BACKEND_SOKOL  RBackend = 4
 )
 
 type RError int32
@@ -882,6 +883,11 @@ const (
 // thread. Returns: R_TRUE on success. On failure, see Rerror_get_last.
 func Init(backend RBackend) int {
 	return int(C.Rinit(C.RBackend(backend)))
+}
+
+// GetBackend: The rendering backend in use, or 0 before Rinit.
+func GetBackend() RBackend {
+	return RBackend(C.Rget_backend())
 }
 
 // Shutdown: Destroys every window, widget and resource, stops the worker and render threads and releases the

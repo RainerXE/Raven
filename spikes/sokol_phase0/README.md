@@ -1,6 +1,6 @@
 # Phase 0 spike: Raven on sokol_gfx (GLES 3.0, headless)
 
-A standalone Raven rendering backend on `sokol_gfx` (pinned, see `third_party/README.md`), written against
+A standalone Raven rendering backend on `sokol_gfx` (pinned, see `third_party/sokol/README.md`), written against
 the public `RBackendVTable` only. It renders headless through EGL "surfaceless" on Mesa llvmpipe and is
 compared pixel for pixel with Raven's Vulkan backend (lavapipe) on the same scenes.
 Goal: answer the open technical questions of `docs/SOKOL_BACKEND_PLAN.md` before touching the interface.
@@ -67,6 +67,12 @@ The backend ran on Raven's render thread (the default), with the EGL context cre
 Real Metal, D3D11, WebGL2 and WebGPU runs; presentation (swapchains, vsync, resize of a live window, GL flip on
 present); `R_DRAW_CALLBACK` (viewport draw callback); transparent windows; effect bundle format; multi-context
 GL for several windows.
+
+## Status
+
+Promoted into the library in phase 1: `src/render/sokol/` (docs/SOKOL_BACKEND_PLAN.md, section 11). This folder keeps the
+standalone spike backend as the record of phase 0, and `scenes.c` / `compare.py`, which also drive the in-library
+backend (`scenes sokol-lib`, with a build of `-DRAVEN_BACKEND_SOKOL=ON`).
 
 ## Reproduce
 

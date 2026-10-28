@@ -77,6 +77,13 @@ static const RBackendVTable* rvn_select_backend(RBackend backend) {
 			rvn_error(R_ERROR_BACKEND, R_SEVERITY_FATAL, "Raven was built without the Vulkan backend");
 			return NULL;
 #endif
+		case R_BACKEND_SOKOL:
+#if defined(RAVEN_BACKEND_SOKOL_ENABLED)
+			return rvn_backend_sokol();
+#else
+			rvn_error(R_ERROR_BACKEND, R_SEVERITY_FATAL, "Raven was built without the Sokol backend (RAVEN_BACKEND_SOKOL)");
+			return NULL;
+#endif
 		case R_BACKEND_NULL:
 			return rvn_backend_null();
 		case R_BACKEND_CUSTOM:
@@ -88,6 +95,22 @@ static const RBackendVTable* rvn_select_backend(RBackend backend) {
 	}
 	rvn_error(R_ERROR_INVALID_ENUM, R_SEVERITY_FATAL, "Rinit: unknown backend");
 	return NULL;
+}
+
+/* The backend of a default RInitDesc: the one RAVEN_BACKEND names, else Vulkan. */
+static RBackend rvn_default_backend(void) {
+	const char* name = getenv("RAVEN_BACKEND");
+	if (name && *name) {
+		if (strcmp(name, "vulkan") == 0) return R_BACKEND_VULKAN;
+		if (strcmp(name, "sokol") == 0) return R_BACKEND_SOKOL;
+		if (strcmp(name, "null") == 0) return R_BACKEND_NULL;
+		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_WARNING, "RAVEN_BACKEND=%s: expected vulkan, sokol or null; using vulkan", name);
+	}
+	return R_BACKEND_VULKAN;
+}
+
+RBackend Rget_backend(void) {
+	return g_rvn.initialized ? g_rvn.backend : (RBackend)0;
 }
 
 int Rinit(RBackend backend) {
@@ -109,7 +132,7 @@ int Rinit_ex(const RInitDesc* user_desc) {
 	}
 	memset(&desc, 0, sizeof(desc));
 	if (user_desc) desc = *user_desc;
-	if (desc.backend == 0) desc.backend = R_BACKEND_VULKAN;
+	if (desc.backend == 0) desc.backend = rvn_default_backend();
 
 	backend = rvn_select_backend(desc.backend);
 	if (!backend) return R_FALSE;

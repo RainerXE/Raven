@@ -2133,6 +2133,9 @@ inline int init(RBackend backend) { return Rinit(backend); }
 /// desc Settings, or NULL for the defaults.
 inline int init_ex(const RInitDesc* desc) { return Rinit_ex(desc); }
 
+/// The rendering backend in use, or 0 before Rinit.
+inline RBackend get_backend() { return Rget_backend(); }
+
 /// Destroys every window, widget and resource, stops the worker and
 /// render threads and releases the backend.
 inline void shutdown() { Rshutdown(); }

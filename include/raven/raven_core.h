@@ -72,7 +72,12 @@ typedef enum RBackend{
 	/** Renders nothing. Used for headless runs and unit tests. */
 	R_BACKEND_NULL,
 	/** Backend supplied with Rbackend_register (see raven_backend.h). */
-	R_BACKEND_CUSTOM
+	R_BACKEND_CUSTOM,
+	/**
+	 * Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
+	 * Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
+	 */
+	R_BACKEND_SOKOL
 }RBackend;
 
 typedef enum RError{
@@ -103,7 +108,10 @@ typedef enum RSeverity{
  * default for every field, so new fields can be added without breaking code.
  */
 typedef struct RInitDesc {
-	/** Rendering backend. 0 selects R_BACKEND_VULKAN. */
+	/**
+	 * Rendering backend. 0 selects the one named by the environment variable RAVEN_BACKEND (vulkan,
+	 * sokol or null) when it is set, else R_BACKEND_VULKAN.
+	 */
 	RBackend backend;
 	/** Application name reported to the graphics driver. May be NULL. */
 	const char* app_name;
@@ -178,6 +186,9 @@ extern "C" {
 	 * @param desc Settings, or NULL for the defaults.
 	 */
 	RAVEN_API int Rinit_ex(const RInitDesc* desc);
+
+	/** @brief The rendering backend in use, or 0 before Rinit. */
+	RAVEN_API RBackend Rget_backend(void);
 
 	/**
 	 * @brief Destroys every window, widget and resource, stops the worker and

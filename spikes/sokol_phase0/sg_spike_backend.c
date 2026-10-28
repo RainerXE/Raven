@@ -14,7 +14,7 @@
 
 #define SOKOL_IMPL
 #define SOKOL_GLES3
-#include "third_party/sokol_gfx.h"
+#include "../../third_party/sokol/sokol_gfx.h"
 
 #include <Raven.h>
 #include <raven/raven_backend.h>

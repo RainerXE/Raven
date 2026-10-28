@@ -2,8 +2,9 @@
  * Phase 0 spike driver: renders the same XML scenes with the Vulkan backend or with the
  * sokol backend and writes each frame as a PPM (compare.py diffs the two sets).
  *
- *   scenes vulkan <out dir>
- *   scenes sokol  <out dir>
+ *   scenes vulkan   <out dir> [effects dir]
+ *   scenes sokol    <out dir> [effects dir]    the spike backend of this folder (R_BACKEND_CUSTOM)
+ *   scenes sokol-lib <out dir> [effects dir]   the backend inside libraven (R_BACKEND_SOKOL, RAVEN_BACKEND_SOKOL=ON)
  */
 #include <Raven.h>
 #include <raven/raven_backend.h>
@@ -160,7 +161,9 @@ int main(int argc, char** argv) {
 	desc.headless = R_TRUE;
 	desc.app_name = "sokol_phase0";
 	desc.ui_scale = 1.0f;
-	if (strcmp(argv[1], "sokol") == 0) {
+	if (strcmp(argv[1], "sokol-lib") == 0) {
+		desc.backend = R_BACKEND_SOKOL;
+	} else if (strcmp(argv[1], "sokol") == 0) {
 		Rbackend_register(spk_backend());
 		desc.backend = R_BACKEND_CUSTOM;
 	} else {

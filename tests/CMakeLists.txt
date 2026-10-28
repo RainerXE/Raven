@@ -6,8 +6,9 @@
 #       run headless (null platform + null backend): no display and no GPU are
 #       needed, so they run on any build machine.
 #   test_render
-#       renders real frames with the Vulkan backend and checks pixels. It is
-#       reported as skipped when the machine has no usable Vulkan driver.
+#       renders real frames and checks pixels, with the Vulkan backend (test_render) and
+#       with the Sokol one when it is built (test_render_sokol). Reported as skipped when
+#       the machine has no usable graphics driver.
 #
 #   raven_benchmark
 #       not a test: prints layout and paint timings for a large widget tree.
@@ -72,9 +73,21 @@ endif()
 raven_target_xmlc(test_xmlcpp)
 add_test(NAME test_xmlcpp COMMAND test_xmlcpp)
 
-if(RAVEN_BACKEND_VULKAN)
+# test_render runs on the backend named by RAVEN_BACKEND (Vulkan when it is not set); a second ctest
+# entry runs it on the Sokol backend when that one is built.
+if(RAVEN_BACKEND_VULKAN OR RAVEN_BACKEND_SOKOL)
 	raven_add_test(test_render)
 	set_tests_properties(test_render PROPERTIES SKIP_RETURN_CODE 77)
+	if(RAVEN_BACKEND_VULKAN)
+		target_compile_definitions(test_render PRIVATE RAVEN_TEST_HAS_VULKAN)
+	endif()
+	if(NOT RAVEN_BACKEND_VULKAN)
+		set_tests_properties(test_render PROPERTIES ENVIRONMENT "RAVEN_BACKEND=sokol")
+	endif()
+endif()
+if(RAVEN_BACKEND_VULKAN AND RAVEN_BACKEND_SOKOL)
+	add_test(NAME test_render_sokol COMMAND test_render)
+	set_tests_properties(test_render_sokol PROPERTIES SKIP_RETURN_CODE 77 ENVIRONMENT "RAVEN_BACKEND=sokol")
 endif()
 
 # Not a test: prints timings for a large widget tree (see the top of benchmark.c).

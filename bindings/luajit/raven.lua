@@ -30,6 +30,7 @@ typedef enum RBackend {
 	R_BACKEND_VULKAN = 1,
 	R_BACKEND_NULL = 2,
 	R_BACKEND_CUSTOM = 3,
+	R_BACKEND_SOKOL = 4,
 } RBackend;
 typedef enum RError {
 	R_NO_ERROR = 112,
@@ -856,6 +857,7 @@ struct RAccessibilitySettings {
 };
 int Rinit(RBackend backend);
 int Rinit_ex(const RInitDesc* desc);
+RBackend Rget_backend(void);
 void Rshutdown(void);
 int Ris_initialized(void);
 int Ris_free_edition(void);

@@ -111,10 +111,12 @@ class RBackend(enum.IntEnum):
     R_BACKEND_VULKAN = 1
     R_BACKEND_NULL = 2
     R_BACKEND_CUSTOM = 3
+    R_BACKEND_SOKOL = 4
 
 R_BACKEND_VULKAN = RBackend.R_BACKEND_VULKAN
 R_BACKEND_NULL = RBackend.R_BACKEND_NULL
 R_BACKEND_CUSTOM = RBackend.R_BACKEND_CUSTOM
+R_BACKEND_SOKOL = RBackend.R_BACKEND_SOKOL
 
 class RError(enum.IntEnum):
     R_NO_ERROR = 0x0070
@@ -1980,6 +1982,15 @@ def Rinit_ex(desc):
     """Starts the library with explicit settings.
     desc Settings, or NULL for the defaults."""
     return _lib.Rinit_ex(_p(desc))
+
+
+_lib.Rget_backend.argtypes = []
+_lib.Rget_backend.restype = ctypes.c_int
+
+
+def Rget_backend():
+    """The rendering backend in use, or 0 before Rinit."""
+    return _e(RBackend, _lib.Rget_backend())
 
 
 _lib.Rshutdown.argtypes = []

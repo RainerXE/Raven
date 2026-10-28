@@ -177,6 +177,46 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  #  Sokol backend (Linux): GLES 3.0 on Mesa's software renderer, no GPU needed.
+  #  Runs the whole test suite, including test_render on both backends
+  #  (Vulkan on lavapipe, Sokol on llvmpipe). See docs/SOKOL_BACKEND_PLAN.md.
+  # ---------------------------------------------------------------------------
+  sokol:
+    name: linux (Sokol backend tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vulkan headers (only the headers are needed; nothing is linked)
+        uses: actions/checkout@v4
+        with:
+          repository: KhronosGroup/Vulkan-Headers
+          ref: ${{ env.VULKAN_HEADERS_TAG }}
+          path: _vulkan-headers
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev ninja-build xvfb \
+            libegl-dev libgles-dev libegl1 libgles2 libgl1-mesa-dri mesa-vulkan-drivers
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRAVEN_BACKEND_SOKOL=ON \
+            -DRAVEN_BUILD_EXAMPLES=OFF \
+            -DRAVEN_VULKAN_INCLUDE_DIR="$(pwd)/_vulkan-headers/include"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: xvfb-run -a ctest --test-dir build --output-on-failure
+
+  # ---------------------------------------------------------------------------
   #  GitHub Release, for a tag v*
   # ---------------------------------------------------------------------------
   release:

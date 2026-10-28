@@ -44,6 +44,9 @@ pub const R_BACKEND_VULKAN: RBackend = 1;
 pub const R_BACKEND_NULL: RBackend = 2;
 /// Backend supplied with Rbackend_register (see raven_backend.h).
 pub const R_BACKEND_CUSTOM: RBackend = 3;
+/// Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
+/// Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
+pub const R_BACKEND_SOKOL: RBackend = 4;
 
 pub const RError = c_int;
 pub const R_NO_ERROR: RError = 0x0070;
@@ -1007,7 +1010,8 @@ pub const RLocaleChangedCallback = ?*const fn (language: ?[*:0]const u8, user_da
 /// Optional settings for Rinit_ex. A zero-initialized structure selects the
 /// default for every field, so new fields can be added without breaking code.
 pub const RInitDesc = extern struct {
-    /// Rendering backend. 0 selects R_BACKEND_VULKAN.
+    /// Rendering backend. 0 selects the one named by the environment variable RAVEN_BACKEND (vulkan,
+    /// sokol or null) when it is set, else R_BACKEND_VULKAN.
     backend: RBackend = 0,
     /// Application name reported to the graphics driver. May be NULL.
     app_name: ?[*:0]const u8 = null,
@@ -1326,6 +1330,8 @@ pub extern fn Rinit(backend: RBackend) c_int;
 /// Starts the library with explicit settings.
 /// desc Settings, or NULL for the defaults.
 pub extern fn Rinit_ex(desc: ?*const RInitDesc) c_int;
+/// The rendering backend in use, or 0 before Rinit.
+pub extern fn Rget_backend() RBackend;
 /// Destroys every window, widget and resource, stops the worker and
 /// render threads and releases the backend.
 pub extern fn Rshutdown() void;
