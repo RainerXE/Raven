@@ -248,6 +248,12 @@ else()
 	# libm, and libdl for loading the Vulkan library at run time
 	list(APPEND RAVEN_LIBRARIES m ${CMAKE_DL_LIBS})
 endif()
+if(APPLE)
+	# the system language (core/locale.c) comes from CoreFoundation, with any platform: the Cocoa one pulls it in on macOS,
+	# the null platform (headless runs, iOS for now) does not
+	find_library(RAVEN_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+	list(APPEND RAVEN_LIBRARIES ${RAVEN_COREFOUNDATION_FRAMEWORK})
+endif()
 
 # window system
 if(RAVEN_PLATFORM_SELECTED STREQUAL "win32")
