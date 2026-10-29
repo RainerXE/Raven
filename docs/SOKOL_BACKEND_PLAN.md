@@ -467,3 +467,16 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
 - Remaining web-specific items found: asynchronous URL download, file dialogs, `fs_watch` (hot reload) is unused there,
   and `ALLOW_MEMORY_GROWTH` with pthreads is slower on non-wasm paths (Emscripten warns).
 
+## 15. Phase 3b, first part: `Rrun` and single-window mode (done)
+
+- **`Rrun(finished, user)`** (`raven_core.h`): runs the loop and returns the exit code; with a callback, `finished(exit_code, user)` runs when
+  the application ends (and the library is shut down if the system owned the loop). The platform table has an optional `run(tick, user)`; where
+  it exists (the null platform under Emscripten uses `emscripten_set_main_loop`) `Rrun` returns 0 at once and the frames come from the system. The
+  desktop path is the `Rwait_frame` loop; its first frame does not wait for an event. `Rdraw_frame`/`Rwait_frame` stay as they were.
+- **Single-window mode** (`RInitDesc.single_window`, or a platform with `single_window` set; `Rsingle_window_mode()`): `Rwindow_create` refuses a second window
+  (the XML loader goes through it), and docks are not tearable (`Rdock_area_float_panel` refuses). Popups, menus, tooltips and the in-window dialogs
+  were already drawn inside the window, so nothing else needed virtual windows. The dialog fallback to an OS window still exists and is the next thing to check.
+- Tests: `test_run` and `test_single_window` (both also pass as wasm under Node, where the first runs in the browser loop). The whole suite passes in
+  the default, both-backends, sokol-only and forced `RVN_NO_SUBPROCESS` builds.
+- Found on the way, **not caused by this work**: floating a dock panel into a window (`Rdock_area_float_panel`) leaves one allocation alive at `Rshutdown`;
+  the control in `test_single_window` does not call it until that is fixed.

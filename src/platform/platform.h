@@ -173,6 +173,20 @@ typedef struct rvn_platform_t {
 	void  (*child_set_rect)(rvn_pwindow_t* child, int x, int y, int width, int height, int visible);
 
 	/**
+	 * R_TRUE when the platform allows one window only (iOS, a browser): Rwindow_create fails while a window
+	 * exists and the layout needs no second window. RInitDesc::single_window asks for the same anywhere.
+	 */
+	int single_window;
+
+	/**
+	 * Optional (NULL: the application owns the loop, as on a desktop). Called by Rrun when the system owns the
+	 * loop (a browser, iOS): arranges for `tick` to be called once per frame of the system, until it returns
+	 * R_FALSE, and returns R_TRUE. It may return at once (browser) or never (iOS: UIApplicationMain). R_FALSE:
+	 * the platform cannot, and Rrun runs the loop itself.
+	 */
+	int   (*run)(int (*tick)(void* user), void* user);
+
+	/**
 	 * Dispatches pending events to the handler.
 	 * @param timeout_seconds 0 returns at once, negative waits without limit.
 	 */

@@ -922,6 +922,12 @@ func MemoryTrim() {
 	C.Rmemory_trim()
 }
 
+// SingleWindowMode: Returns: R_TRUE when the application is limited to one window: on iOS and in a browser,
+// or with RInitDesc::single_window. Use it to choose a layout that needs no second window.
+func SingleWindowMode() int {
+	return int(C.Rsingle_window_mode())
+}
+
 // DrawFrame: Produces one frame: processes the pending OS events without waiting, runs the posted tasks and
 // the timers, then lays out, paints and submits every window that changed. A window in which nothing changed
 // is not drawn again, so the call is cheap when the UI is idle. Returns: R_FALSE once Rquit was called or the
@@ -5153,7 +5159,7 @@ func AccessibilityIsScreenReaderActive() int {
 
 // Left to cgo (a pointer to a structure, a void* or a C callback among the parameters):
 // Rinit_ex, Rset_allocator, Rallocator_get_system, Rmemory_alloc, Rmemory_realloc, Rmemory_free
-// Rmemory_get_stats, Rset_frame_callback, Rtask_post, Rtask_run_async, Rparallel_for, Rtimer_create
+// Rmemory_get_stats, Rrun, Rset_frame_callback, Rtask_post, Rtask_run_async, Rparallel_for, Rtimer_create
 // Raction_bind, Raction_set_default_handler, Rerror_get_last, Rerror_set_callback, Rwindow_get_frame_stats
 // Rwindow_set_icon, Rwindow_set_close_callback, Rwindow_set_resize_callback, Rwindow_set_drop_callback
 // Rwindow_set_user_handle, Rwindow_get_user_handle, Rwindow_get_native_handle, Rwindow_capture

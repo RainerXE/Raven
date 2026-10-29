@@ -1344,6 +1344,12 @@ namespace Raven
         /// Global UI scale multiplier applied on top of the monitor scale. 0 = 1.0.
         /// </summary>
         public float ui_scale;
+        /// <summary>
+        /// R_TRUE limits the application to one window, as it is on iOS and in a browser (they always are): Rwindow_create
+        /// fails while a window exists, and docks do not tear panels off into windows of their own. Menus, popups,
+        /// tooltips and dialogs are drawn inside the window anyway. On a desktop it is how to try a mobile layout.
+        /// </summary>
+        public int single_window;
     }
 
     /// <summary>
@@ -1874,6 +1880,30 @@ namespace Raven
     }
 
     /// <summary>
+    /// Runs the application until it quits, on every platform.
+    /// 
+    ///     static void finished(int exit_code, void* user) { Rshutdown(); }
+    /// 
+    ///     int main(void) {
+    ///         Rinit(R_BACKEND_VULKAN);
+    ///         ... create the windows, Rset_frame_callback for what you do every frame ...
+    ///         return Rrun(finished, NULL);
+    ///     }
+    /// 
+    /// On a desktop Rrun is the loop `while (Rwait_frame(-1.0)) {}`: it returns when the application quits (Rquit,
+    /// or the last window closed), after calling `finished`, with the exit code. Where the system owns the loop (a
+    /// browser, iOS) it cannot run here: Rrun hands the frame to the system, which calls Raven once per frame,
+    /// and returns 0 **at once**; `finished` is called later, when the application quits, and the code after Rrun
+    /// has run long before. So do the clean-up in `finished` and not after Rrun. A program that writes its own loop
+    /// with Rdraw_frame / Rwait_frame keeps working on a desktop; only Rrun works everywhere.
+    /// 
+    /// finished Called once, when the application has quit, with the exit code; may be NULL. When it is NULL
+    /// on a platform that owns the loop, Raven shuts itself down (Rshutdown) as nothing else could.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RRunFinishedCallback(int exit_code, IntPtr user_data);
+
+    /// <summary>
     /// Registers a function called once per frame, before the layout.
     /// The body of your loop does the same job; the callback is also called
     /// while the OS keeps the thread in a loop of its own (on Windows, while
@@ -2390,6 +2420,16 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rmemory_trim();
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rrun(RRunFinishedCallback finished, IntPtr user_data);
+
+        /// <summary>
+        /// Returns: R_TRUE when the application is limited to one window: on iOS and in a browser, or with
+        /// RInitDesc::single_window. Use it to choose a layout that needs no second window.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsingle_window_mode();
 
         /// <summary>
         /// Produces one frame: processes the pending OS events without

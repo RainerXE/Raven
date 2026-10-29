@@ -1788,6 +1788,17 @@ Rid Rwindow_create(const char* title, int width, int height, Ruint flags) {
 		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_ERROR, "Rwindow_create: invalid size %d x %d", width, height);
 		return R_INVALID_ID;
 	}
+	if (g_rvn.single_window) {
+		uint32_t i;
+		for (i = 0; i < g_rvn.windows.used; i++) {
+			rvn_window_t* other = (rvn_window_t*)rvn_pool_at(&g_rvn.windows, i);
+			if (other && !other->dead) {
+				rvn_error(R_ERROR_INVALID_OPERATION, R_SEVERITY_ERROR,
+					"Rwindow_create: this application is limited to one window (Rsingle_window_mode): use a popup or a dialog");
+				return R_INVALID_ID;
+			}
+		}
+	}
 
 	window = (rvn_window_t*)rvn_calloc(sizeof(rvn_window_t));
 	window->title = rvn_strdup(title ? title : "");

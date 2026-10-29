@@ -162,6 +162,7 @@ int Rinit_ex(const RInitDesc* user_desc) {
 			g_rvn.platform ? g_rvn.platform->name : "native");
 		goto fail_platform;
 	}
+	g_rvn.single_window = desc.single_window || g_rvn.platform->single_window;
 
 	/* job system: leave one core to the UI thread and one to the render thread */
 	threaded = !desc.disable_render_thread;
@@ -637,6 +638,60 @@ int Rwait_frame(double timeout_seconds) {
 	g_rvn.platform->pump(0.0);
 	rvn_update();
 	return Ris_running();
+}
+
+/* ---------------------------------------------------------------------------
+ *  Rrun: the loop of the application, or of the system
+ * ------------------------------------------------------------------------- */
+
+static struct {
+	RRunFinishedCallback finished;
+	void* user_data;
+	/** The system calls the frames: nobody is left to shut Raven down but Raven. */
+	int system_loop;
+} g_run;
+
+/* The application has quit: tell it, or, when the system owns the loop and nobody was told to, shut down. */
+static void rvn_run_finish(void) {
+	RRunFinishedCallback finished = g_run.finished;
+	void* user_data = g_run.user_data;
+	int system_loop = g_run.system_loop;
+	int exit_code = Rget_exit_code();
+	memset(&g_run, 0, sizeof(g_run));
+	if (finished) finished(exit_code, user_data);
+	else if (system_loop) Rshutdown();
+}
+
+/* One frame of a loop owned by the system (Platform::run). R_FALSE: the application has quit. */
+static int rvn_run_tick(void* user_data) {
+	RVN_UNUSED(user_data);
+	if (!g_rvn.initialized) return R_FALSE;
+	if (Rdraw_frame()) return R_TRUE;
+	rvn_run_finish();
+	return R_FALSE;
+}
+
+int Rrun(RRunFinishedCallback finished, void* user_data) {
+	int exit_code;
+	RVN_API_GUARD(R_FALSE);
+	g_run.finished = finished;
+	g_run.user_data = user_data;
+	g_run.system_loop = R_FALSE;
+	/* the first frame does not wait for an event */
+	Rwake_up();
+	if (g_rvn.platform->run) {
+		g_run.system_loop = R_TRUE;
+		if (g_rvn.platform->run(rvn_run_tick, NULL)) return 0;
+		g_run.system_loop = R_FALSE;
+	}
+	while (Rwait_frame(-1.0)) {}
+	exit_code = Rget_exit_code();
+	rvn_run_finish();
+	return exit_code;
+}
+
+int Rsingle_window_mode(void) {
+	return g_rvn.initialized && g_rvn.single_window;
 }
 
 int Rget_exit_code(void) {

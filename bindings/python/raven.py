@@ -1278,6 +1278,7 @@ class RInitDesc(ctypes.Structure):
         ("enable_validation", ctypes.c_int),
         ("headless", ctypes.c_int),
         ("ui_scale", ctypes.c_float),
+        ("single_window", ctypes.c_int),
     ]
 
 
@@ -1517,6 +1518,14 @@ class RAccessibilitySettings(ctypes.Structure):
         ("screen_reader", ctypes.c_int),
     ]
 
+
+RRunFinishedCallback = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RRunFinishedCallback(function):
+    def call(exit_code, user_data):
+        function(exit_code, user_data)
+    return call
 
 RFrameCallback = ctypes.CFUNCTYPE(None, ctypes.c_double, ctypes.c_void_p)
 
@@ -2113,6 +2122,24 @@ _lib.Rmemory_trim.restype = None
 def Rmemory_trim():
     """Returns to the OS the regions of the heap that hold nothing. Thread-safe."""
     _lib.Rmemory_trim()
+
+
+_lib.Rrun.argtypes = [RRunFinishedCallback, ctypes.c_void_p]
+_lib.Rrun.restype = ctypes.c_int
+
+
+def Rrun(finished, user_data=None):
+    return _lib.Rrun(_callback(RRunFinishedCallback, _adapt_RRunFinishedCallback, finished), user_data)
+
+
+_lib.Rsingle_window_mode.argtypes = []
+_lib.Rsingle_window_mode.restype = ctypes.c_int
+
+
+def Rsingle_window_mode():
+    """Returns: R_TRUE when the application is limited to one window: on iOS and in a browser, or with
+    RInitDesc::single_window. Use it to choose a layout that needs no second window."""
+    return _lib.Rsingle_window_mode()
 
 
 _lib.Rdraw_frame.argtypes = []

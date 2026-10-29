@@ -830,6 +830,26 @@ pub const R_ROLE_SEPARATOR: RAccessibleRole = 0x0781;
 pub const R_ROLE_SCROLL_BAR: RAccessibleRole = 0x0782;
 pub const R_ROLE_PANE: RAccessibleRole = 0x0783;
 
+/// Runs the application until it quits, on every platform.
+///
+///     static void finished(int exit_code, void* user) { Rshutdown(); }
+///
+///     int main(void) {
+///         Rinit(R_BACKEND_VULKAN);
+///         ... create the windows, Rset_frame_callback for what you do every frame ...
+///         return Rrun(finished, NULL);
+///     }
+///
+/// On a desktop Rrun is the loop `while (Rwait_frame(-1.0)) {}`: it returns when the application quits (Rquit,
+/// or the last window closed), after calling `finished`, with the exit code. Where the system owns the loop (a
+/// browser, iOS) it cannot run here: Rrun hands the frame to the system, which calls Raven once per frame,
+/// and returns 0 **at once**; `finished` is called later, when the application quits, and the code after Rrun
+/// has run long before. So do the clean-up in `finished` and not after Rrun. A program that writes its own loop
+/// with Rdraw_frame / Rwait_frame keeps working on a desktop; only Rrun works everywhere.
+///
+/// finished Called once, when the application has quit, with the exit code; may be NULL. When it is NULL
+/// on a platform that owns the loop, Raven shuts itself down (Rshutdown) as nothing else could.
+pub type RRunFinishedCallback = Option<unsafe extern "C" fn(exit_code: c_int, user_data: *mut c_void)>;
 /// Registers a function called once per frame, before the layout.
 /// The body of your loop does the same job; the callback is also called
 /// while the OS keeps the thread in a loop of its own (on Windows, while
@@ -1010,6 +1030,10 @@ pub struct RInitDesc {
     pub headless: c_int,
     /// Global UI scale multiplier applied on top of the monitor scale. 0 = 1.0.
     pub ui_scale: f32,
+    /// R_TRUE limits the application to one window, as it is on iOS and in a browser (they always are): Rwindow_create
+    /// fails while a window exists, and docks do not tear panels off into windows of their own. Menus, popups,
+    /// tooltips and dialogs are drawn inside the window anyway. On a desktop it is how to try a mobile layout.
+    pub single_window: c_int,
 }
 
 /// Memory functions of the application, to replace the allocator of Raven. See Rset_allocator.
@@ -1388,6 +1412,10 @@ extern "C" {
     pub fn Rmemory_check() -> c_int;
     /// Returns to the OS the regions of the heap that hold nothing. Thread-safe.
     pub fn Rmemory_trim();
+    pub fn Rrun(finished: RRunFinishedCallback, user_data: *mut c_void) -> c_int;
+    /// Returns: R_TRUE when the application is limited to one window: on iOS and in a browser, or with
+    /// RInitDesc::single_window. Use it to choose a layout that needs no second window.
+    pub fn Rsingle_window_mode() -> c_int;
     /// Produces one frame: processes the pending OS events without
     /// waiting, runs the posted tasks and the timers, then lays out, paints and
     /// submits every window that changed. A window in which nothing changed is

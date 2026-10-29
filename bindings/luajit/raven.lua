@@ -626,6 +626,7 @@ typedef struct RXmlError RXmlError;
 typedef struct RXmlAttributeInfo RXmlAttributeInfo;
 typedef struct RXmlCompiledNode RXmlCompiledNode;
 typedef struct RAccessibilitySettings RAccessibilitySettings;
+typedef void (*RRunFinishedCallback)(int exit_code, void* user_data);
 typedef void (*RFrameCallback)(double delta_seconds, void* user_data);
 typedef void (*RTaskCallback)(void* user_data);
 typedef void (*RParallelRangeCallback)(Ruint begin, Ruint end, void* user_data);
@@ -690,6 +691,7 @@ struct RInitDesc {
 	int enable_validation;
 	int headless;
 	float ui_scale;
+	int single_window;
 };
 struct RAllocator {
 	void* alloc;
@@ -870,6 +872,8 @@ void Rmemory_free(void* ptr);
 void Rmemory_get_stats(RMemoryStats* stats);
 int Rmemory_check(void);
 void Rmemory_trim(void);
+int Rrun(RRunFinishedCallback finished, void* user_data);
+int Rsingle_window_mode(void);
 int Rdraw_frame(void);
 int Rwait_frame(double timeout_seconds);
 void Rquit(int exit_code);

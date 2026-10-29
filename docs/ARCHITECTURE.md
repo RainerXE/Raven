@@ -94,7 +94,12 @@ the dispatch ends.
 ## A frame
 
 The loop belongs to the application: `Rdraw_frame` (and `Rwait_frame`, which
-sleeps first) produces one frame. Internally (`rvn_update`, `core/context.c`)
+sleeps first) produces one frame. `Rrun(finished, user)` is the same loop in one
+call, and the one to use when the program must also run where the system owns
+the loop (a browser, iOS): there it returns at once and `finished` is called when
+the application quits. With `RInitDesc.single_window` (always on those platforms)
+the application has one window: a second `Rwindow_create` is refused and docks do
+not tear panels off; popups, menus and in-window dialogs are drawn inside the window anyway. Internally (`rvn_update`, `core/context.c`)
 it runs, for each window that needs it:
 
 1. **Tasks and timers**, then the frame callback of the application.
