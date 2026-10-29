@@ -344,7 +344,7 @@ Open: none blocking. New questions will come from phase 0.
 
 ## 9. Next steps
 
-- **Phase 0b (portability probe): done for the web, script ready for iOS** (section 14).
+- **Phase 0b (portability probe): done for the web and for iOS** (section 14).
 - **Phase 1 (interface and build plumbing)** can start now: sections 3.1 and 3.3 and the CMake
   option, since the spike removed the main technical uncertainty of the backend itself.
 - **Metal check:** run the spike's shaders and frames on a Mac early (sokol Metal backend takes
@@ -453,13 +453,14 @@ only the checks that need a thread fail, and Raven degrades by design (render th
 tree repaints in 1.70 ms as threaded wasm (1.59 ms native, 2.09 ms single-threaded). The Sokol GLES3 backend compiles for wasm
 unchanged; its native part (EGL window surfaces) is replaced by a WebGL canvas context in phase 3d.
 
-**iOS: statically scanned, not built.** The only things that cannot compile for iOS are the `fork`/`exec` users (open a URL,
-`curl` download, native file dialogs). A new `RVN_NO_SUBPROCESS` (set for Emscripten and iOS, or by hand) replaces them with
-stubs, and with `window.open` for `Ropen_url` on the web; forcing it on in a Linux build passes the whole suite. `probe_ios.sh`
-builds for the simulator and runs the tests there; it needs a Mac.
+**iOS (simulator), tested by the maintainer: all 88 files compile and the 15 headless test programs pass, 0 failures.** The only
+things that cannot compile for iOS are the `fork`/`exec` users (open a URL, `curl` download, native file dialogs). A new
+`RVN_NO_SUBPROCESS` (set for Emscripten and iOS, or by hand) replaces them with stubs, and with `window.open` for `Ropen_url` on
+the web; forcing it on in a Linux build passes the whole suite. Running `probe_ios.sh` found two build-system issues, both fixed:
+executables are not app bundles (`ravenc`), and CoreFoundation is linked on every Apple platform.
 
 **What this changes in the plan:**
-- The risk that the *core* does not port is retired for the web. What remains is the work this plan already lists: the platform
+- The risk that the *core* does not port is retired for the web and for iOS. What remains is the work this plan already lists: the platform
   layers, single-surface semantics (`Rrun`, in-surface windows), touch, text input, and the web graphics context.
 - Phase 3d (Web) can start from a library that already builds and runs. Threads in a browser need cross-origin isolation, so
   the first web build should be single-threaded (it works: all but the thread checks pass), with threads as an option.

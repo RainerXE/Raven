@@ -1,8 +1,8 @@
 # Phase 0b: does the Raven core port to WebAssembly and iOS?
 
-The core (widgets, layout, XML, fonts, text editor, themes, the job system and threads) built for WebAssembly with the null
-platform and no GPU backend, and its headless tests were run in Node. The iOS side is a script for a Mac (not run: there
-is no Xcode here). Results feed `docs/SOKOL_BACKEND_PLAN.md` (section 14).
+The core (widgets, layout, XML, fonts, text editor, themes, the job system and threads) was built for WebAssembly and for
+the iOS simulator with the null platform and no GPU backend, and its headless tests were run in Node and in the simulator.
+**Both pass: 15 of 15 programs, 0 failures, on each.** Results feed `docs/SOKOL_BACKEND_PLAN.md` (section 14).
 
 ## Web (WebAssembly), tested
 
@@ -33,14 +33,19 @@ a cross build, so `test_xmlc` / `test_xmlcpp` are not built here.
 ./probe_wasm.sh threads        # or: nothreads
 ```
 
-## iOS, not run here
+## iOS (simulator), tested by the maintainer on a Mac (Xcode, iPhone 17 simulator)
 
-A static scan found the places that cannot compile for iOS (its SDK marks `fork` and `exec*` unavailable): `Ropen_url`,
+**All 88 files compile for the iOS simulator (arm64) and the 15 headless test programs pass inside the simulator, 0 failures**
+(about 24,500 checks, threads included). Two things needed a change, both found by running the script:
+`ravenc` is never an app bundle (CMake makes every executable one on iOS), and the library links CoreFoundation on every
+Apple platform (the system language of `locale.c`; the Cocoa platform used to pull it in on macOS, the null platform does not).
+
+Before that, a static scan found the places that cannot compile for iOS (its SDK marks `fork` and `exec*` unavailable): `Ropen_url`,
 the `curl` download and the native file dialogs. They are now behind `RVN_NO_SUBPROCESS`; forcing the macro on in a Linux build
 (`-DCMAKE_C_FLAGS=-DRVN_NO_SUBPROCESS`) passes the whole suite (28 of 28). Nothing else the scan looked for turned up
 (`system`, `popen`, `dlopen`, `posix_spawn`, `waitpid` outside the platform folders).
 
-`probe_ios.sh` builds the library for the iOS simulator and runs the same headless tests in a booted simulator. Run it on a Mac:
+`probe_ios.sh` builds the library for the iOS simulator and runs the same headless tests in a booted simulator:
 
 ```sh
 xcrun simctl list devices available   # pick a simulator that this Xcode has
