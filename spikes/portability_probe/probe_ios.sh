@@ -4,7 +4,8 @@
 #
 #   ./probe_ios.sh [build dir]
 #
-# Boot a simulator first (open Simulator.app, or: xcrun simctl boot "iPhone 15"); the tests are started with
+# Boot a simulator first (open Simulator.app, or: xcrun simctl list devices available, then
+# xcrun simctl boot "<name of one>", for example "iPhone 17"); the tests are started with
 # `xcrun simctl spawn booted`, as plain executables (no app bundle needed).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -16,6 +17,7 @@ TESTS="test_layout test_widgets test_xml test_memory test_animation test_text_ed
 cmake -S "$ROOT" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_ARCHITECTURES=$ARCH \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+  -DCMAKE_MACOSX_BUNDLE=OFF \
   -DRAVEN_PLATFORM=null -DRAVEN_BACKEND_VULKAN=OFF -DRAVEN_BUILD_WEB=OFF \
   -DRAVEN_BUILD_EXAMPLES=OFF -DRAVEN_BUILD_TOOLS=OFF -DRAVEN_BUILD_TESTS=ON
 cmake --build "$BUILD" --target raven --parallel

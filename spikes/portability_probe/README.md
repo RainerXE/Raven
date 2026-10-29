@@ -39,6 +39,7 @@ the `curl` download and the native file dialogs. They are now behind `RVN_NO_SUB
 `probe_ios.sh` builds the library for the iOS simulator and runs the same headless tests in a booted simulator. Run it on a Mac:
 
 ```sh
-xcrun simctl boot "iPhone 15"      # once
+xcrun simctl list devices available   # pick a simulator that this Xcode has
+xcrun simctl boot "iPhone 17"          # once; use the name from the list
 ./probe_ios.sh
 ```
