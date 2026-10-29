@@ -446,7 +446,8 @@ real GPUs.
 
 Details and reproduction: `spikes/portability_probe/README.md`.
 
-**WebAssembly (Emscripten 3.1.6, Node 22), tested here.** The whole core compiles (88 files; one source change: no
+**WebAssembly (Emscripten 3.1.6, Node 22), tested in the sandbox, and again by the maintainer on a Mac with Emscripten 6.0.13 (15 of
+15 pass, 0 failures).** The whole core compiles (88 files; one source change: no
 subprocesses, see below). Its 15 headless test programs (about 24,500 checks) **pass with threads, 0 failures**; without threads
 only the checks that need a thread fail, and Raven degrades by design (render thread falls back to the UI thread). A 12,000-widget
 tree repaints in 1.70 ms as threaded wasm (1.59 ms native, 2.09 ms single-threaded). The Sokol GLES3 backend compiles for wasm

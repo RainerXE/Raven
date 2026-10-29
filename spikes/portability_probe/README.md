@@ -6,7 +6,9 @@ is no Xcode here). Results feed `docs/SOKOL_BACKEND_PLAN.md` (section 14).
 
 ## Web (WebAssembly), tested
 
-Toolchain: Emscripten 3.1.6 (Ubuntu 24.04 package, old) and Node 22.
+Toolchain: Emscripten 3.1.6 (Ubuntu 24.04 package, old) and Node 22 in the development sandbox, and **the maintainer's Mac with
+Emscripten 6.0.13 (Homebrew) and a current Node: the same 15 of 15 programs pass with 0 failures**, so the result does not
+depend on the old toolchain.
 
 | Question | Answer |
 |---|---|
@@ -22,7 +24,9 @@ to be cross-origin isolated (COOP/COEP headers); the single-threaded build has n
 
 Toolchain notes: this old Emscripten does not link a `main(int, char**)` (it finds no `main`, and the program does nothing):
 `tests/test_dock_tearing.c` and `tests/benchmark.c` need a `main(void)` copy (the script does this). Node 22 needs
-`-sWASM_ASYNC_COMPILATION=0` with it. A current emsdk very probably has neither problem (not tried). `ravenc` runs on the host in
+`-sWASM_ASYNC_COMPILATION=0` with it. A current emsdk (6.0.13) ran the script fine; the script still uses the `main(void)` copy for `test_dock_tearing`, so whether
+the new Emscripten links `main(int, char**)` is not known. Emscripten 6 suggests `-sGROWABLE_ARRAYBUFFERS=2` instead of plain
+memory growth for threaded builds (slower non-wasm paths otherwise), to try for the real web build. `ravenc` runs on the host in
 a cross build, so `test_xmlc` / `test_xmlcpp` are not built here.
 
 ```sh
