@@ -649,8 +649,9 @@ static void rvn_uikit_child_set_rect(rvn_pwindow_t* child, int x, int y, int wid
 static int rvn_uikit_run(int (*tick)(void* user), void* user) {
 	g_ui.tick = tick;
 	g_ui.tick_user = user;
+	static char* arguments[] = { "raven", NULL };
 	@autoreleasepool {
-		UIApplicationMain(0, NULL, nil, NSStringFromClass([RavenAppDelegate class]));
+		UIApplicationMain(1, arguments, nil, NSStringFromClass([RavenAppDelegate class]));
 	}
 	return R_TRUE;
 }
