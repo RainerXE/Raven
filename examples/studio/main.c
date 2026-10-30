@@ -165,6 +165,13 @@ static void on_reload(const char* path, int ok, void* user_data) {
 	if (ok) connect_widgets();
 }
 
+/* the application has quit: releases what it holds, then every window, widget and resource of Raven */
+static void on_finished(int exit_code, void* user_data) {
+	(void)exit_code;
+	(void)user_data;
+	Rshutdown();
+}
+
 int main(void) {
 	const char* theme = getenv("RAVEN_EXAMPLE_THEME");
 	if (!example_init("Raven studio")) return 1;
@@ -191,10 +198,11 @@ int main(void) {
 	}
 	Rwindow_show(app.window);
 
-	if (!example_automated(app.window)) {
-		while (Rwait_frame(-1.0)) {
-		}
+	/* Rrun is the loop (see examples/hello): it returns when the application quits, or at once in a browser or on iOS,
+	 * where on_finished runs later */
+	if (example_automated(app.window)) {
+		Rshutdown();
+		return Rget_exit_code();
 	}
-	Rshutdown();
-	return Rget_exit_code();
+	return Rrun(on_finished, NULL);
 }

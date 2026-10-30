@@ -451,6 +451,14 @@ static void on_frame(double delta_seconds, void* user_data) {
 	}
 }
 
+/* the application has quit: releases what it holds, then every window, widget and resource of Raven */
+static void on_finished(int exit_code, void* user_data) {
+	(void)exit_code;
+	(void)user_data;
+	free(g_render.pixels);
+	Rshutdown();
+}
+
 int main(void) {
 	if (!example_init("editor")) return 1;
 
@@ -491,14 +499,12 @@ int main(void) {
 	scene_add("Planet");
 	scene_add("Moon");
 
-	/* the loop belongs to the application: Raven draws one frame per call,
-	 * and Rwait_frame sleeps until there is something to draw */
-	if (!example_automated(ui.window)) {
-		while (Rwait_frame(-1.0)) {
-		}
+	/* Rrun is the loop (see examples/hello): it returns when the application quits, or at once in a browser or on iOS,
+	 * where on_finished runs later */
+	if (example_automated(ui.window)) {
+		free(g_render.pixels);
+		Rshutdown();
+		return 0;
 	}
-
-	free(g_render.pixels);
-	Rshutdown();
-	return 0;
+	return Rrun(on_finished, NULL);
 }

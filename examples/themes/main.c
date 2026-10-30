@@ -102,6 +102,14 @@ static void action_docs(Rid sender, const char* action, void* user_data) {
 	Rlabel_set_text(app.status, "A link of the Markdown text fired the action \"themes.docs\".");
 }
 
+/* the application has quit: releases what it holds, then every window, widget and resource of Raven */
+static void on_finished(int exit_code, void* user_data) {
+	(void)exit_code;
+	(void)user_data;
+	Rmemory_free(app.notes_text);
+	Rshutdown();
+}
+
 int main(void) {
 	const char* theme = getenv("RAVEN_EXAMPLE_THEME");
 	if (!example_init("Raven themes")) return 1;
@@ -127,11 +135,12 @@ int main(void) {
 	app.watch = Rtimer_create(0.5, R_TRUE, on_notes_timer, NULL);
 	Rwindow_show(app.window);
 
-	if (!example_automated(app.window)) {
-		while (Rwait_frame(-1.0)) {
-		}
+	/* Rrun is the loop (see examples/hello): it returns when the application quits, or at once in a browser or on iOS,
+	 * where on_finished runs later */
+	if (example_automated(app.window)) {
+		Rmemory_free(app.notes_text);
+		Rshutdown();
+		return Rget_exit_code();
 	}
-	Rmemory_free(app.notes_text);
-	Rshutdown();
-	return Rget_exit_code();
+	return Rrun(on_finished, NULL);
 }

@@ -108,6 +108,22 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
     fs.writeFileSync('/tmp/raven_web_glass.png', scrolled);
   }
 
+  // every other example that was built: it starts, draws something and reports nothing
+  for (const name of ['editor', 'animations', 'components', 'studio', 'themes']) {
+    if (!fs.existsSync(path.join(dir, `raven_${name}.html`))) continue;
+    const other = await context.newPage();
+    const otherLogs = [];
+    other.on('console', (m) => otherLogs.push(m.text()));
+    other.on('pageerror', (e) => otherLogs.push('pageerror: ' + e.message));
+    await other.setViewportSize({ width: 1100, height: 700 });
+    await other.goto(`${base}/raven_${name}.html`);
+    await other.waitForTimeout(3500);
+    const picture = await other.screenshot();
+    const bad = otherLogs.filter((l) => /error|abort|pageerror|exception/i.test(l) && !/GPU stall|swiftshader/i.test(l));
+    check(picture.length > 20000 && bad.length === 0, `${name} example starts and draws (${picture.length} bytes)` + (bad.length ? ': ' + bad.slice(0, 2).join(' | ') : ''));
+    await other.close();
+  }
+
   const errors = logs.filter((l) => /error|abort|pageerror|exception/i.test(l) && !/GPU stall|swiftshader/i.test(l));
   check(errors.length === 0, 'no errors in the console' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));
   if (logs.length) console.log('console:\n  ' + logs.slice(0, 12).join('\n  '));

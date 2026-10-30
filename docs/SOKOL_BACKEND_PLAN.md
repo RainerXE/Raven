@@ -541,3 +541,10 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
 - **Result (iPhone 17 simulator, iOS 26.3, maintainer):** it compiled with one link fix (CoreGraphics) and `hello` shows its UI on the first launch (window inside the safe area, Metal presentation, text field).
   What is untested at the time of writing: touch input, the soft keyboard and hardware keys. Seen: controls are desktop-sized (about 28 pt tall) on a phone; touch needs a larger density (44 pt targets) - next item.
 
+## 20. More examples on the web and iOS
+
+`editor`, `animations`, `components`, `studio` and `themes` now use `Rrun` (cleanup in the `finished` callback) and build for the web (their folder is preloaded into the page's virtual file system under the
+path they ask for) and for iOS (simulator: they read their files from the source folder). All of them start and draw in Chromium without console errors (the browser test checks each): the editor (software viewport,
+virtual list, docking panels), the animations, the XML-declared components, the studio (node graph, timeline, color picker, drawn with the Sokol backend) and the themes. Still native-only: `workspace` (a real file browser),
+`notepad` (system file dialogs, files dropped), `overlay` (a see-through window), `effects` (SPIR-V of the application: waits for effect bundles), `memory` (checks the allocator after shutdown), `browser`, the viewport examples.
+
