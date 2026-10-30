@@ -480,3 +480,19 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
   the default, both-backends, sokol-only and forced `RVN_NO_SUBPROCESS` builds.
 - Found on the way, **not caused by this work**: floating a dock panel into a window (`Rdock_area_float_panel`) leaves one allocation alive at `Rshutdown`;
   the control in `test_single_window` does not call it until that is fixed.
+
+## 16. Phase 3b, second part: touch (done in the core, no platform produces it yet)
+
+- **Event and API:** `RVN_PEVENT_TOUCH` (id, phase, x, y) for platform layers, and `Rwindow_inject_touch(window, id, RTouchPhase, x, y)` in the public API (like the
+  other `inject` functions, for tests and for hosts that own the window system).
+- **`src/widget/touch.c` turns fingers into the input the widgets already handle**, so no widget had to change to be usable by touch:
+  tap = move/press/release (double taps are double clicks); long press (0.5 s) = right click, which opens context menus; pan = wheel events (40 units per notch) followed
+  by inertia from a timer; two fingers = pan of the middle point plus zoom as Ctrl+wheel (what the node graph and timeline already do).
+- **Pan or drag:** nothing is pressed until the finger lifts or leaves an 8-unit slop. Then the widget under the finger decides: a class with `RVN_CF_TOUCH_DRAG`
+  (slider, splitter, color picker, node graph, timeline, viewport, text input) drags at once; otherwise the wheel is tried, and if something scrolls it is a pan,
+  if nothing does it is a drag (selections, drag and drop, list reordering). A finger on a moving list stops it.
+- Known gaps, for the platform step: no pressed highlight while a tap is still undecided; no soft keyboard / safe area / IME events yet; hover is cleared after each touch.
+- Another thing found for single-surface platforms: `Rdialog_run`, `Rmessage_box` and friends run a nested loop, which cannot exist in a browser. They need an
+  asynchronous form (`Rdialog_open` with a callback exists) and the blocking ones must refuse under `Rrun` on such platforms.
+- Test: `test_touch` (18 checks), also under wasm. Whole suite passes in all five configurations.
+

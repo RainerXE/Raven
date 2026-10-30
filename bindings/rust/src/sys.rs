@@ -116,6 +116,12 @@ pub const R_MOUSE_MIDDLE: RMouseButton = 2;
 pub const R_MOUSE_X1: RMouseButton = 3;
 pub const R_MOUSE_X2: RMouseButton = 4;
 
+pub type RTouchPhase = c_int;
+pub const R_TOUCH_BEGIN: RTouchPhase = 0;
+pub const R_TOUCH_MOVE: RTouchPhase = 1;
+pub const R_TOUCH_END: RTouchPhase = 2;
+pub const R_TOUCH_CANCEL: RTouchPhase = 3;
+
 pub type RModifier = c_int;
 pub const R_MOD_SHIFT: RModifier = 1;
 pub const R_MOD_CTRL: RModifier = 2;
@@ -1612,6 +1618,8 @@ extern "C" {
     pub fn Rwindow_inject_mouse_move(window: Rid, x: f32, y: f32);
     pub fn Rwindow_inject_mouse_button(window: Rid, button: RMouseButton, pressed: c_int);
     pub fn Rwindow_inject_mouse_wheel(window: Rid, wheel_x: f32, wheel_y: f32);
+    /// A finger of a touch screen (see RTouchPhase); x, y in logical units. One finger taps, long-presses (right click), pans (wheel, with inertia) or drags; two fingers pan and pinch (wheel with Ctrl).
+    pub fn Rwindow_inject_touch(window: Rid, touch_id: u32, phase: RTouchPhase, x: f32, y: f32);
     pub fn Rwindow_inject_key(window: Rid, key: RKey, pressed: c_int, modifiers: u32);
     pub fn Rwindow_inject_text(window: Rid, text: *const c_char);
     /// A drag from another application moves over the window

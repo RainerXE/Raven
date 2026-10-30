@@ -1729,6 +1729,9 @@ public:
 
 	void inject_mouse_wheel(float wheel_x, float wheel_y) const { Rwindow_inject_mouse_wheel(id_, wheel_x, wheel_y); }
 
+	/// A finger of a touch screen (see RTouchPhase); x, y in logical units. One finger taps, long-presses (right click), pans (wheel, with inertia) or drags; two fingers pan and pinch (wheel with Ctrl).
+	void inject_touch(Ruint touch_id, RTouchPhase phase, float x, float y) const { Rwindow_inject_touch(id_, touch_id, phase, x, y); }
+
 	void inject_key(RKey key, int pressed, Ruint modifiers) const { Rwindow_inject_key(id_, key, pressed, modifiers); }
 
 	void inject_text(const char* text) const { Rwindow_inject_text(id_, text); }

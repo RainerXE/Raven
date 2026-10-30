@@ -47,6 +47,7 @@ raven_add_test(test_markdown)
 raven_add_test(test_tools)
 raven_add_test(test_locale)
 raven_add_test(test_run)
+raven_add_test(test_touch)
 raven_add_test(test_single_window)
 
 # an interface in XMLC (XML + C), compiled by ravenc

@@ -51,6 +51,7 @@ struct rvn_xml_node_t;
 #define RVN_CF_CLIP         (1u << 6)   /* instances start with RVN_WF_CLIP */
 #define RVN_CF_SURFACE     (1u << 7)   /* draws its own surface, in the material of the widget */
 #define RVN_CF_OWN_CHILDREN (1u << 8)  /* paints its children itself, from its paint function */
+#define RVN_CF_TOUCH_DRAG   (1u << 10) /* a finger that moves on it drags (slider, splitter...) instead of scrolling the content below */
 #define RVN_CF_NO_MIRROR    (1u << 9)   /* a surface of its own: its children are not mirrored in a right-to-left layout */
 
 /* ---------------------------------------------------------------------------
@@ -519,6 +520,20 @@ typedef struct rvn_shortcut_t {
 	char* action;
 } rvn_shortcut_t;
 
+/** State of the fingers on a window (widget/touch.c). */
+typedef struct rvn_touch_t {
+	int mode;
+	uint32_t id, id2;
+	float x0, y0, x, y, x2, y2;
+	float pinch_distance;
+	double last_time;
+	/** Speed of the pan in units per second. */
+	float vx, vy;
+	/** A timer (long press, then fling) is running. */
+	int timer_active;
+	Rid timer;
+} rvn_touch_t;
+
 struct rvn_window_t {
 	Rid id;
 	/** Node of the public XML document the window was built from, or 0. */
@@ -615,6 +630,9 @@ struct rvn_window_t {
 	uint32_t layout_spring_count;
 	uint32_t layout_spring_cap;
 
+	/* touch (widget/touch.c) */
+	rvn_touch_t touch;
+
 	/* tooltip */
 	rvn_widget_t* tooltip_widget;
 	Rid tooltip_timer;
@@ -660,6 +678,17 @@ rvn_window_t* rvn_window_get(Rid id);
 rvn_window_t* rvn_window_check(Rid id, const char* function);
 /** Entry point of the platform events. */
 void rvn_window_on_platform_event(const rvn_pevent_t* event);
+
+/* input entry points shared with the touch layer (widget/touch.c) */
+rvn_widget_t* rvn_window_hit(rvn_window_t* window, float x, float y, int* popup_index);
+void rvn_window_mouse_move(rvn_window_t* window, float x, float y);
+void rvn_window_mouse_leave(rvn_window_t* window);
+void rvn_window_mouse_button(rvn_window_t* window, RMouseButton button, int pressed);
+int rvn_window_mouse_wheel(rvn_window_t* window, float wheel_x, float wheel_y);
+/** A finger: phase is an RTouchPhase, x and y in logical units. */
+void rvn_window_touch(rvn_window_t* window, uint32_t id, int phase, float x, float y);
+/** Stops the timers of the touch layer (the window is going away). */
+void rvn_touch_release(rvn_window_t* window);
 /** What a pixel of a window with a custom header is, for the window system (rvn_pregion_handler_t). */
 rvn_pregion_t rvn_window_region_at(void* user, int x, int y);
 /** Asks to close the window as the user would: the close callback may refuse. */

@@ -173,6 +173,14 @@ namespace Raven
         R_MOUSE_X2 = 4,
     }
 
+    public enum RTouchPhase : int
+    {
+        R_TOUCH_BEGIN = 0,
+        R_TOUCH_MOVE = 1,
+        R_TOUCH_END = 2,
+        R_TOUCH_CANCEL = 3,
+    }
+
     [Flags]
     public enum RModifier : int
     {
@@ -2913,6 +2921,12 @@ namespace Raven
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwindow_inject_mouse_wheel(uint window, float wheel_x, float wheel_y);
+
+        /// <summary>
+        /// A finger of a touch screen (see RTouchPhase); x, y in logical units. One finger taps, long-presses (right click), pans (wheel, with inertia) or drags; two fingers pan and pinch (wheel with Ctrl).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rwindow_inject_touch(uint window, uint touch_id, RTouchPhase phase, float x, float y);
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwindow_inject_key(uint window, RKey key, int pressed, uint modifiers);

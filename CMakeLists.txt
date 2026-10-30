@@ -167,6 +167,7 @@ set(RAVEN_WIDGET_SOURCES
 	src/widget/theme.c
 	src/widget/widget.c
 	src/widget/widget.h
+	src/widget/touch.c
 	src/widget/window.c
 )
 

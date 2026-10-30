@@ -242,6 +242,17 @@ R_MOUSE_MIDDLE = RMouseButton.R_MOUSE_MIDDLE
 R_MOUSE_X1 = RMouseButton.R_MOUSE_X1
 R_MOUSE_X2 = RMouseButton.R_MOUSE_X2
 
+class RTouchPhase(enum.IntEnum):
+    R_TOUCH_BEGIN = 0
+    R_TOUCH_MOVE = 1
+    R_TOUCH_END = 2
+    R_TOUCH_CANCEL = 3
+
+R_TOUCH_BEGIN = RTouchPhase.R_TOUCH_BEGIN
+R_TOUCH_MOVE = RTouchPhase.R_TOUCH_MOVE
+R_TOUCH_END = RTouchPhase.R_TOUCH_END
+R_TOUCH_CANCEL = RTouchPhase.R_TOUCH_CANCEL
+
 class RModifier(enum.IntFlag):
     R_MOD_SHIFT = 1
     R_MOD_CTRL = 2
@@ -2989,6 +3000,15 @@ _lib.Rwindow_inject_mouse_wheel.restype = None
 
 def Rwindow_inject_mouse_wheel(window, wheel_x, wheel_y):
     _lib.Rwindow_inject_mouse_wheel(window, wheel_x, wheel_y)
+
+
+_lib.Rwindow_inject_touch.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float]
+_lib.Rwindow_inject_touch.restype = None
+
+
+def Rwindow_inject_touch(window, touch_id, phase, x, y):
+    """A finger of a touch screen (see RTouchPhase); x, y in logical units. One finger taps, long-presses (right click), pans (wheel, with inertia) or drags; two fingers pan and pinch (wheel with Ctrl)."""
+    _lib.Rwindow_inject_touch(window, touch_id, int(phase), x, y)
 
 
 _lib.Rwindow_inject_key.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_uint32]

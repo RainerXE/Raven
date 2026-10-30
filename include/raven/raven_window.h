@@ -110,6 +110,13 @@ typedef enum RMouseButton{
 	R_MOUSE_X2
 }RMouseButton;
 
+typedef enum RTouchPhase{
+	R_TOUCH_BEGIN = 0,
+	R_TOUCH_MOVE,
+	R_TOUCH_END,
+	R_TOUCH_CANCEL
+}RTouchPhase;
+
 typedef enum RModifier{
 	R_MOD_SHIFT = (1 << 0),
 	R_MOD_CTRL  = (1 << 1),
@@ -451,6 +458,8 @@ extern "C" {
 	RAVEN_API void Rwindow_inject_mouse_move(Rid window, float x, float y);
 	RAVEN_API void Rwindow_inject_mouse_button(Rid window, RMouseButton button, int pressed);
 	RAVEN_API void Rwindow_inject_mouse_wheel(Rid window, float wheel_x, float wheel_y);
+	/** A finger of a touch screen (see RTouchPhase); x, y in logical units. One finger taps, long-presses (right click), pans (wheel, with inertia) or drags; two fingers pan and pinch (wheel with Ctrl). */
+	RAVEN_API void Rwindow_inject_touch(Rid window, Ruint touch_id, RTouchPhase phase, float x, float y);
 	RAVEN_API void Rwindow_inject_key(Rid window, RKey key, int pressed, Ruint modifiers);
 	RAVEN_API void Rwindow_inject_text(Rid window, const char* text);
 	/**

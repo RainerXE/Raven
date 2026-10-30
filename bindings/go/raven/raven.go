@@ -209,6 +209,15 @@ const (
 	R_MOUSE_X2     RMouseButton = 4
 )
 
+type RTouchPhase int32
+
+const (
+	R_TOUCH_BEGIN  RTouchPhase = 0
+	R_TOUCH_MOVE   RTouchPhase = 1
+	R_TOUCH_END    RTouchPhase = 2
+	R_TOUCH_CANCEL RTouchPhase = 3
+)
+
 type RModifier int32
 
 const (
@@ -1321,6 +1330,13 @@ func WindowInjectMouseButton(window ID, button RMouseButton, pressed int) {
 
 func WindowInjectMouseWheel(window ID, wheel_x float32, wheel_y float32) {
 	C.Rwindow_inject_mouse_wheel(C.Rid(window), C.float(wheel_x), C.float(wheel_y))
+}
+
+// WindowInjectTouch: A finger of a touch screen (see RTouchPhase); x, y in logical units. One finger taps,
+// long-presses (right click), pans (wheel, with inertia) or drags; two fingers pan and pinch (wheel with
+// Ctrl).
+func WindowInjectTouch(window ID, touch_id uint32, phase RTouchPhase, x float32, y float32) {
+	C.Rwindow_inject_touch(C.Rid(window), C.Ruint(touch_id), C.RTouchPhase(phase), C.float(x), C.float(y))
 }
 
 func WindowInjectKey(window ID, key RKey, pressed int, modifiers uint32) {

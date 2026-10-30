@@ -243,7 +243,7 @@ static void rvn_window_set_hover(rvn_window_t* window, rvn_widget_t* target) {
 	if (!window->dead) rvn_window_tooltip_arm(window);
 }
 
-static rvn_widget_t* rvn_window_hit(rvn_window_t* window, float x, float y, int* popup_index) {
+rvn_widget_t* rvn_window_hit(rvn_window_t* window, float x, float y, int* popup_index) {
 	uint32_t i;
 	for (i = window->popup_count; i > 0; i--) {
 		rvn_widget_t* hit = rvn_widget_hit_test(window->popups[i - 1].root, x, y);
@@ -1290,7 +1290,7 @@ static int rvn_window_hook(rvn_window_t* window, REvent* event) {
 	return window->event_hook(window->id, event, window->event_hook_user) ? R_TRUE : R_FALSE;
 }
 
-static void rvn_window_mouse_move(rvn_window_t* window, float x, float y) {
+void rvn_window_mouse_move(rvn_window_t* window, float x, float y) {
 	REvent event;
 	float dx = window->mouse_inside ? x - window->mouse_x : 0.0f;
 	float dy = window->mouse_inside ? y - window->mouse_y : 0.0f;
@@ -1342,7 +1342,7 @@ static void rvn_window_mouse_move(rvn_window_t* window, float x, float y) {
 	if (!window->dead) rvn_window_update_cursor(window);
 }
 
-static void rvn_window_mouse_leave(rvn_window_t* window) {
+void rvn_window_mouse_leave(rvn_window_t* window) {
 	window->mouse_inside = R_FALSE;
 	window->edge = RVN_PREGION_CLIENT;
 	if (!window->capture) rvn_window_set_hover(window, NULL);
@@ -1368,7 +1368,7 @@ static void rvn_window_open_context_menu(rvn_window_t* window, rvn_widget_t* tar
 	}
 }
 
-static void rvn_window_mouse_button(rvn_window_t* window, RMouseButton button, int pressed) {
+void rvn_window_mouse_button(rvn_window_t* window, RMouseButton button, int pressed) {
 	REvent event;
 	rvn_widget_t* target;
 	rvn_widget_t* hit;
@@ -1482,16 +1482,17 @@ static void rvn_window_mouse_button(rvn_window_t* window, RMouseButton button, i
 	if (!window->dead) rvn_window_update_cursor(window);
 }
 
-static void rvn_window_mouse_wheel(rvn_window_t* window, float wheel_x, float wheel_y) {
+/* R_TRUE when a widget took the wheel (something scrolled or zoomed). */
+int rvn_window_mouse_wheel(rvn_window_t* window, float wheel_x, float wheel_y) {
 	REvent event;
 	rvn_widget_t* target = window->capture ? window->capture : rvn_window_hit(window, window->mouse_x, window->mouse_y, NULL);
 	rvn_window_tooltip_hide(window);
 	event = rvn_window_event(window, R_EVENT_MOUSE_WHEEL);
 	event.wheel_x = wheel_x;
 	event.wheel_y = wheel_y;
-	if (rvn_window_hook(window, &event) || window->dead) return;
-	if (!target || !rvn_widget_is_enabled(target)) return;
-	rvn_widget_dispatch(target, &event);
+	if (rvn_window_hook(window, &event) || window->dead) return R_TRUE;
+	if (!target || !rvn_widget_is_enabled(target)) return R_FALSE;
+	return rvn_widget_dispatch(target, &event) ? R_TRUE : R_FALSE;
 }
 
 static void rvn_window_key(rvn_window_t* window, RKey key, int pressed, uint32_t modifiers, int repeat) {
@@ -1643,6 +1644,10 @@ void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 		case RVN_PEVENT_MOUSE_LEAVE:
 			rvn_window_mouse_leave(window);
 			break;
+		case RVN_PEVENT_TOUCH:
+			window->modifiers = pevent->modifiers;
+			rvn_window_touch(window, pevent->touch_id, pevent->touch_phase, (float)pevent->x / scale, (float)pevent->y / scale);
+			break;
 		case RVN_PEVENT_KEY:
 			rvn_window_key(window, pevent->key, pevent->pressed, pevent->modifiers, pevent->repeat);
 			break;
@@ -1728,6 +1733,7 @@ static void rvn_window_free(rvn_window_t* window) {
 	rvn_free(window->native_viewports);
 	rvn_free(window->popups);
 	rvn_free(window->ghosts);
+	rvn_touch_release(window);
 	rvn_free(window->layout_springs);
 	rvn_free(window->title);
 	rvn_free(window->drag_type);
@@ -2274,6 +2280,13 @@ void Rwindow_inject_mouse_wheel(Rid id, float wheel_x, float wheel_y) {
 	rvn_window_t* window = rvn_window_inject_begin(id, __func__);
 	if (!window) return;
 	rvn_window_mouse_wheel(window, wheel_x, wheel_y);
+	rvn_dispatch_end();
+}
+
+void Rwindow_inject_touch(Rid id, Ruint touch_id, RTouchPhase phase, float x, float y) {
+	rvn_window_t* window = rvn_window_inject_begin(id, __func__);
+	if (!window) return;
+	rvn_window_touch(window, touch_id, (int)phase, x, y);
 	rvn_dispatch_end();
 }
 

@@ -92,6 +92,12 @@ typedef enum RMouseButton {
 	R_MOUSE_X1 = 3,
 	R_MOUSE_X2 = 4,
 } RMouseButton;
+typedef enum RTouchPhase {
+	R_TOUCH_BEGIN = 0,
+	R_TOUCH_MOVE = 1,
+	R_TOUCH_END = 2,
+	R_TOUCH_CANCEL = 3,
+} RTouchPhase;
 typedef enum RModifier {
 	R_MOD_SHIFT = 1,
 	R_MOD_CTRL = 2,
@@ -964,6 +970,7 @@ int Rwindow_get_watermark_rect(Rid window, float* x, float* y, float* width, flo
 void Rwindow_inject_mouse_move(Rid window, float x, float y);
 void Rwindow_inject_mouse_button(Rid window, RMouseButton button, int pressed);
 void Rwindow_inject_mouse_wheel(Rid window, float wheel_x, float wheel_y);
+void Rwindow_inject_touch(Rid window, Ruint touch_id, RTouchPhase phase, float x, float y);
 void Rwindow_inject_key(Rid window, RKey key, int pressed, Ruint modifiers);
 void Rwindow_inject_text(Rid window, const char* text);
 int Rwindow_inject_drag(Rid window, float x, float y, int inside);

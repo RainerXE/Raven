@@ -33,6 +33,8 @@ typedef enum rvn_pevent_type_t {
 	RVN_PEVENT_MOUSE_BUTTON,
 	RVN_PEVENT_MOUSE_WHEEL,
 	RVN_PEVENT_MOUSE_LEAVE,
+	/** A finger: touch_id, touch_phase (RTouchPhase), x, y in pixels. */
+	RVN_PEVENT_TOUCH,
 	RVN_PEVENT_KEY,
 	/** A character was typed: codepoint. */
 	RVN_PEVENT_TEXT,
@@ -83,6 +85,8 @@ typedef struct rvn_pevent_t {
 	int width, height;
 	float scale;
 	float wheel_x, wheel_y;
+	uint32_t touch_id;
+	int touch_phase;
 	int button;
 	int pressed;
 	RKey key;
