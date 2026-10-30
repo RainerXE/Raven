@@ -46,17 +46,37 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
   // find the button by clicking where hello puts it (centered); the label text changes on click
   const text = async () => (await page.screenshot()).length; // placeholder to wait for a frame
   const before = await page.screenshot();
-  await page.mouse.move(294, 237);
+  await page.mouse.move(294, 271);
   await page.mouse.down(); await page.mouse.up();
   await page.waitForTimeout(500);
   const afterClick = await page.screenshot();
   check(Buffer.compare(before, afterClick) !== 0, 'a mouse click changes what is shown');
 
-  await page.touchscreen.tap(294, 237);
+  await page.touchscreen.tap(294, 271);
   await page.waitForTimeout(500);
   const afterTap = await page.screenshot();
   check(Buffer.compare(afterClick, afterTap) !== 0, 'a tap changes what is shown');
   fs.writeFileSync('/tmp/raven_web_after.png', afterTap);
+
+  // text: a tap on the text field raises the (hidden) field that gets the soft keyboard; what is typed, accents too, and pasted arrives
+  const focused = () => page.evaluate(() => (document.activeElement && document.activeElement.tagName) || '');
+  const beforeTyping = await page.screenshot();
+  await page.touchscreen.tap(320, 233);
+  await page.waitForTimeout(400);
+  check((await focused()) === 'TEXTAREA', 'a tap on a text field focuses the hidden input field (soft keyboard)');
+  await page.keyboard.type('Héllo €');
+  await page.waitForTimeout(500);
+  const typed = await page.screenshot();
+  check(Buffer.compare(beforeTyping, typed) !== 0, 'typed text, accents included, appears');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.evaluate(() => navigator.clipboard.writeText('PASTED'));
+  await page.keyboard.press('Control+V');
+  await page.waitForTimeout(500);
+  const pasted = await page.screenshot();
+  check(Buffer.compare(typed, pasted) !== 0, 'Ctrl+V pastes the clipboard');
+  await page.touchscreen.tap(320, 100);
+  await page.waitForTimeout(400);
+  check((await focused()) !== 'TEXTAREA', 'a tap elsewhere releases the field (keyboard hides)');
 
   await page.setViewportSize({ width: 800, height: 500 });
   await page.waitForTimeout(800);

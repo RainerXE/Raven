@@ -51,6 +51,7 @@ struct rvn_xml_node_t;
 #define RVN_CF_CLIP         (1u << 6)   /* instances start with RVN_WF_CLIP */
 #define RVN_CF_SURFACE     (1u << 7)   /* draws its own surface, in the material of the widget */
 #define RVN_CF_OWN_CHILDREN (1u << 8)  /* paints its children itself, from its paint function */
+#define RVN_CF_TEXT_INPUT   (1u << 11) /* focus means the user types: a platform with a soft keyboard shows it */
 #define RVN_CF_TOUCH_DRAG   (1u << 10) /* a finger that moves on it drags (slider, splitter...) instead of scrolling the content below */
 #define RVN_CF_NO_MIRROR    (1u << 9)   /* a surface of its own: its children are not mirrored in a right-to-left layout */
 
@@ -632,6 +633,9 @@ struct rvn_window_t {
 
 	/* touch (widget/touch.c) */
 	rvn_touch_t touch;
+	/* what the platform was told about the text being typed (rvn_window_sync_text_input) */
+	int text_input_active;
+	float text_input_x, text_input_y, text_input_w, text_input_h;
 
 	/* tooltip */
 	rvn_widget_t* tooltip_widget;

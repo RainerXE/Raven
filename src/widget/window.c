@@ -975,6 +975,8 @@ static int rvn_window_step_layout_springs(rvn_window_t* window) {
 	return window->layout_spring_count > 0;
 }
 
+static void rvn_window_sync_text_input(rvn_window_t* window, int repeat);
+
 void rvn_window_update(rvn_window_t* window) {
 	if (window->dead) return;
 	if (rvn_atomic_exchange(&window->redraw_requested, 0)) window->needs_paint = R_TRUE;
@@ -984,6 +986,7 @@ void rvn_window_update(rvn_window_t* window) {
 	}
 	if (window->needs_layout) rvn_window_layout(window);
 	if (window->needs_paint) rvn_window_paint(window, NULL);
+	rvn_window_sync_text_input(window, R_FALSE);
 }
 
 void rvn_invalidate_all_windows(void) {
@@ -1589,6 +1592,33 @@ static void rvn_window_resized(rvn_window_t* window, int width_px, int height_px
  *  Platform events
  * ------------------------------------------------------------------------- */
 
+/* Tells the platform whether the user is typing, and where (soft keyboard). `repeat`: also when nothing changed. */
+static void rvn_window_sync_text_input(rvn_window_t* window, int repeat) {
+	rvn_widget_t* focus = window->focus;
+	int active = focus && !window->dead && (focus->cls->flags & RVN_CF_TEXT_INPUT) && rvn_widget_is_enabled(focus);
+	float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+	if (!g_rvn.platform->window_text_input || !window->platform) return;
+	if (active) {
+		rvn_vec2_t origin = rvn_widget_origin(focus);
+		x = origin.x;
+		y = origin.y;
+		w = focus->rect.w;
+		h = focus->rect.h;
+	}
+	if (!repeat && active == window->text_input_active && x == window->text_input_x && y == window->text_input_y &&
+		w == window->text_input_w && h == window->text_input_h) return;
+	if (!active && !window->text_input_active) return;
+	window->text_input_active = active;
+	window->text_input_x = x;
+	window->text_input_y = y;
+	window->text_input_w = w;
+	window->text_input_h = h;
+	{
+		float scale = window->scale > 0.0f ? window->scale : 1.0f;
+		g_rvn.platform->window_text_input(window->platform, active, (int)(x * scale), (int)(y * scale), (int)(w * scale), (int)(h * scale));
+	}
+}
+
 void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 	rvn_window_t* window = (rvn_window_t*)pevent->user;
 	float scale;
@@ -1691,6 +1721,8 @@ void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 			break;
 	}
 	rvn_dispatch_end();
+	/* (after the dispatch: a tap that focused a text field is still inside the gesture of the user) */
+	if (!window->dead) rvn_window_sync_text_input(window, pevent->type == RVN_PEVENT_TOUCH || pevent->type == RVN_PEVENT_MOUSE_BUTTON);
 }
 
 /* ---------------------------------------------------------------------------

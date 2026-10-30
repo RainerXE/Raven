@@ -42,6 +42,8 @@ static struct {
 	/** Ctrl+V pressed: the key goes to the core when the browser delivers the text. */
 	int paste_pending;
 	uint32_t paste_modifiers;
+	/** The hidden text field has the focus: the browser delivers the typed text (and the input method's) to it. */
+	int text_active;
 	int (*tick)(void* user);
 	void* tick_user;
 } g_web;
@@ -82,6 +84,62 @@ EM_JS(void, rvn_web_js_install, (void), {
 		_free(memory);
 		e.preventDefault();
 	});
+})
+
+/*
+ * The text field that takes the keyboard of a phone or tablet (and the input method of a desktop): hidden, but
+ * focusable, placed over the widget so that the browser does not scroll the page to it. The text comes from
+ * its beforeinput event (and the end of a composition); Raven keeps its own copy of the text.
+ */
+EM_JS(void, rvn_web_js_text_input, (int active, double x, double y, double width, double height), {
+	var field = Module.ravenTextField;
+	if (!field) {
+		field = document.createElement('textarea');
+		field.setAttribute('autocapitalize', 'off');
+		field.setAttribute('autocomplete', 'off');
+		field.setAttribute('autocorrect', 'off');
+		field.setAttribute('spellcheck', 'false');
+		field.setAttribute('aria-hidden', 'true');
+		field.tabIndex = -1;
+		field.style.cssText = 'position:fixed;opacity:0;pointer-events:none;border:0;padding:0;margin:0;outline:none;resize:none;overflow:hidden;font-size:16px;background:transparent;color:transparent;caret-color:transparent;z-index:-1';
+		document.body.appendChild(field);
+		var send = function (text) {
+			if (!text) return;
+			var bytes = new TextEncoder().encode(text);
+			var memory = _malloc(bytes.length + 1);
+			HEAPU8.set(bytes, memory);
+			HEAPU8[memory + bytes.length] = 0;
+			_rvn_web_text(memory);
+			_free(memory);
+		};
+		var press = function (name) {
+			var bytes = new TextEncoder().encode(name);
+			var memory = _malloc(bytes.length + 1);
+			HEAPU8.set(bytes, memory);
+			HEAPU8[memory + bytes.length] = 0;
+			_rvn_web_synth_key(memory);
+			_free(memory);
+		};
+		field.addEventListener('beforeinput', function (e) {
+			if (e.isComposing) return;
+			if (e.inputType === 'insertText' || e.inputType === 'insertReplacementText') { send(e.data); e.preventDefault(); }
+			else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') { press('Enter'); e.preventDefault(); }
+			else if (e.inputType === 'deleteContentBackward') { press('Backspace'); e.preventDefault(); }
+			else if (e.inputType === 'deleteContentForward') { press('Delete'); e.preventDefault(); }
+		});
+		field.addEventListener('compositionend', function (e) { send(e.data); field.value = ""; });
+		field.addEventListener('input', function (e) { if (!e.isComposing) field.value = ""; });
+		Module.ravenTextField = field;
+	}
+	if (active) {
+		field.style.left = x + 'px';
+		field.style.top = y + 'px';
+		field.style.width = Math.max(width, 1) + 'px';
+		field.style.height = Math.max(height, 1) + 'px';
+		if (document.activeElement !== field) field.focus({ preventScroll: true });
+	} else if (document.activeElement === field) {
+		field.blur();
+	}
 })
 
 EM_JS(double, rvn_web_js_density, (void), {
@@ -313,6 +371,8 @@ static EM_BOOL rvn_web_on_key(int type, const EmscriptenKeyboardEvent* key, void
 		}
 		return EM_FALSE;
 	}
+	/* an input method is working (code 229): the text comes from the field when it is done */
+	if (key->keyCode == 229 || strcmp(key->key, "Process") == 0 || strcmp(key->key, "Dead") == 0) return EM_FALSE;
 	rvn_web_pevent(&event, RVN_PEVENT_KEY);
 	event.key = rvn_web_key(key->code);
 	event.pressed = pressed;
@@ -321,6 +381,8 @@ static EM_BOOL rvn_web_on_key(int type, const EmscriptenKeyboardEvent* key, void
 	if (pressed && !key->ctrlKey && !key->altKey && !key->metaKey) {
 		uint32_t codepoint = rvn_web_character(key->key);
 		if (codepoint) {
+			/* while the hidden field has the focus the character comes from it (accents, input methods): the key is left alone */
+			if (g_web.text_active) return EM_FALSE;
 			rvn_web_pevent(&event, RVN_PEVENT_TEXT);
 			event.codepoint = codepoint;
 			rvn_web_send(&event);
@@ -338,6 +400,40 @@ EMSCRIPTEN_KEEPALIVE void rvn_web_paste(const char* text) {
 	g_web.modifiers = g_web.paste_modifiers;
 	rvn_web_pevent(&event, RVN_PEVENT_KEY);
 	event.key = R_KEY_V;
+	event.pressed = R_TRUE;
+	rvn_web_send(&event);
+	event.pressed = R_FALSE;
+	rvn_web_send(&event);
+}
+
+/* Text typed into the hidden field: a string of characters (what a soft keyboard or an input method commits). */
+EMSCRIPTEN_KEEPALIVE void rvn_web_text(const char* text) {
+	rvn_pevent_t event;
+	const unsigned char* s = (const unsigned char*)text;
+	if (!g_web.window) return;
+	while (*s) {
+		uint32_t cp;
+		int length, i;
+		if (s[0] < 0x80) { cp = s[0]; length = 1; }
+		else if ((s[0] & 0xE0) == 0xC0) { cp = s[0] & 0x1F; length = 2; }
+		else if ((s[0] & 0xF0) == 0xE0) { cp = s[0] & 0x0F; length = 3; }
+		else if ((s[0] & 0xF8) == 0xF0) { cp = s[0] & 0x07; length = 4; }
+		else { s++; continue; }
+		for (i = 1; i < length && (s[i] & 0xC0) == 0x80; i++) cp = (cp << 6) | (s[i] & 0x3F);
+		s += i;
+		if (cp < 0x20 || cp == 0x7F) continue;
+		rvn_web_pevent(&event, RVN_PEVENT_TEXT);
+		event.codepoint = cp;
+		rvn_web_send(&event);
+	}
+}
+
+/* A key the field cannot type (Backspace and Enter of a soft keyboard): pressed and released by name (a code of key events). */
+EMSCRIPTEN_KEEPALIVE void rvn_web_synth_key(const char* code) {
+	rvn_pevent_t event;
+	if (!g_web.window) return;
+	rvn_web_pevent(&event, RVN_PEVENT_KEY);
+	event.key = rvn_web_key(code);
 	event.pressed = R_TRUE;
 	rvn_web_send(&event);
 	event.pressed = R_FALSE;
@@ -515,6 +611,13 @@ static void rvn_web_window_set_cursor(rvn_pwindow_t* window, RCursor cursor) {
 	rvn_web_js_cursor(css);
 }
 
+static void rvn_web_window_text_input(rvn_pwindow_t* window, int active, int x, int y, int width, int height) {
+	float scale = window->scale > 0.0f ? window->scale : 1.0f;
+	g_web.text_active = active;
+	/* (css pixels: the window is in physical ones) */
+	rvn_web_js_text_input(active, x / scale, y / scale, width / scale, height / scale);
+}
+
 static void rvn_web_window_get_native(rvn_pwindow_t* window, RNativeWindow* native) {
 	RVN_UNUSED(window);
 	memset(native, 0, sizeof(*native));
@@ -593,6 +696,7 @@ const rvn_platform_t* rvn_platform_web(void) {
 		.window_begin_move = rvn_web_window_begin_move,
 		.window_begin_resize = rvn_web_window_begin_resize,
 		.window_set_cursor = rvn_web_window_set_cursor,
+		.window_text_input = rvn_web_window_text_input,
 		.window_get_native = rvn_web_window_get_native,
 		.child_create = rvn_web_child_create,
 		.child_set_rect = rvn_web_child_set_rect,

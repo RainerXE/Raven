@@ -15,6 +15,21 @@
 <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
 <div id="status">Loading…</div>
 <script>
+	// a soft keyboard shrinks the visible part of the page: the canvas (the window) follows it, so the UI stays above the keyboard
+	(function () {
+		var canvas = document.getElementById('canvas'), v = window.visualViewport;
+		if (!v) return;
+		var apply = function () {
+			canvas.style.width = v.width + 'px';
+			canvas.style.height = v.height + 'px';
+			canvas.style.left = v.offsetLeft + 'px';
+			canvas.style.top = v.offsetTop + 'px';
+			window.scrollTo(0, 0);
+		};
+		v.addEventListener('resize', apply);
+		v.addEventListener('scroll', apply);
+		apply();
+	})();
 	var Module = {
 		canvas: document.getElementById('canvas'),
 		print: function (text) { console.log(text); },

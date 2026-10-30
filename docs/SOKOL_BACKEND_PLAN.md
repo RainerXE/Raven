@@ -514,3 +514,14 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
 - **Not yet:** soft keyboard and IME (a hidden text field), drag and drop of files, real file dialogs / downloads (async), the other examples (they read files from disk: they need
   embedded or preloaded data), glass/backdrop checked in the browser, `Rdialog_run` and friends (blocking nested loops), WebGPU, the threaded build.
 
+## 18. Phase 3d, second part: soft keyboard and text input on the web (done)
+
+- **Core:** classes whose focus means typing carry `RVN_CF_TEXT_INPUT` (text input, text editor, spin box). After each platform event (and each frame) the window tells the platform, through the new optional
+  `window_text_input(window, active, rect)`, whether the user is typing and where; after a touch or mouse press it repeats it, so a platform that only allows the keyboard to appear from a gesture is
+  called from inside the gesture that focused the field. The same hook is what iOS will use (`UITextInput`).
+- **Web:** a hidden `<textarea>` (16 px so iOS does not zoom, placed over the widget, `preventScroll`) is focused while a text widget has the focus and blurred otherwise. Text arrives from its `beforeinput` event
+  (soft keyboards, accents and dead keys, emoji) and from the end of a composition (IME: Japanese, Chinese, Korean commit when done); Backspace/Delete/Enter of a soft keyboard become key events. While the field
+  has the focus, printable keys of a hardware keyboard are left to it (so they are not typed twice) and keys with Ctrl/Alt/Meta still reach the shortcuts. `shell.html` follows `visualViewport`, so the UI is laid out above the keyboard.
+- **Verified in Chromium** (`web_browser_test.js`): a tap on the text field focuses the hidden field, "Héllo €" is typed correctly, Ctrl+V pastes (the paste path was untested until now), a tap elsewhere releases the field. `hello` has a text field.
+- **Not verified:** a real phone keyboard and IME composition (Chromium cannot produce them here); the underline of the text being composed (Raven has no compose event yet: the text appears when the composition is committed).
+

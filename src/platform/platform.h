@@ -170,6 +170,14 @@ typedef struct rvn_platform_t {
 	/** Optional (may be NULL). Icon from RGBA8 pixels; NULL rgba restores the default. */
 	void  (*window_set_icon)(rvn_pwindow_t* window, const uint8_t* rgba, int width, int height);
 	void  (*window_set_cursor)(rvn_pwindow_t* window, RCursor cursor);
+	/**
+	 * Optional (may be NULL). The focus is on (active) or left a widget the user types into, at this rectangle of
+	 * the window in pixels: a platform with a soft keyboard or an input method shows it (or hides it) and
+	 * keeps it near the rectangle. Called after the events that can change it, so that a platform that
+	 * only lets a page raise the keyboard from a gesture is called from inside that gesture; the same
+	 * rectangle is repeated then.
+	 */
+	void  (*window_text_input)(rvn_pwindow_t* window, int active, int x, int y, int width, int height);
 	void  (*window_get_native)(rvn_pwindow_t* window, RNativeWindow* native);
 
 	/** Child window used by native viewports. Destroyed with window_destroy. */
