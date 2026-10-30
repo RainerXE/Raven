@@ -249,5 +249,8 @@ const rvn_platform_t* rvn_platform_cocoa(void);
 #if defined(RAVEN_PLATFORM_WEB)
 const rvn_platform_t* rvn_platform_web(void);
 #endif
+#if defined(RAVEN_PLATFORM_UIKIT)
+const rvn_platform_t* rvn_platform_uikit(void);
+#endif
 
 #endif /* RVN_PLATFORM_H */

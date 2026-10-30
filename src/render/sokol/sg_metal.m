@@ -102,7 +102,7 @@ typedef struct rvn_sg_mtl_window_t {
 int rvn_sg_present_create(rvn_sg_surface_t* surface, const RNativeWindow* native) {
 	rvn_sg_mtl_window_t* window;
 	CAMetalLayer* layer;
-	if (native->system != R_WINDOW_SYSTEM_COCOA || !native->window) return R_FALSE;
+	if ((native->system != R_WINDOW_SYSTEM_COCOA && native->system != R_WINDOW_SYSTEM_UIKIT) || !native->window) return R_FALSE;
 	layer = (__bridge CAMetalLayer*)(void*)native->window;
 	if (![layer isKindOfClass:[CAMetalLayer class]]) return R_FALSE;
 	/* the layer draws with the device of sokol_gfx, in the format of the swapchain pass */

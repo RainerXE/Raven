@@ -148,6 +148,7 @@ namespace Raven
         R_WINDOW_SYSTEM_WAYLAND = 0x0093,
         R_WINDOW_SYSTEM_COCOA = 0x0094,
         R_WINDOW_SYSTEM_WEB = 0x0095,
+        R_WINDOW_SYSTEM_UIKIT = 0x0096,
     }
 
     /// <summary>
@@ -1426,6 +1427,7 @@ namespace Raven
     ///   Win32 : display = HINSTANCE, window = HWND
     ///   X11   : display = Display*,  window = Window (XID), visual = VisualID
     ///   Cocoa : display = NSWindow*, window = CAMetalLayer* for Vulkan presentation
+    ///   UIKit : window = CAMetalLayer* (a sublayer of the view of the application)
     ///   Web   : display = the CSS selector of the canvas (const char*, "#canvas")
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]

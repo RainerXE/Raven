@@ -525,3 +525,17 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
 - **Verified in Chromium** (`web_browser_test.js`): a tap on the text field focuses the hidden field, "Héllo €" is typed correctly, Ctrl+V pastes (the paste path was untested until now), a tap elsewhere releases the field. `hello` has a text field.
 - **Not verified:** a real phone keyboard and IME composition (Chromium cannot produce them here); the underline of the text being composed (Raven has no compose event yet: the text appears when the composition is committed).
 
+## 19. Phase 3c, first part: the iOS platform (written without an iOS SDK; needs the simulator)
+
+- **`src/platform/uikit/uikit_platform.m`** (non-ARC, like the Cocoa platform): the window is a full-screen `UIView`; Raven's Metal backend (Sokol/Metal) draws into a `CAMetalLayer` that the platform creates in `window_create`
+  and adds to the view as a sublayer once the application has launched (`Rwindow_create` runs in `main()`, before `UIApplicationMain`). `Rrun` -> `UIApplicationMain` + a `CADisplayLink` (paused in the background, the GPU may not be used there).
+  `Rquit` ends the process, as there is no one to return to. New `R_WINDOW_SYSTEM_UIKIT`; the Metal presentation accepts it.
+- **Another change from 3.8:** a UIKit platform of our own instead of `sokol_app`. Raven's backend owns the Metal device and layer (as on macOS) and creates them before the application starts, which `sokol_app`'s inverted
+  start-up (it creates the view and the device inside its own `main`) does not fit; the platform is also small (about 600 lines) and gives the text-input hook directly.
+- **Input:** touches -> `RVN_PEVENT_TOUCH` (up to 16 fingers, the gesture layer of §16 does the rest); the view is a `UIKeyInput` first responder: the soft keyboard (shown while a text widget has the focus, through
+  `window_text_input`, by switching the `inputView`), `insertText`/`deleteBackward`, hardware keyboards through `UIPress` (HID usage -> `RKey`, with modifiers; Return and Backspace are not reported twice); clipboard: `UIPasteboard`.
+- **Layout:** the window is the safe area, and ends where the keyboard begins (like `visualViewport` on the web); rotation and iPad multitasking resize it.
+- **Build:** `RAVEN_PLATFORM=uikit` is chosen by `-DCMAKE_SYSTEM_NAME=iOS`; `hello` and `glass` build as application bundles (`examples/ios/Info.plist.in`). `spikes/portability_probe/probe_ios_app.sh` builds, signs (ad hoc), installs and
+  starts one in the booted simulator and takes a screenshot. CI has a compile-check job `ios`. `glass` reads its XML from the source folder, which only the simulator can do.
+- **Not yet:** marked text of input methods (`UITextInput`; CJK works when committed), safe area as a query, UIScene lifecycle, device builds (signing), pointer hover, drag and drop, accessibility (VoiceOver), the other examples.
+

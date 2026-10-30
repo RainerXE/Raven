@@ -31,6 +31,14 @@ function(raven_add_example name)
 			--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/../src/platform/web/shell.html
 			-sALLOW_MEMORY_GROWTH=1 -sTOTAL_STACK=5MB -sEXIT_RUNTIME=0 -sINITIAL_MEMORY=64MB -sMINIFY_HTML=0)
 	endif()
+	if(IOS)
+		# an application bundle (build with the simulator: spikes/portability_probe/probe_ios_app.sh)
+		set_target_properties(raven_${name} PROPERTIES
+			MACOSX_BUNDLE TRUE
+			MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in
+			MACOSX_BUNDLE_GUI_IDENTIFIER org.raven.example.${name}
+			MACOSX_BUNDLE_BUNDLE_NAME ${name})
+	endif()
 	if(MSVC)
 		target_compile_definitions(raven_${name} PRIVATE _CRT_SECURE_NO_WARNINGS)
 	else()
@@ -39,11 +47,13 @@ function(raven_add_example name)
 endfunction()
 
 raven_add_example(hello hello/main.c)
-if(EMSCRIPTEN)
+if(EMSCRIPTEN OR IOS)
 	# The other examples read files from disk and use native windows: the web build starts with the ones that need
 	# only their XML, which is put in the virtual file system of the page under the path the program asks for.
 	raven_add_example(glass glass/main.c glass/glass.xml)
-	target_link_options(raven_glass PRIVATE "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/glass@${CMAKE_CURRENT_SOURCE_DIR}/glass")
+	if(EMSCRIPTEN)
+		target_link_options(raven_glass PRIVATE "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/glass@${CMAKE_CURRENT_SOURCE_DIR}/glass")
+	endif()
 	return()
 endif()
 raven_add_example(editor editor/main.c editor/editor.xml)
