@@ -25,7 +25,18 @@ cmake --build "$BUILD" --target raven_$EXAMPLE --parallel
 APP=$(find "$BUILD" -name "raven_$EXAMPLE.app" -type d | head -1)
 [ -n "$APP" ] || { echo "no raven_$EXAMPLE.app in $BUILD"; exit 1; }
 codesign --force --sign - "$APP"
+
+echo "== simulator"
+xcrun simctl list devices booted
+if ! xcrun simctl list devices booted | grep -q Booted; then
+  echo "no simulator is booted: xcrun simctl boot \"iPhone 17\" (and open -a Simulator), then run this again"
+  exit 1
+fi
+# waits until the booted simulator is ready to install into
+xcrun simctl bootstatus booted
+echo "== install"
 xcrun simctl install booted "$APP"
+echo "== launch"
 xcrun simctl launch booted org.raven.example.$EXAMPLE
 sleep 3
 xcrun simctl io booted screenshot "$BUILD/ios_$EXAMPLE.png"
