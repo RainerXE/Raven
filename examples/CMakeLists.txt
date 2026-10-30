@@ -40,7 +40,10 @@ endfunction()
 
 raven_add_example(hello hello/main.c)
 if(EMSCRIPTEN)
-	# the other examples read files from disk and use native windows: the web build starts with the smallest
+	# The other examples read files from disk and use native windows: the web build starts with the ones that need
+	# only their XML, which is put in the virtual file system of the page under the path the program asks for.
+	raven_add_example(glass glass/main.c glass/glass.xml)
+	target_link_options(raven_glass PRIVATE "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/glass@${CMAKE_CURRENT_SOURCE_DIR}/glass")
 	return()
 endif()
 raven_add_example(editor editor/main.c editor/editor.xml)

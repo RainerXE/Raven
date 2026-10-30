@@ -11,10 +11,10 @@ const { chromium } = require('playwright');
 
 const dir = path.resolve(process.argv[2] || '.');
 const shot = process.argv[3];
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.data': 'application/octet-stream' };
 
 const server = http.createServer((req, res) => {
-  const file = path.join(dir, decodeURIComponent(req.url.split('?')[0]).replace(/^\/+$/, 'raven_hello.html'));
+  const file = path.join(dir, decodeURIComponent(req.url.split('?')[0]));
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' });
@@ -27,7 +27,8 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
-  const url = `http://127.0.0.1:${server.address().port}/raven_hello.html`;
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const url = `${base}/raven_hello.html`;
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const context = await browser.newContext({ viewport: { width: 640, height: 400 }, deviceScaleFactor: 2, hasTouch: true });
   const page = await context.newPage();
@@ -36,19 +37,6 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
   page.on('pageerror', (e) => logs.push('pageerror: ' + e.message));
   await page.goto(url);
   await page.waitForTimeout(2500);
-
-  const pixels = async () => page.evaluate(() => {
-    // the canvas is drawn by WebGL: draw it into a 2D canvas to read it (works right after a frame)
-    const c = document.getElementById('canvas');
-    const copy = document.createElement('canvas');
-    copy.width = c.width; copy.height = c.height;
-    const g = copy.getContext('2d');
-    g.drawImage(c, 0, 0);
-    const d = g.getImageData(0, 0, c.width, c.height).data;
-    let sum = 0, colors = new Set();
-    for (let i = 0; i < d.length; i += 4 * 97) { sum += d[i] + d[i + 1] + d[i + 2]; colors.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]); }
-    return { width: c.width, height: c.height, colors: colors.size, sum };
-  });
 
   const size = await page.evaluate(() => ({ w: document.getElementById('canvas').width, h: document.getElementById('canvas').height }));
   check(size.w === 1280 && size.h === 800, `canvas follows the page in physical pixels (${size.w}x${size.h})`);
@@ -74,6 +62,31 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
   await page.waitForTimeout(800);
   const resized = await page.evaluate(() => ({ w: document.getElementById('canvas').width, h: document.getElementById('canvas').height }));
   check(resized.w === 1600 && resized.h === 1000, `a resized page resizes the canvas (${resized.w}x${resized.h})`);
+
+  // the glass example: the blur and refraction passes draw, and a swipe of a finger scrolls the page under the glass
+  if (fs.existsSync(path.join(dir, 'raven_glass.html'))) {
+    const glass = await context.newPage();
+    const glassLogs = [];
+    glass.on('console', (m) => glassLogs.push(m.text()));
+    glass.on('pageerror', (e) => glassLogs.push('pageerror: ' + e.message));
+    await glass.setViewportSize({ width: 900, height: 600 });
+    await glass.goto(`${base}/raven_glass.html`);
+    await glass.waitForTimeout(3500);
+    const first = await glass.screenshot();
+    // a flat page compresses to a few KB; the colored cards, text and glass do not
+    check(first.length > 30000, `glass example draws its colored cards and glass (screenshot of ${first.length} bytes)`);
+    const cdp = await context.newCDPSession(glass);
+    const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: 560, y, id: 1 }] });
+    await touch('touchStart', 420);
+    for (let y = 420; y >= 200; y -= 20) { await touch('touchMove', y); await glass.waitForTimeout(16); }
+    await touch('touchEnd', 200);
+    await glass.waitForTimeout(600);
+    const scrolled = await glass.screenshot();
+    check(Buffer.compare(first, scrolled) !== 0, 'a swipe of a finger scrolls the page');
+    const glassErrors = glassLogs.filter((l) => /error|abort|pageerror|exception/i.test(l) && !/GPU stall|swiftshader/i.test(l));
+    check(glassErrors.length === 0, 'no errors in the console (glass)' + (glassErrors.length ? ': ' + glassErrors.slice(0, 3).join(' | ') : ''));
+    fs.writeFileSync('/tmp/raven_web_glass.png', scrolled);
+  }
 
   const errors = logs.filter((l) => /error|abort|pageerror|exception/i.test(l) && !/GPU stall|swiftshader/i.test(l));
   check(errors.length === 0, 'no errors in the console' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));

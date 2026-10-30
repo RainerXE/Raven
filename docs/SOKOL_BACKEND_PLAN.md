@@ -510,6 +510,7 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
   web build of the examples uses `src/platform/web/shell.html`. `RAVEN_PLATFORM=auto` picks `web` under Emscripten.
 - **Verified** (`spikes/portability_probe/web_browser_test.js`, headless Chromium with SwiftShader WebGL 2): the hello example draws correctly (text, rounded controls), a mouse click and a
   real touch tap both reach the button (label counts the clicks), the canvas follows a viewport resize at device pixel ratio 2, no console errors. CI job `web`.
+- **Glass in the browser:** the `glass` example (blur, refraction, scrolling page under glass bars) renders correctly with WebGL 2, and a finger swipe (CDP touch events) scrolls it. It is built for the web with its XML preloaded into the virtual file system. `examples/glass` uses `Rrun` too.
 - **Not yet:** soft keyboard and IME (a hidden text field), drag and drop of files, real file dialogs / downloads (async), the other examples (they read files from disk: they need
   embedded or preloaded data), glass/backdrop checked in the browser, `Rdialog_run` and friends (blocking nested loops), WebGPU, the threaded build.
 

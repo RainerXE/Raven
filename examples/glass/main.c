@@ -123,7 +123,20 @@ static void on_frame(double delta_seconds, void* user_data) {
 	Rprogress_bar_set_value(app.progress, (float)(app.seconds / 240.0));
 }
 
+static void on_finished(int exit_code, void* user_data) {
+	(void)exit_code;
+	(void)user_data;
+	Rshutdown();
+}
+
+#if defined(__EMSCRIPTEN__)
+/* (a page has no command line; Emscripten before 3.1.7 does not find a main with arguments) */
+int main(void) {
+	int argc = 1;
+	char** argv = NULL;
+#else
 int main(int argc, char** argv) {
+#endif
 	/* "raven_glass light" starts with the light glass */
 	int light = argc > 1 && strcmp(argv[1], "light") == 0;
 	Rid grid, item;
@@ -168,13 +181,10 @@ int main(int argc, char** argv) {
 	/* the player moves: keep producing frames */
 	Rwindow_set_continuous_redraw(app.window, R_TRUE);
 
-	/* the loop belongs to the application: Raven draws one frame per call,
-	 * and Rwait_frame sleeps until there is something to draw */
-	if (!example_automated(app.window)) {
-		while (Rwait_frame(-1.0)) {
-		}
+	/* Rrun is the loop (see examples/hello): it returns when the application quits, or at once in a browser */
+	if (example_automated(app.window)) {
+		Rshutdown();
+		return 0;
 	}
-
-	Rshutdown();
-	return 0;
+	return Rrun(on_finished, NULL);
 }
