@@ -496,3 +496,20 @@ executables are not app bundles (`ravenc`), and CoreFoundation is linked on ever
   asynchronous form (`Rdialog_open` with a callback exists) and the blocking ones must refuse under `Rrun` on such platforms.
 - Test: `test_touch` (18 checks), also under wasm. Whole suite passes in all five configurations.
 
+## 17. Phase 3d, first part: the web platform and WebGL 2 (done; runs in Chromium here)
+
+- **`src/platform/web/web_platform.c`**: the page's canvas is the one window. Written against the HTML5 API of Emscripten directly instead of `sokol_app`
+  (a change from 3.8, option A): the web needs few lines, we keep control of the keyboard/clipboard/IME work that is coming, and `sokol_app` stays the plan for iOS.
+  Mouse, wheel, touch (`RVN_PEVENT_TOUCH`, so the gesture layer of §16 applies), keyboard (`code` -> `RKey`, `key` -> text), focus, cursors (CSS), window title,
+  clipboard (Ctrl+V waits for the browser's paste event, the only place a page may read it), and the size: the canvas follows its CSS size times the device pixel ratio, checked each frame.
+  `Rrun` runs on `emscripten_set_main_loop` (animation frames). New `R_WINDOW_SYSTEM_WEB`; the platform sets `single_window` and `single_thread_render`.
+- **`src/render/sokol/sg_web.c`**: a WebGL 2 context on the canvas (opaque, no depth, no antialiasing) made current on the main thread; the frame is presented by drawing into the
+  default framebuffer, the browser shows it when the animation frame returns. `sg_gl.c` holds what the EGL and WebGL contexts share (finish, read-back). Rendering runs on the UI thread
+  (a WebGL context lives on one thread; OffscreenCanvas on a render thread is a later optimization), so the web build needs no pthreads and no cross-origin isolation.
+- **Defaults:** a library built without Vulkan but with Sokol makes Sokol the default backend. `examples/hello` now uses `Rrun` (desktop and web from the same code); the
+  web build of the examples uses `src/platform/web/shell.html`. `RAVEN_PLATFORM=auto` picks `web` under Emscripten.
+- **Verified** (`spikes/portability_probe/web_browser_test.js`, headless Chromium with SwiftShader WebGL 2): the hello example draws correctly (text, rounded controls), a mouse click and a
+  real touch tap both reach the button (label counts the clicks), the canvas follows a viewport resize at device pixel ratio 2, no console errors. CI job `web`.
+- **Not yet:** soft keyboard and IME (a hidden text field), drag and drop of files, real file dialogs / downloads (async), the other examples (they read files from disk: they need
+  embedded or preloaded data), glass/backdrop checked in the browser, `Rdialog_run` and friends (blocking nested loops), WebGPU, the threaded build.
+

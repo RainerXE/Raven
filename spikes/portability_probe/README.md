@@ -52,3 +52,17 @@ xcrun simctl list devices available   # pick a simulator that this Xcode has
 xcrun simctl boot "iPhone 17"          # once; use the name from the list
 ./probe_ios.sh
 ```
+
+## Web build and browser test
+
+`web_browser_test.js` runs the real web build (`examples/hello` with the web platform and the Sokol/WebGL 2 backend) in headless
+Chromium through Playwright: it checks that the canvas follows the page (in physical pixels), that a mouse click and a touch tap
+reach the button, and that nothing is reported to the console.
+
+    emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DRAVEN_BACKEND_VULKAN=OFF -DRAVEN_BACKEND_SOKOL=ON \
+      -DRAVEN_BUILD_EXAMPLES=ON -DRAVEN_BUILD_TOOLS=OFF -DRAVEN_BUILD_TESTS=OFF
+    cmake --build build-web
+    node spikes/portability_probe/web_browser_test.js build-web/bin
+
+To look at it yourself: `python3 -m http.server -d build-web/bin` and open `http://localhost:8000/raven_hello.html`.
+

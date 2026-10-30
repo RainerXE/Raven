@@ -41,7 +41,7 @@ static int example_init(const char* name) {
 #endif
 	Rerror_set_callback(example_on_error);
 	if (!Rinit_ex(&desc)) {
-		fprintf(stderr, "%s: cannot start Raven (is a graphics driver installed? RAVEN_BACKEND=%s)\n", name, getenv("RAVEN_BACKEND") ? getenv("RAVEN_BACKEND") : "vulkan");
+		fprintf(stderr, "%s: cannot start Raven (is a graphics driver installed? RAVEN_BACKEND=%s)\n", name, getenv("RAVEN_BACKEND") ? getenv("RAVEN_BACKEND") : "default");
 		return R_FALSE;
 	}
 	return R_TRUE;

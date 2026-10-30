@@ -67,7 +67,8 @@ typedef enum RWindowSystem{
 	R_WINDOW_SYSTEM_WIN32,
 	R_WINDOW_SYSTEM_X11,
 	R_WINDOW_SYSTEM_WAYLAND,
-	R_WINDOW_SYSTEM_COCOA
+	R_WINDOW_SYSTEM_COCOA,
+	R_WINDOW_SYSTEM_WEB
 }RWindowSystem;
 
 /**
@@ -75,6 +76,7 @@ typedef enum RWindowSystem{
  *   Win32 : display = HINSTANCE, window = HWND
  *   X11   : display = Display*,  window = Window (XID), visual = VisualID
  *   Cocoa : display = NSWindow*, window = CAMetalLayer* for Vulkan presentation
+ *   Web   : display = the CSS selector of the canvas (const char*, "#canvas")
  */
 typedef struct RNativeWindow {
 	RWindowSystem system;

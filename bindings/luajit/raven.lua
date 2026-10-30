@@ -74,6 +74,7 @@ typedef enum RWindowSystem {
 	R_WINDOW_SYSTEM_X11 = 146,
 	R_WINDOW_SYSTEM_WAYLAND = 147,
 	R_WINDOW_SYSTEM_COCOA = 148,
+	R_WINDOW_SYSTEM_WEB = 149,
 } RWindowSystem;
 typedef enum RWindowEdge {
 	R_EDGE_LEFT = 208,

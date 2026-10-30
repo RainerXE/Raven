@@ -202,12 +202,14 @@ class RWindowSystem(enum.IntEnum):
     R_WINDOW_SYSTEM_X11 = 0x0092
     R_WINDOW_SYSTEM_WAYLAND = 0x0093
     R_WINDOW_SYSTEM_COCOA = 0x0094
+    R_WINDOW_SYSTEM_WEB = 0x0095
 
 R_WINDOW_SYSTEM_NONE = RWindowSystem.R_WINDOW_SYSTEM_NONE
 R_WINDOW_SYSTEM_WIN32 = RWindowSystem.R_WINDOW_SYSTEM_WIN32
 R_WINDOW_SYSTEM_X11 = RWindowSystem.R_WINDOW_SYSTEM_X11
 R_WINDOW_SYSTEM_WAYLAND = RWindowSystem.R_WINDOW_SYSTEM_WAYLAND
 R_WINDOW_SYSTEM_COCOA = RWindowSystem.R_WINDOW_SYSTEM_COCOA
+R_WINDOW_SYSTEM_WEB = RWindowSystem.R_WINDOW_SYSTEM_WEB
 
 class RWindowEdge(enum.IntEnum):
     """Edges and corners of a window, for Rwindow_begin_resize."""
@@ -1333,7 +1335,8 @@ class RNativeWindow(ctypes.Structure):
     """Native handles of a window or of a native viewport.
       Win32 : display = HINSTANCE, window = HWND
       X11   : display = Display*,  window = Window (XID), visual = VisualID
-      Cocoa : display = NSWindow*, window = CAMetalLayer* for Vulkan presentation"""
+      Cocoa : display = NSWindow*, window = CAMetalLayer* for Vulkan presentation
+      Web   : display = the CSS selector of the canvas (const char*, "#canvas")"""
     _fields_ = [
         ("system", ctypes.c_int),
         ("display", ctypes.c_void_p),

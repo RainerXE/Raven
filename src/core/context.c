@@ -97,7 +97,7 @@ static const RBackendVTable* rvn_select_backend(RBackend backend) {
 	return NULL;
 }
 
-/* The backend of a default RInitDesc: the one RAVEN_BACKEND names, else Vulkan. */
+/* The backend of a default RInitDesc: the one RAVEN_BACKEND names, else Vulkan, else the one that is compiled in. */
 static RBackend rvn_default_backend(void) {
 	const char* name = getenv("RAVEN_BACKEND");
 	if (name && *name) {
@@ -106,7 +106,11 @@ static RBackend rvn_default_backend(void) {
 		if (strcmp(name, "null") == 0) return R_BACKEND_NULL;
 		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_WARNING, "RAVEN_BACKEND=%s: expected vulkan, sokol or null; using vulkan", name);
 	}
+#if !defined(RAVEN_BACKEND_VULKAN_ENABLED) && defined(RAVEN_BACKEND_SOKOL_ENABLED)
+	return R_BACKEND_SOKOL;
+#else
 	return R_BACKEND_VULKAN;
+#endif
 }
 
 RBackend Rget_backend(void) {
@@ -165,7 +169,7 @@ int Rinit_ex(const RInitDesc* user_desc) {
 	g_rvn.single_window = desc.single_window || g_rvn.platform->single_window;
 
 	/* job system: leave one core to the UI thread and one to the render thread */
-	threaded = !desc.disable_render_thread;
+	threaded = !desc.disable_render_thread && !g_rvn.platform->single_thread_render;
 	if (desc.worker_threads < 0) {
 		workers = 0;
 	} else if (desc.worker_threads > 0) {

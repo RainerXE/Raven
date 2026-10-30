@@ -183,6 +183,7 @@ const (
 	R_WINDOW_SYSTEM_X11     RWindowSystem = 0x0092
 	R_WINDOW_SYSTEM_WAYLAND RWindowSystem = 0x0093
 	R_WINDOW_SYSTEM_COCOA   RWindowSystem = 0x0094
+	R_WINDOW_SYSTEM_WEB     RWindowSystem = 0x0095
 )
 
 // RWindowEdge: Edges and corners of a window, for Rwindow_begin_resize.

@@ -24,6 +24,13 @@ function(raven_add_example name)
 	set_target_properties(raven_${name} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON FOLDER "examples")
 	# where the example finds its data files when started from any folder
 	target_compile_definitions(raven_${name} PRIVATE RAVEN_EXAMPLE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/${name}")
+	if(EMSCRIPTEN)
+		# a page: the canvas of the shell is the window (platform/web); the loop is the one of the browser
+		set_target_properties(raven_${name} PROPERTIES SUFFIX ".html")
+		target_link_options(raven_${name} PRIVATE
+			--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/../src/platform/web/shell.html
+			-sALLOW_MEMORY_GROWTH=1 -sTOTAL_STACK=5MB -sEXIT_RUNTIME=0 -sINITIAL_MEMORY=64MB -sMINIFY_HTML=0)
+	endif()
 	if(MSVC)
 		target_compile_definitions(raven_${name} PRIVATE _CRT_SECURE_NO_WARNINGS)
 	else()
@@ -32,6 +39,10 @@ function(raven_add_example name)
 endfunction()
 
 raven_add_example(hello hello/main.c)
+if(EMSCRIPTEN)
+	# the other examples read files from disk and use native windows: the web build starts with the smallest
+	return()
+endif()
 raven_add_example(editor editor/main.c editor/editor.xml)
 raven_add_example(glass glass/main.c glass/glass.xml)
 raven_add_example(notepad notepad/main.c notepad/notepad.xml)

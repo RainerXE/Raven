@@ -181,6 +181,8 @@ typedef struct rvn_platform_t {
 	 * exists and the layout needs no second window. RInitDesc::single_window asks for the same anywhere.
 	 */
 	int single_window;
+	/** R_TRUE when the graphics context can only be used from the UI thread (a browser): rendering runs there. */
+	int single_thread_render;
 
 	/**
 	 * Optional (NULL: the application owns the loop, as on a desktop). Called by Rrun when the system owns the
@@ -235,6 +237,9 @@ const rvn_platform_t* rvn_platform_win32(void);
 #endif
 #if defined(RAVEN_PLATFORM_COCOA)
 const rvn_platform_t* rvn_platform_cocoa(void);
+#endif
+#if defined(RAVEN_PLATFORM_WEB)
+const rvn_platform_t* rvn_platform_web(void);
 #endif
 
 #endif /* RVN_PLATFORM_H */

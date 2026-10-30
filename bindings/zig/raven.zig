@@ -116,6 +116,7 @@ pub const R_WINDOW_SYSTEM_WIN32: RWindowSystem = 0x0091;
 pub const R_WINDOW_SYSTEM_X11: RWindowSystem = 0x0092;
 pub const R_WINDOW_SYSTEM_WAYLAND: RWindowSystem = 0x0093;
 pub const R_WINDOW_SYSTEM_COCOA: RWindowSystem = 0x0094;
+pub const R_WINDOW_SYSTEM_WEB: RWindowSystem = 0x0095;
 
 /// Edges and corners of a window, for Rwindow_begin_resize.
 pub const RWindowEdge = c_int;
@@ -1099,6 +1100,7 @@ pub const RFrameStats = extern struct {
 ///   Win32 : display = HINSTANCE, window = HWND
 ///   X11   : display = Display*,  window = Window (XID), visual = VisualID
 ///   Cocoa : display = NSWindow*, window = CAMetalLayer* for Vulkan presentation
+///   Web   : display = the CSS selector of the canvas (const char*, "#canvas")
 pub const RNativeWindow = extern struct {
     system: RWindowSystem = 0,
     display: ?*anyopaque = null,

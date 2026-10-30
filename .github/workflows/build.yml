@@ -244,6 +244,30 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  web:
+    name: web (Sokol/WebGL 2, in Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+
+      - name: Build the hello example for the browser
+        run: |
+          emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DRAVEN_BACKEND_VULKAN=OFF -DRAVEN_BACKEND_SOKOL=ON -DRAVEN_BUILD_WEB=OFF \
+            -DRAVEN_BUILD_EXAMPLES=ON -DRAVEN_BUILD_TOOLS=OFF -DRAVEN_BUILD_TESTS=OFF
+          cmake --build build-web
+
+      - name: Run it in Chromium (mouse, touch, resize)
+        run: |
+          cd spikes/portability_probe
+          npm install --no-save playwright@1.49.0
+          npx playwright install --with-deps chromium
+          node web_browser_test.js ../../build-web/bin
+
   # ---------------------------------------------------------------------------
   #  GitHub Release, for a tag v*
   # ---------------------------------------------------------------------------
