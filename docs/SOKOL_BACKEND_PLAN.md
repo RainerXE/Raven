@@ -548,3 +548,10 @@ path they ask for) and for iOS (simulator: they read their files from the source
 virtual list, docking panels), the animations, the XML-declared components, the studio (node graph, timeline, color picker, drawn with the Sokol backend) and the themes. Still native-only: `workspace` (a real file browser),
 `notepad` (system file dialogs, files dropped), `overlay` (a see-through window), `effects` (SPIR-V of the application: waits for effect bundles), `memory` (checks the allocator after shutdown), `browser`, the viewport examples.
 
+## 21. Touch density
+
+Fingers need larger targets than a mouse: a platform can give the UI scale an application gets when it did not choose one (`rvn_platform_t::default_ui_scale`, used when `RInitDesc.ui_scale` is 0; `Rset_ui_scale` still overrides it).
+iOS: 1.35 on a phone, 1.2 on an iPad (controls of about 38 pt, text about 19 pt). Web: the same when the main pointer is coarse (`pointer: coarse`: phones and tablets; a laptop with a touch screen and a mouse stays at 1.0).
+It is the global scale already in Raven, so every widget, font, gap and the touch slop follow, and layouts keep their proportions. A finer step later: a separate "touch" metrics set (44 pt minimum height for controls, taller list rows) instead of a uniform factor.
+Checked in Chromium with phone emulation (the controls and text are visibly larger); on desktop and in the tests nothing changed.
+

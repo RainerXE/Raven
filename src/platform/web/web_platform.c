@@ -142,6 +142,12 @@ EM_JS(void, rvn_web_js_text_input, (int active, double x, double y, double width
 	}
 })
 
+/* A touch screen (the main pointer is a finger): a phone gets larger controls than a tablet, a mouse none. */
+EM_JS(double, rvn_web_js_touch_scale, (void), {
+	if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return 1.0;
+	return Math.min(screen.width, screen.height) < 700 ? 1.35 : 1.2;
+})
+
 EM_JS(double, rvn_web_js_density, (void), {
 	return window.devicePixelRatio || 1.0;
 })
@@ -456,6 +462,10 @@ static EM_BOOL rvn_web_on_focus(int type, const EmscriptenFocusEvent* focus, voi
  *  Platform
  * ------------------------------------------------------------------------- */
 
+static float rvn_web_default_ui_scale(void) {
+	return (float)rvn_web_js_touch_scale();
+}
+
 static int rvn_web_init(rvn_pevent_handler_t handler, rvn_pregion_handler_t regions) {
 	RVN_UNUSED(regions);
 	memset(&g_web, 0, sizeof(g_web));
@@ -702,6 +712,7 @@ const rvn_platform_t* rvn_platform_web(void) {
 		.child_set_rect = rvn_web_child_set_rect,
 		.single_window = R_TRUE,
 		.single_thread_render = R_TRUE,
+		.default_ui_scale = rvn_web_default_ui_scale,
 		.run = rvn_web_run,
 		.pump = rvn_web_pump,
 		.wake = rvn_web_wake,

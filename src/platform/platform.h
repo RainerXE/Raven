@@ -191,6 +191,11 @@ typedef struct rvn_platform_t {
 	int single_window;
 	/** R_TRUE when the graphics context can only be used from the UI thread (a browser): rendering runs there. */
 	int single_thread_render;
+	/**
+	 * Optional (may be NULL). The UI scale of an application that did not choose one (RInitDesc::ui_scale 0), on top of the
+	 * scale of the screen: a touch device makes controls larger (fingers are not mouse pointers). 1.0 = unchanged.
+	 */
+	float (*default_ui_scale)(void);
 
 	/**
 	 * Optional (NULL: the application owns the loop, as on a desktop). Called by Rrun when the system owns the

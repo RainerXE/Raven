@@ -167,6 +167,10 @@ int Rinit_ex(const RInitDesc* user_desc) {
 		goto fail_platform;
 	}
 	g_rvn.single_window = desc.single_window || g_rvn.platform->single_window;
+	if (!(desc.ui_scale > 0.0f) && g_rvn.platform->default_ui_scale) {
+		float scale = g_rvn.platform->default_ui_scale();
+		if (scale >= 0.25f && scale <= 4.0f) g_rvn.ui_scale = scale;
+	}
 
 	/* job system: leave one core to the UI thread and one to the render thread */
 	threaded = !desc.disable_render_thread && !g_rvn.platform->single_thread_render;

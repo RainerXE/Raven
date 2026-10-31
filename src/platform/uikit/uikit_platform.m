@@ -501,6 +501,11 @@ static void rvn_uikit_focus(int focused) {
  *  Platform
  * ------------------------------------------------------------------------- */
 
+/* Fingers are less precise than a mouse: controls are made larger (about 38 pt), a tablet less than a phone */
+static float rvn_uikit_default_ui_scale(void) {
+	return [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad ? 1.2f : 1.35f;
+}
+
 static int rvn_uikit_init(rvn_pevent_handler_t handler, rvn_pregion_handler_t regions) {
 	(void)regions;
 	memset(&g_ui, 0, sizeof(g_ui));
@@ -701,6 +706,7 @@ const rvn_platform_t* rvn_platform_uikit(void) {
 		.child_create = rvn_uikit_child_create,
 		.child_set_rect = rvn_uikit_child_set_rect,
 		.single_window = R_TRUE,
+		.default_ui_scale = rvn_uikit_default_ui_scale,
 		.run = rvn_uikit_run,
 		.pump = rvn_uikit_pump,
 		.wake = rvn_uikit_wake,
