@@ -23,6 +23,31 @@ const server = http.createServer((req, res) => {
 });
 
 let failures = 0;
+
+// Where the blue "Click me" button is, in CSS pixels of the page: found in a screenshot, because the size of the UI
+// depends on the device (a touch device gets larger controls)
+async function findBlueButton(page, context) {
+  const png = (await page.screenshot()).toString('base64');
+  const helper = await context.newPage();
+  const box = await helper.evaluate(async (data) => {
+    const image = new Image();
+    image.src = 'data:image/png;base64,' + data;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width; canvas.height = image.height;
+    const g = canvas.getContext('2d'); g.drawImage(image, 0, 0);
+    const d = g.getImageData(0, 0, canvas.width, canvas.height).data;
+    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      const i = (y * canvas.width + x) * 4;
+      if (d[i] < 80 && d[i + 1] > 110 && d[i + 1] < 150 && d[i + 2] > 225) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    }
+    return { x0, y0, x1, y1, width: image.width };
+  }, png);
+  await helper.close();
+  const factor = box.width / page.viewportSize().width;
+  return { x: (box.x0 + box.x1) / 2 / factor, y: (box.y0 + box.y1) / 2 / factor };
+}
 function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) failures++; }
 
 (async () => {
@@ -46,13 +71,15 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
   // find the button by clicking where hello puts it (centered); the label text changes on click
   const text = async () => (await page.screenshot()).length; // placeholder to wait for a frame
   const before = await page.screenshot();
-  await page.mouse.move(294, 271);
+  const button = await findBlueButton(page, context);
+  check(button.x > 0, `the button is found at ${Math.round(button.x)},${Math.round(button.y)}`);
+  await page.mouse.move(button.x, button.y);
   await page.mouse.down(); await page.mouse.up();
   await page.waitForTimeout(500);
   const afterClick = await page.screenshot();
   check(Buffer.compare(before, afterClick) !== 0, 'a mouse click changes what is shown');
 
-  await page.touchscreen.tap(294, 271);
+  await page.touchscreen.tap(button.x, button.y);
   await page.waitForTimeout(500);
   const afterTap = await page.screenshot();
   check(Buffer.compare(afterClick, afterTap) !== 0, 'a tap changes what is shown');
@@ -61,9 +88,14 @@ function check(ok, what) { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok
   // text: a tap on the text field raises the (hidden) field that gets the soft keyboard; what is typed, accents too, and pasted arrives
   const focused = () => page.evaluate(() => (document.activeElement && document.activeElement.tagName) || '');
   const beforeTyping = await page.screenshot();
-  await page.touchscreen.tap(320, 233);
-  await page.waitForTimeout(400);
-  check((await focused()) === 'TEXTAREA', 'a tap on a text field focuses the hidden input field (soft keyboard)');
+  // the text field is above the buttons: tap upwards from them until the hidden field gets the focus
+  let field = false;
+  for (let up = 30; up <= 110 && !field; up += 10) {
+    await page.touchscreen.tap(button.x, button.y - up);
+    await page.waitForTimeout(250);
+    field = (await focused()) === 'TEXTAREA';
+  }
+  check(field, 'a tap on a text field focuses the hidden input field (soft keyboard)');
   await page.keyboard.type('Héllo €');
   await page.waitForTimeout(500);
   const typed = await page.screenshot();
