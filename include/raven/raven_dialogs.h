@@ -193,6 +193,9 @@ extern "C" {
 
 	/**
 	 * Whole files, with UTF-8 paths on every platform.
+	 * On Android and iOS, a relative path that names no file held in memory
+	 * and no file on disk is read from the app's package (the APK's assets/,
+	 * the bundle's resources), and so is every file Raven reads by its path.
 	 * @return Rfile_read: the content followed by a '\0', to release with
 	 * Rmemory_free; NULL when the file cannot be read. `size` may be NULL.
 	 */
@@ -261,9 +264,12 @@ extern "C" {
 	 * named after the application (RInitDesc::app_name).
 	 *
 	 * Where the system shows nothing (no notification server, the null
-	 * platform, an executable outside of a bundle on macOS), the fallback
-	 * given to Rnotification_set_fallback is called instead, for instance to
-	 * show the message in a Toast of the main window.
+	 * platform, an executable outside of a bundle on macOS, notifications
+	 * the user turned off), the fallback given to Rnotification_set_fallback
+	 * is called instead, for instance to show the message in a Toast of the
+	 * main window. On macOS the first notification asks the user for the
+	 * permission: if the answer is no, that notification goes to the fallback
+	 * once the answer is given, after Rnotification_show returned R_TRUE.
 	 * ============================================================================ */
 
 	/** @return R_TRUE when the system took the notification. */
@@ -279,7 +285,7 @@ extern "C" {
 	 * (on the UI thread; the application may then bring its window to the
 	 * front: the system lets it). It is the last one shown that was clicked:
 	 * the application remembers what it was about. NULL: none.
-	 * Windows only for now (elsewhere it is never called).
+	 * Windows and macOS (elsewhere it is never called).
 	 */
 	RAVEN_API void Rnotification_set_clicked_callback(RNotificationClickedCallback callback, void* user_data);
 

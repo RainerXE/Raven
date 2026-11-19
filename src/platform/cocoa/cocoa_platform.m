@@ -1,15 +1,18 @@
 /**
  * Raven - platform/cocoa/cocoa_platform.m
  * Native macOS window system. Cocoa owns the windows and input event queue;
- * each content view carries a CAMetalLayer for Vulkan's VK_EXT_metal_surface.
+ * each content view carries a CAMetalLayer, drawn by the Metal backend, or by
+ * Vulkan through VK_EXT_metal_surface.
  */
 #import <AppKit/AppKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <Metal/Metal.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <UserNotifications/UserNotifications.h>
 
 #include "../platform.h"
 #include "../../core/accessibility.h"
+#include "../../widget/widget.h"
 
 struct rvn_pwindow_t {
     NSWindow* handle;
@@ -177,6 +180,27 @@ static void rvn_cocoa_emit_text(rvn_pwindow_t* window, NSString* value, uint32_t
     }
 }
 
+/* Text an input method committed (or typed through it): every character, whatever the modifiers. */
+static void rvn_cocoa_emit_committed(rvn_pwindow_t* window, NSString* value) {
+    rvn_cocoa_emit_text(window, value, 0);
+}
+
+/* UTF-16 units of `text` to UTF-8 bytes (an offset inside a surrogate pair goes back to its start). */
+static int rvn_cocoa_bytes(NSString* text, NSUInteger units) {
+    if (!text) return 0;
+    if (units > [text length]) units = [text length];
+    if (units > 0 && units < [text length] && CFStringIsSurrogateLowCharacter([text characterAtIndex:units])) units--;
+    return (int)[[text substringToIndex:units] lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+}
+
+/* UTF-8 bytes of `utf8` to UTF-16 units. */
+static NSUInteger rvn_cocoa_units(const char* utf8, int bytes) {
+    NSString* prefix;
+    if (!utf8 || bytes <= 0) return 0;
+    prefix = [[[NSString alloc] initWithBytes:utf8 length:(NSUInteger)bytes encoding:NSUTF8StringEncoding] autorelease];
+    return prefix ? [prefix length] : 0;
+}
+
 static void rvn_cocoa_resize_drag(rvn_pwindow_t* window) {
     if (!window || g_cocoa.resize_window != window) return;
     NSPoint point = [NSEvent mouseLocation];
@@ -224,9 +248,29 @@ static void rvn_cocoa_resize_drag(rvn_pwindow_t* window) {
 - (BOOL)canBecomeMainWindow { return YES; }
 @end
 
-@interface RavenCocoaView : NSView <NSDraggingDestination> {
+/*
+ * The content view. It is an NSTextInputClient: while the focus is in a
+ * TextInput, SpinBox or TextEditor, keys go through the input method of the
+ * system (interpretKeyEvents), so that Chinese, Japanese and Korean input
+ * methods, dead keys and the character palette work. The text being composed
+ * (marked text) goes to the core as RVN_PEVENT_COMPOSITION, which the field
+ * shows underlined at its caret; the committed text as RVN_PEVENT_TEXT. The
+ * keys the input method takes while it composes are not sent as keys.
+ * Elsewhere (no text focus) and with Command or Control, keys go to the core
+ * directly, as before.
+ */
+@interface RavenCocoaView : NSView <NSDraggingDestination, NSTextInputClient> {
 @public rvn_pwindow_t* ravenWindow;
     NSTrackingArea* trackingArea;
+    /* the marked text of the input method (nil: none) and its selection, UTF-16 */
+    NSString* ravenMarked;
+    NSRange ravenMarkedSelection;
+    /* inside interpretKeyEvents: the text inserted so far, not sent yet, and whether the input method composed */
+    BOOL ravenInKey;
+    BOOL ravenKeyComposed;
+    NSMutableString* ravenKeyText;
+    /* key codes whose key down the input method took: their key up is not sent either */
+    unsigned char ravenSwallowed[128];
 }
 @end
 
@@ -238,7 +282,12 @@ static void rvn_cocoa_resize_drag(rvn_pwindow_t* window) {
     [self addTrackingArea:trackingArea];
     [super updateTrackingAreas];
 }
-- (void)dealloc { if (trackingArea) [trackingArea release]; [super dealloc]; }
+- (void)dealloc {
+    if (trackingArea) [trackingArea release];
+    [ravenMarked release];
+    [ravenKeyText release];
+    [super dealloc];
+}
 - (BOOL)acceptsFirstResponder { return YES; }
 /* (the island of the camera housing takes the click at once, without becoming the key window first) */
 - (BOOL)acceptsFirstMouse:(NSEvent*)event { (void)event; return ravenWindow && ravenWindow->overlay; }
@@ -341,6 +390,14 @@ static void rvn_cocoa_resize_drag(rvn_pwindow_t* window) {
     (void)event; rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_MOUSE_LEAVE; rvn_cocoa_emit(ravenWindow, &e);
 }
 - (void)rvnMouse:(NSEvent*)event button:(int)button pressed:(int)pressed {
+    /* a click while the input method composes: the marked text is typed as it is, where it was composed */
+    if (pressed && ravenMarked) {
+        NSString* marked = [[ravenMarked retain] autorelease];
+        [self ravenSetMarked:nil selection:NSMakeRange(0, 0) send:NO];
+        rvn_cocoa_emit_committed(ravenWindow, marked);
+        [[self inputContext] discardMarkedText];
+        if (!ravenWindow) return;
+    }
     NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil]; float s = rvn_cocoa_scale(ravenWindow);
     rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_MOUSE_BUTTON;
     e.button = button; e.pressed = pressed; e.x = (int)lrint(p.x * s); e.y = (int)lrint(p.y * s);
@@ -370,12 +427,40 @@ static void rvn_cocoa_resize_drag(rvn_pwindow_t* window) {
 }
 - (void)keyDown:(NSEvent*)event {
     uint32_t mods = rvn_cocoa_modifiers([event modifierFlags]);
-    rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_KEY; e.key = rvn_cocoa_key([event keyCode], [event charactersIgnoringModifiers]);
-    e.pressed = 1; e.repeat = [event isARepeat]; e.modifiers = mods; rvn_cocoa_emit(ravenWindow, &e);
+    unsigned short code = [event keyCode];
+    BOOL composing;
+    rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_KEY; e.key = rvn_cocoa_key(code, [event charactersIgnoringModifiers]);
+    e.pressed = 1; e.repeat = [event isARepeat]; e.modifiers = mods;
+    /* (a callback may close the window, and with it this view) */
+    [[self retain] autorelease];
+    [self ravenSyncMarked];
+    composing = ravenMarked != nil;
+    if (composing || (!(mods & (R_MOD_CTRL | R_MOD_SUPER)) && [self ravenWantsText])) {
+        /* through the input method: it composes, commits (insertText) or gives the key back as a command */
+        if (!ravenKeyText) ravenKeyText = [[NSMutableString alloc] init];
+        [ravenKeyText setString:@""];
+        ravenKeyComposed = NO;
+        ravenInKey = YES;
+        [self interpretKeyEvents:[NSArray arrayWithObject:event]];
+        ravenInKey = NO;
+        if (!ravenWindow) return;
+        if (composing || ravenKeyComposed || ravenMarked != nil) {
+            /* the input method took the key: only what it committed goes to the core */
+            if (code < sizeof(ravenSwallowed)) ravenSwallowed[code] = 1;
+            [self ravenFlushKeyText:0];
+            return;
+        }
+        rvn_cocoa_emit(ravenWindow, &e);
+        if (ravenWindow) [self ravenFlushKeyText:mods];
+        return;
+    }
+    rvn_cocoa_emit(ravenWindow, &e);
     rvn_cocoa_emit_text(ravenWindow, [event characters], mods);
 }
 - (void)keyUp:(NSEvent*)event {
-    rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_KEY; e.key = rvn_cocoa_key([event keyCode], [event charactersIgnoringModifiers]);
+    unsigned short code = [event keyCode];
+    if (code < sizeof(ravenSwallowed) && ravenSwallowed[code]) { ravenSwallowed[code] = 0; return; }
+    rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_KEY; e.key = rvn_cocoa_key(code, [event charactersIgnoringModifiers]);
     e.pressed = 0; e.modifiers = rvn_cocoa_modifiers([event modifierFlags]); rvn_cocoa_emit(ravenWindow, &e);
 }
 - (void)flagsChanged:(NSEvent*)event {
@@ -390,6 +475,156 @@ static void rvn_cocoa_resize_drag(rvn_pwindow_t* window) {
         ((e.modifiers & R_MOD_SUPER) != 0);
     rvn_cocoa_emit(ravenWindow, &e);
 }
+/* ---- the input method (NSTextInputClient) ---- */
+- (Rid)ravenCore {
+    rvn_window_t* core = ravenWindow ? (rvn_window_t*)ravenWindow->user : NULL;
+    return core ? core->id : R_INVALID_ID;
+}
+- (BOOL)ravenWantsText {
+    Rid core = [self ravenCore];
+    return core != R_INVALID_ID && Rwindow_wants_text_input(core);
+}
+/* The marked text changes; `send`: the core is told (RVN_PEVENT_COMPOSITION). */
+- (void)ravenSetMarked:(NSString*)marked selection:(NSRange)selection send:(BOOL)send {
+    rvn_pevent_t e;
+    if (marked && [marked length] == 0) marked = nil;
+    if (!marked && !ravenMarked) return;
+    [ravenMarked release];
+    ravenMarked = [marked copy];
+    if (marked) {
+        NSUInteger length = [marked length];
+        if (selection.location == NSNotFound || selection.location > length) selection = NSMakeRange(length, 0);
+        if (NSMaxRange(selection) > length) selection.length = length - selection.location;
+    } else selection = NSMakeRange(0, 0);
+    ravenMarkedSelection = selection;
+    if (!send || !ravenWindow) return;
+    memset(&e, 0, sizeof(e));
+    e.type = RVN_PEVENT_COMPOSITION;
+    e.composition = marked ? [marked UTF8String] : NULL;
+    e.composition_start = rvn_cocoa_bytes(marked, selection.location);
+    e.composition_end = rvn_cocoa_bytes(marked, NSMaxRange(selection));
+    rvn_cocoa_emit(ravenWindow, &e);
+}
+/* The core ended the composition itself (the focus moved): the input method forgets it too. */
+- (void)ravenSyncMarked {
+    Rid core = [self ravenCore];
+    if (!ravenMarked || (core != R_INVALID_ID && Rwindow_get_text_composition(core, NULL, NULL))) return;
+    [self ravenSetMarked:nil selection:NSMakeRange(0, 0) send:NO];
+    [[self inputContext] discardMarkedText];
+}
+/* Sends the text inserted during interpretKeyEvents. */
+- (void)ravenFlushKeyText:(uint32_t)mods {
+    NSString* text;
+    if (!ravenKeyText || [ravenKeyText length] == 0) return;
+    text = [[ravenKeyText copy] autorelease];
+    [ravenKeyText setString:@""];
+    rvn_cocoa_emit_text(ravenWindow, text, mods);
+}
+/* The document the input method sees: the text of a TextInput (UTF-16), or nothing but the marked text. */
+- (NSString*)ravenDocument:(NSUInteger*)markedAt {
+    Rid core = [self ravenCore];
+    const char* text = core != R_INVALID_ID ? Rwindow_get_text_input_text(core) : NULL;
+    int start = 0, end = 0;
+    NSString *before, *after;
+    *markedAt = 0;
+    if (!text || !Rwindow_get_text_input_selection(core, &start, &end)) return ravenMarked ? ravenMarked : @"";
+    if (start > end) { int swap = start; start = end; end = swap; }
+    before = [[[NSString alloc] initWithBytes:text length:(NSUInteger)start encoding:NSUTF8StringEncoding] autorelease];
+    after = [NSString stringWithUTF8String:text + end];
+    if (!before || !after) return ravenMarked ? ravenMarked : @"";
+    *markedAt = [before length];
+    if (!ravenMarked) return [NSString stringWithUTF8String:text];
+    return [NSString stringWithFormat:@"%@%@%@", before, ravenMarked, after];
+}
+- (BOOL)hasMarkedText {
+    [self ravenSyncMarked];
+    return ravenMarked != nil;
+}
+- (NSRange)markedRange {
+    NSUInteger at;
+    if (![self hasMarkedText]) return NSMakeRange(NSNotFound, 0);
+    [self ravenDocument:&at];
+    return NSMakeRange(at, [ravenMarked length]);
+}
+- (NSRange)selectedRange {
+    Rid core = [self ravenCore];
+    const char* text = core != R_INVALID_ID ? Rwindow_get_text_input_text(core) : NULL;
+    int start = 0, end = 0;
+    NSUInteger at;
+    if ([self hasMarkedText]) {
+        [self ravenDocument:&at];
+        return NSMakeRange(at + ravenMarkedSelection.location, ravenMarkedSelection.length);
+    }
+    if (!text || !Rwindow_get_text_input_selection(core, &start, &end)) return NSMakeRange(0, 0);
+    if (start > end) { int swap = start; start = end; end = swap; }
+    return NSMakeRange(rvn_cocoa_units(text, start), rvn_cocoa_units(text, end) - rvn_cocoa_units(text, start));
+}
+- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {
+    NSString* marked = [string isKindOfClass:[NSAttributedString class]] ? [string string] : (NSString*)string;
+    (void)replacementRange;
+    /* (text inserted earlier in this key goes first: a Korean syllable is committed as the next one starts) */
+    if (ravenInKey) { ravenKeyComposed = YES; [self ravenFlushKeyText:0]; }
+    [self ravenSetMarked:marked selection:selectedRange send:YES];
+}
+- (void)unmarkText {
+    /* the marked text is accepted as it is */
+    NSString* marked = [[ravenMarked retain] autorelease];
+    if (!marked) return;
+    if (ravenInKey) ravenKeyComposed = YES;
+    [self ravenSetMarked:nil selection:NSMakeRange(0, 0) send:NO];
+    rvn_cocoa_emit_committed(ravenWindow, marked);
+}
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {
+    NSString* text = [string isKindOfClass:[NSAttributedString class]] ? [string string] : (NSString*)string;
+    BOOL was = ravenMarked != nil;
+    (void)replacementRange;
+    /* the committed text takes the place of the marked text (RVN_PEVENT_TEXT ends the composition in the core) */
+    [self ravenSetMarked:nil selection:NSMakeRange(0, 0) send:NO];
+    if (ravenInKey && !was && !ravenKeyComposed) {
+        /* typed without composing: sent after the key, as the key's text */
+        [ravenKeyText appendString:text ? text : @""];
+        return;
+    }
+    if (ravenInKey) ravenKeyComposed = YES;
+    if (was && (!text || [text length] == 0) && ravenWindow) {
+        rvn_pevent_t e; memset(&e, 0, sizeof(e)); e.type = RVN_PEVENT_COMPOSITION; rvn_cocoa_emit(ravenWindow, &e);
+        return;
+    }
+    rvn_cocoa_emit_committed(ravenWindow, text);
+}
+/* The keys the input method gives back (arrows, Return, Backspace...) are sent as keys by keyDown. */
+- (void)doCommandBySelector:(SEL)selector { (void)selector; }
+- (NSArray<NSAttributedStringKey>*)validAttributesForMarkedText {
+    return [NSArray arrayWithObjects:NSUnderlineStyleAttributeName, nil];
+}
+- (NSAttributedString*)attributedSubstringForProposedRange:(NSRange)range actualRange:(NSRangePointer)actualRange {
+    NSUInteger at;
+    NSString* document = [self ravenDocument:&at];
+    NSRange found = NSIntersectionRange(range, NSMakeRange(0, [document length]));
+    if (range.location == NSNotFound || range.location > [document length]) return nil;
+    if (actualRange) *actualRange = found;
+    return [[[NSAttributedString alloc] initWithString:[document substringWithRange:found]] autorelease];
+}
+/*
+ * Where the candidate window goes: the caret of the field, as the core
+ * painted it (Rwindow_get_text_input_rect, in the composition while there is
+ * one), in screen coordinates.
+ */
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(NSRangePointer)actualRange {
+    Rid core = [self ravenCore];
+    int x = 0, y = 0, width = 0, height = 0;
+    CGFloat scale = rvn_cocoa_scale(ravenWindow);
+    NSRect rect;
+    if (actualRange) *actualRange = range;
+    if (core == R_INVALID_ID || !Rwindow_get_text_input_rect(core, &x, &y, &width, &height)) {
+        rect = NSMakeRect(0, 0, 0, 0);
+    } else {
+        rect = NSMakeRect(x / scale, y / scale, (width > 0 ? width : 1) / scale, height / scale);
+    }
+    rect = [self convertRect:rect toView:nil];
+    return [self window] ? [[self window] convertRectToScreen:rect] : rect;
+}
+- (NSUInteger)characterIndexForPoint:(NSPoint)point { (void)point; return NSNotFound; }
 - (NSDragOperation)rvnDrag:(id<NSDraggingInfo>)sender leaving:(int)leaving {
     NSPoint p = [self convertPoint:[sender draggingLocation] fromView:nil];
     float scale = rvn_cocoa_scale(ravenWindow);
@@ -983,6 +1218,7 @@ static void rvn_cocoa_window_destroy(rvn_pwindow_t* window) {
     if (window->handle) { [window->handle setDelegate:nil]; [window->handle close]; [window->handle release]; }
     if (window->delegate) [window->delegate release];
     if (window->view) {
+        ((RavenCocoaView*)window->view)->ravenWindow = NULL;
         if (window->is_child) [window->view removeFromSuperview];
         [window->view release];
     }
@@ -1152,7 +1388,7 @@ static void rvn_cocoa_window_set_cursor(rvn_pwindow_t* window, RCursor cursor) {
 static void rvn_cocoa_window_get_native(rvn_pwindow_t* window, RNativeWindow* native) {
     memset(native, 0, sizeof(*native)); native->system = R_WINDOW_SYSTEM_COCOA;
     native->display = (void*)window->handle;
-    /* VK_EXT_metal_surface requires CAMetalLayer*, not NSWindow*. */
+    /* the renderer draws into the CAMetalLayer (the Metal backend, or Vulkan's VK_EXT_metal_surface), not the NSWindow* */
     native->window = (uintptr_t)[window->view layer];
     native->transparent = window->transparent;
 }
@@ -1335,6 +1571,7 @@ static NSRect rvn_cocoa_a11y_screen_rect(rvn_pwindow_t* window, const rvn_a11y_n
 }
 
 static NSAccessibilityRole rvn_cocoa_a11y_role(const rvn_a11y_node_t* node) {
+    if (node->states & RVN_A11Y_TABLE_ROW) return NSAccessibilityRowRole;
     switch (node->role) {
         case R_ROLE_WINDOW: return NSAccessibilityWindowRole;
         case R_ROLE_TEXT: case R_ROLE_HEADING: case R_ROLE_ALERT: return NSAccessibilityStaticTextRole;
@@ -1429,6 +1666,27 @@ static NSArray* rvn_cocoa_a11y_children(rvn_pwindow_t* window, rvn_a11y_id_t nod
     return rvn_cocoa_a11y_object(ravenWindow, parent);
 }
 - (NSArray*)accessibilityChildren { return rvn_cocoa_a11y_children(ravenWindow, nodeId); }
+- (NSArray*)accessibilityRows {
+    rvn_a11y_node_t node;
+    return rvn_a11y_describe(nodeId, &node) && node.role == R_ROLE_TABLE ? [self accessibilityChildren] : nil;
+}
+- (NSArray*)accessibilitySelectedRows {
+    int i, count = rvn_a11y_selection_count(nodeId);
+    NSMutableArray* rows = [NSMutableArray arrayWithCapacity:(NSUInteger)count];
+    for (i = 0; i < count; i++) {
+        id row = rvn_cocoa_a11y_object(ravenWindow, rvn_a11y_selection_at(nodeId, i));
+        if (row) [rows addObject:row];
+    }
+    return rows;
+}
+- (void)setAccessibilitySelectedRows:(NSArray*)rows {
+    if (!rvn_a11y_act(nodeId, RVN_A11Y_CLEAR_SELECTION)) return;
+    for (id row in rows) {
+        if (![row isKindOfClass:[RavenAccessibilityElement class]]) continue;
+        rvn_a11y_id_t item = ((RavenAccessibilityElement*)row)->nodeId;
+        if (rvn_a11y_parent(item) == nodeId) rvn_a11y_act(item, RVN_A11Y_ADD_SELECTION);
+    }
+}
 - (id)accessibilityWindow { return ravenWindow ? ravenWindow->handle : nil; }
 - (id)accessibilityTopLevelUIElement { return ravenWindow ? ravenWindow->handle : nil; }
 - (BOOL)isAccessibilityFocused {
@@ -1443,6 +1701,9 @@ static NSArray* rvn_cocoa_a11y_children(rvn_pwindow_t* window, rvn_a11y_id_t nod
 - (BOOL)isAccessibilitySelected {
     rvn_a11y_node_t node;
     return rvn_a11y_describe(nodeId, &node) && (node.states & RVN_A11Y_SELECTED) ? YES : NO;
+}
+- (void)setAccessibilitySelected:(BOOL)selected {
+    rvn_a11y_act(nodeId, selected ? RVN_A11Y_ADD_SELECTION : RVN_A11Y_REMOVE_SELECTION);
 }
 - (BOOL)isAccessibilityExpanded {
     rvn_a11y_node_t node;
@@ -1468,6 +1729,7 @@ static NSArray* rvn_cocoa_a11y_children(rvn_pwindow_t* window, rvn_a11y_id_t nod
     rvn_a11y_node_t node;
     if (!rvn_a11y_describe(nodeId, &node)) return NO;
     if (selector == @selector(accessibilityPerformPress)) return (node.states & (RVN_A11Y_INVOKABLE | RVN_A11Y_CHECKABLE)) ? YES : NO;
+    if (selector == @selector(setAccessibilitySelectedRows:)) return node.role == R_ROLE_TABLE ? YES : NO;
     if (selector == @selector(accessibilityPerformIncrement) || selector == @selector(accessibilityPerformDecrement))
         return (node.states & RVN_A11Y_HAS_RANGE) && !(node.states & RVN_A11Y_READONLY) ? YES : NO;
     if (selector == @selector(setAccessibilityValue:)) return (node.states & (RVN_A11Y_EDITABLE | RVN_A11Y_HAS_RANGE)) ? YES : NO;
@@ -1547,6 +1809,13 @@ static void rvn_cocoa_a11y_event(rvn_pwindow_t* window, int event, uint64_t node
             break;
         case RVN_A11Y_EVENT_VALUE:
         case RVN_A11Y_EVENT_STATE:
+            {
+                rvn_a11y_node_t info;
+                if (rvn_a11y_describe(node, &info) && info.role == R_ROLE_TABLE) {
+                    NSAccessibilityPostNotification(object, NSAccessibilitySelectedRowsChangedNotification);
+                    break;
+                }
+            }
             NSAccessibilityPostNotification(object, NSAccessibilityValueChangedNotification);
             break;
         case RVN_A11Y_EVENT_NAME:
@@ -1599,24 +1868,95 @@ static int rvn_cocoa_accent_color(float rgb[3]) {
 }
 
 /*
- * A notification of the Notification Center. NSUserNotification still works
- * where UNUserNotificationCenter needs a signed bundle and a permission
- * asked beforehand; outside of an application bundle the center drops what
- * it is given, so that case reports R_FALSE (the fallback of the application then runs).
+ * A notification of the Notification Center (UserNotifications). The center
+ * works only for an application bundle: outside of one there is no center, so
+ * that case reports R_FALSE (the fallback of the application then runs).
+ *
+ * The first notification asks the user for the permission; the request is
+ * added once the answer is known (the system remembers it, later asks answer
+ * at once). When the user said no, the notifications go to the fallback: the
+ * one being asked about from its completion, the later ones by returning R_FALSE.
+ *
+ * Raven is the delegate of the center unless the application set one: its
+ * notifications then show while the application is in front too, as banners,
+ * and a click calls the callback of Rnotification_set_clicked_callback.
  */
+@interface RavenNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
+@end
+
+@implementation RavenNotificationDelegate
+
+- (void)userNotificationCenter:(UNUserNotificationCenter*)center
+       willPresentNotification:(UNNotification*)notification
+         withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
+    (void)center;
+    (void)notification;
+    completionHandler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionList |
+        UNNotificationPresentationOptionSound);
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter*)center
+    didReceiveNotificationResponse:(UNNotificationResponse*)response
+             withCompletionHandler:(void (^)(void))completionHandler {
+    (void)center;
+    if ([[response actionIdentifier] isEqualToString:UNNotificationDefaultActionIdentifier]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            rvn_notification_clicked();
+        });
+    }
+    completionHandler();
+}
+
+@end
+
+/* the answer of the user: 0 not known yet, 1 allowed, -1 refused */
+static volatile int g_rvn_notify_allowed = 0;
+static RavenNotificationDelegate* g_rvn_notify_delegate = nil;
+static unsigned long g_rvn_notify_serial = 0;
+
 static int rvn_cocoa_notify(const char* app, const char* title, const char* body, int urgency) {
     @autoreleasepool {
-        NSUserNotification* notification;
+        UNUserNotificationCenter* center;
+        UNMutableNotificationContent* content;
+        UNNotificationRequest* request;
+        NSString* identifier;
+        NSString* fallback_title;
+        NSString* fallback_body;
+        int fallback_urgency = urgency;
+
         if (![[NSBundle mainBundle] bundleIdentifier]) return R_FALSE;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        notification = [[NSUserNotification alloc] init];
-        [notification setTitle:[NSString stringWithUTF8String:(*title ? title : app)]];
-        [notification setInformativeText:[NSString stringWithUTF8String:body]];
-        if (urgency > 0) [notification setSoundName:NSUserNotificationDefaultSoundName];
-        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
-        [notification release];
-#pragma clang diagnostic pop
+        if (__atomic_load_n(&g_rvn_notify_allowed, __ATOMIC_ACQUIRE) < 0) return R_FALSE;
+        center = [UNUserNotificationCenter currentNotificationCenter];
+        if (!center) return R_FALSE;
+        if (!g_rvn_notify_delegate && ![center delegate]) {
+            g_rvn_notify_delegate = [[RavenNotificationDelegate alloc] init];
+            [center setDelegate:g_rvn_notify_delegate];
+        }
+
+        content = [[[UNMutableNotificationContent alloc] init] autorelease];
+        [content setTitle:[NSString stringWithUTF8String:(*title ? title : app)]];
+        [content setBody:[NSString stringWithUTF8String:body]];
+        if (urgency > 0) [content setSound:[UNNotificationSound defaultSound]];
+        identifier = [NSString stringWithFormat:@"raven.%lu", ++g_rvn_notify_serial];
+        request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:nil];
+        fallback_title = [NSString stringWithUTF8String:title];
+        fallback_body = [NSString stringWithUTF8String:body];
+
+        /* (blocks copied by the center retain what they use) */
+        [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+                              completionHandler:^(BOOL granted, NSError* error) {
+            __atomic_store_n(&g_rvn_notify_allowed, granted ? 1 : -1, __ATOMIC_RELEASE);
+            if (granted) {
+                [center addNotificationRequest:request withCompletionHandler:nil];
+            } else {
+                /* (an error rather than a no of the user: the bundle is not allowed notifications, for one) */
+                NSString* reason = error ? [error localizedDescription] : nil;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    rvn_notification_fallback([fallback_title UTF8String], [fallback_body UTF8String], fallback_urgency,
+                        reason ? [reason UTF8String] : NULL);
+                });
+            }
+        }];
         return R_TRUE;
     }
 }

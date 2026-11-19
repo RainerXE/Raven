@@ -98,7 +98,43 @@ typedef enum rvn_pevent_type_t {
 	/** The safe area of the window changed (rotation, status bar): the core asks window_get_safe_area again. */
 	RVN_PEVENT_INSETS,
 	/** The system switched between dark and light: the core asks system_dark again. `user` may be NULL. */
-	RVN_PEVENT_APPEARANCE
+	RVN_PEVENT_APPEARANCE,
+	/**
+	 * The application changed state (mobile): `app_event` is an RAppEvent.
+	 * `user` may be NULL. On R_APP_DID_PAUSE the core stops drawing and waits
+	 * until the GPU is idle before the handler returns: the platform sends it
+	 * while the system still lets the application use the GPU.
+	 */
+	RVN_PEVENT_APP,
+	/**
+	 * The native surface of the window is going away (Android: the activity's
+	 * ANativeWindow is destroyed). Before the handler returns, the core has
+	 * destroyed the surface and swapchain of the renderer and the GPU no
+	 * longer uses them: the platform may then let the system destroy the
+	 * native surface. The window and its widgets stay; nothing is drawn until
+	 * RVN_PEVENT_SURFACE_READY.
+	 */
+	RVN_PEVENT_SURFACE_LOST,
+	/** The window has a native surface again (maybe another one): the core asks window_get_native and makes the renderer's surface again. */
+	RVN_PEVENT_SURFACE_READY,
+	/**
+	 * The Back of the system (Android: back button, back gesture). The core
+	 * closes the top popup or dialog, else asks the back callback of the
+	 * window, and answers through `accepted` whether something took it. When
+	 * nothing did, the platform lets the system do its default (leave the
+	 * application). See Rwindow_wants_back for predictive back.
+	 */
+	RVN_PEVENT_BACK,
+	/**
+	 * The input method composes text (preedit): `composition` (UTF-8, valid
+	 * during the call; NULL or "" ends the composition without typing
+	 * anything) with its selection composition_start / composition_end
+	 * (bytes; equal: the caret). The committed text then comes as
+	 * RVN_PEVENT_TEXT, which ends the composition too. While it composes, the
+	 * platform sends the keys the input method takes neither as
+	 * RVN_PEVENT_KEY nor as RVN_PEVENT_TEXT.
+	 */
+	RVN_PEVENT_COMPOSITION
 } rvn_pevent_type_t;
 
 /**
@@ -194,6 +230,11 @@ typedef struct rvn_pevent_t {
 	/** RVN_PEVENT_MOUSE_WHEEL: from a trackpad (fractions of lines); the fingers left it, inertia to be made by the core. */
 	int wheel_precise;
 	int wheel_stop;
+	/** RVN_PEVENT_APP: an RAppEvent. */
+	int app_event;
+	/** RVN_PEVENT_COMPOSITION: the text being composed and its selection (bytes). */
+	const char* composition;
+	int composition_start, composition_end;
 } rvn_pevent_t;
 
 typedef void (*rvn_pevent_handler_t)(const rvn_pevent_t* event);
@@ -409,6 +450,12 @@ typedef struct rvn_platform_t {
 	void  (*a11y_announce)(rvn_pwindow_t* window, const char* text, int assertive);
 	/** R_TRUE when a screen reader (or another assistive program) is listening. */
 	int   (*a11y_active)(void);
+	/**
+	 * R_TRUE: the screen reader reads a copy of the tree the platform keeps
+	 * (on another thread: Android), so a11y_event(RVN_A11Y_EVENT_STRUCTURE)
+	 * comes after every frame and the platform compares the copy itself.
+	 */
+	int   a11y_every_frame;
 	/** What the user asked the system for: text size, contrast, motion. */
 	void  (*a11y_settings)(struct RAccessibilitySettings* settings);
 	/** The accent color the user chose for the system (0..1); R_FALSE when it does not tell. NULL: none (widget/look.c reads Windows and GNOME itself). */
@@ -459,6 +506,14 @@ typedef struct rvn_platform_t {
 	 * typed as RVN_PEVENT_TEXT and RVN_PEVENT_KEY (Backspace, Enter).
 	 */
 	float (*window_get_keyboard_height)(rvn_pwindow_t* window);
+	/**
+	 * Whether the window takes the Back of the system now (Rwindow_wants_back:
+	 * a popup or dialog is open, or the application has somewhere to go back
+	 * to). Called after a frame when it changed. A system with predictive back
+	 * (Android 13+) is asked for Back only while it is R_TRUE; otherwise the
+	 * system handles Back itself (and animates back to the home screen).
+	 */
+	void  (*window_set_back_wanted)(rvn_pwindow_t* window, int wanted);
 } rvn_platform_t;
 
 #if defined(RAVEN_PLATFORM_EMSCRIPTEN)
@@ -467,6 +522,10 @@ const rvn_platform_t* rvn_platform_emscripten(void);
 
 /** The user clicked a notification of Rnotification_show: the platform tells the core (notify.c), on the UI thread. */
 void rvn_notification_clicked(void);
+/** The fallback of Rnotification_show for a notification the platform took but could not show
+ * (macOS: the user refused the permission it asked for); `urgency` as given to rvn_platform_t::notify,
+ * `reason` (or NULL) what the system said, reported as a warning. */
+void rvn_notification_fallback(const char* title, const char* body, int urgency, const char* reason);
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 /** org.freedesktop.Notifications, for X11 and Wayland (platform/notify.c). */
@@ -529,6 +588,8 @@ const rvn_platform_t* rvn_platform_uikit_sokol(void);
 #endif
 #if defined(RAVEN_PLATFORM_ANDROID)
 const rvn_platform_t* rvn_platform_android(void);
+/** The JavaVM of the activity (a JavaVM*), NULL before Randroid_set_app: for the parts of Raven outside the platform that call Java (render/font_system.c). */
+void* rvn_android_java_vm(void);
 #endif
 
 #endif /* RVN_PLATFORM_H */

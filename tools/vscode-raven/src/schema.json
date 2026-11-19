@@ -689,6 +689,11 @@
 			"description": "Fingers are ignored while a pen is near the screen (default true)."
 		},
 		{
+			"name": "Touch.MinSize",
+			"kind": "number",
+			"description": "Smallest height of what a finger presses: controls and rows are at least this high, check boxes and slider handles half of it; 0 leaves the sizes of the theme (default 44 on iOS, 48 on Android, 0 elsewhere)."
+		},
+		{
 			"name": "Pen.MouseEmulation",
 			"kind": "bool",
 			"description": "The pen drives the widgets as the mouse does; its barrel button is the right button (default true)."
@@ -1099,6 +1104,53 @@
 			]
 		},
 		{
+			"name": "Carousel",
+			"description": "Its children as pages shown one at a time, swiped, with dots and arrows.",
+			"children": "many",
+			"attributes": [
+				{
+					"name": "Page",
+					"kind": "number",
+					"description": "Which page is shown, from 0."
+				},
+				{
+					"name": "Loop",
+					"kind": "bool",
+					"description": "After the last page comes the first one, and before the first the last."
+				},
+				{
+					"name": "Autoplay",
+					"kind": "number",
+					"description": "Seconds between the pages turned by themselves; 0 (default) never. It waits while the pointer is on it."
+				},
+				{
+					"name": "Indicators",
+					"kind": "bool",
+					"description": "The dots of the pages along the bottom edge (default true)."
+				},
+				{
+					"name": "Arrows",
+					"kind": "bool",
+					"description": "The previous / next buttons shown under the pointer (default true)."
+				},
+				{
+					"name": "Orientation",
+					"kind": "choice",
+					"choices": [
+						"Horizontal",
+						"Vertical"
+					],
+					"description": "Pages side by side (default) or one above the other."
+				},
+				{
+					"name": "OnChanged",
+					"kind": "action",
+					"description": "Action fired when the user or the autoplay goes to another page."
+				}
+			],
+			"accepted": []
+		},
+		{
 			"name": "Expander",
 			"description": "A header that shows and hides one child.",
 			"children": "single",
@@ -1370,6 +1422,33 @@
 					"description": "Most characters accepted; 0 for no limit."
 				},
 				{
+					"name": "InputType",
+					"kind": "choice",
+					"choices": [
+						"Text",
+						"Email",
+						"Number",
+						"Decimal",
+						"Phone",
+						"Url",
+						"Search"
+					],
+					"description": "What it holds: picks the on-screen keyboard on mobile."
+				},
+				{
+					"name": "ReturnKey",
+					"kind": "choice",
+					"choices": [
+						"Default",
+						"Done",
+						"Go",
+						"Next",
+						"Search",
+						"Send"
+					],
+					"description": "The return key of the on-screen keyboard."
+				},
+				{
 					"name": "OnChanged",
 					"kind": "action",
 					"description": "Action fired at each change."
@@ -1418,7 +1497,9 @@
 					"description": "Action fired when the value changes."
 				}
 			],
-			"accepted": []
+			"accepted": [
+				"Buttons"
+			]
 		},
 		{
 			"name": "ComboBox",
@@ -1894,6 +1975,15 @@
 			"description": "Panels the user arranges by dragging their tabs.",
 			"children": "many",
 			"attributes": [
+				{
+					"name": "FloatMode",
+					"kind": "choice",
+					"choices": [
+						"Window",
+						"InWindow"
+					],
+					"description": "Future floats use an OS window or a card inside the containing window."
+				},
 				{
 					"name": "Movable",
 					"kind": "bool",
@@ -2480,6 +2570,63 @@
 			"accepted": []
 		},
 		{
+			"name": "MapView",
+			"description": "A map of slippy-map tiles (Web Mercator z/x/y) given by the application or read from files: dragged, zoomed, with Marker elements (Latitude, Longitude, Label, Color).",
+			"children": "none",
+			"attributes": [
+				{
+					"name": "Latitude",
+					"kind": "number",
+					"description": "Latitude of the center, in degrees (held within +/-85.0511)."
+				},
+				{
+					"name": "Longitude",
+					"kind": "number",
+					"description": "Longitude of the center, in degrees."
+				},
+				{
+					"name": "Zoom",
+					"kind": "number",
+					"description": "The zoom: 0 shows the whole world in one tile, each step doubles the scale."
+				},
+				{
+					"name": "MinZoom",
+					"kind": "number",
+					"description": "The smallest zoom the user can reach (default 0)."
+				},
+				{
+					"name": "MaxZoom",
+					"kind": "number",
+					"description": "The largest zoom the user can reach, and of the tiles asked for (default 19, at most 24)."
+				},
+				{
+					"name": "TilePath",
+					"kind": "text",
+					"description": "Reads the tiles from files: a path with {z}, {x} and {y} ({-y}: the row counted from the south, TMS)."
+				},
+				{
+					"name": "TileSize",
+					"kind": "number",
+					"description": "Logical size of a tile at a whole zoom (default 256, held within 16 .. 1024)."
+				},
+				{
+					"name": "Attribution",
+					"kind": "text",
+					"description": "The credit of the tiles, written in the bottom right corner."
+				},
+				{
+					"name": "OnChanged",
+					"kind": "action",
+					"description": "Action fired when the user moves or zooms the map."
+				}
+			],
+			"accepted": [
+				"Lat",
+				"Lon",
+				"Lng"
+			]
+		},
+		{
 			"name": "PdfView",
 			"description": "The pages of a PDF document, scrolled and zoomed (drawn by PDFium, loaded at run time).",
 			"children": "none",
@@ -2521,6 +2668,123 @@
 				}
 			],
 			"accepted": []
+		},
+		{
+			"name": "Chart",
+			"description": "The charts of dashboards: a pie or a donut of Slice elements (Label, Value, Color), a gauge with Band elements (From, To, Color), a heatmap of Row elements (Label, Values), a sparkline of Values.",
+			"children": "none",
+			"attributes": [
+				{
+					"name": "Kind",
+					"kind": "choice",
+					"choices": [
+						"Pie",
+						"Donut",
+						"Gauge",
+						"Heatmap",
+						"Sparkline"
+					],
+					"description": "What the chart draws."
+				},
+				{
+					"name": "Title",
+					"kind": "text",
+					"description": "The title over a pie, a donut or a heatmap, under the value of a gauge."
+				},
+				{
+					"name": "Format",
+					"kind": "text",
+					"description": "A printf format for the values, with their unit: \"%.0f%%\", \"$%.2f\"."
+				},
+				{
+					"name": "Color",
+					"kind": "color",
+					"description": "The arc of a gauge outside the bands, the line of a sparkline (default: the accent)."
+				},
+				{
+					"name": "Legend",
+					"kind": "bool",
+					"description": "The slices beside a pie or a donut, the scale under a heatmap."
+				},
+				{
+					"name": "Hole",
+					"kind": "number",
+					"description": "The hole of a donut, as a part of its radius (0.2 to 0.9)."
+				},
+				{
+					"name": "CenterText",
+					"kind": "text",
+					"description": "What the middle of a donut shows (default: the total)."
+				},
+				{
+					"name": "CenterCaption",
+					"kind": "text",
+					"description": "A small text under it."
+				},
+				{
+					"name": "Selected",
+					"kind": "number",
+					"description": "The slice lifted as selected, from 0 (-1: none)."
+				},
+				{
+					"name": "Min",
+					"kind": "number",
+					"description": "The lowest value of a gauge (default 0); a fixed lowest value for a heatmap or a sparkline."
+				},
+				{
+					"name": "Max",
+					"kind": "number",
+					"description": "The highest value of a gauge (default 100); a fixed highest value for a heatmap or a sparkline."
+				},
+				{
+					"name": "Value",
+					"kind": "number",
+					"description": "The value of a gauge."
+				},
+				{
+					"name": "Values",
+					"kind": "numbers",
+					"description": "The values of a sparkline."
+				},
+				{
+					"name": "Fill",
+					"kind": "bool",
+					"description": "Shades the area under the line of a sparkline."
+				},
+				{
+					"name": "Marker",
+					"kind": "bool",
+					"description": "A dot on the last value of a sparkline."
+				},
+				{
+					"name": "RowLabels",
+					"kind": "list",
+					"description": "The names of the rows of a heatmap, separated by '|' (or the Label of its Row elements)."
+				},
+				{
+					"name": "ColumnLabels",
+					"kind": "list",
+					"description": "The names of the columns of a heatmap, separated by '|'."
+				},
+				{
+					"name": "LowColor",
+					"kind": "color",
+					"description": "The color of the lowest values of a heatmap."
+				},
+				{
+					"name": "HighColor",
+					"kind": "color",
+					"description": "The color of the highest values of a heatmap."
+				},
+				{
+					"name": "OnClicked",
+					"kind": "action",
+					"description": "Action fired when the user clicks a slice or a cell."
+				}
+			],
+			"accepted": [
+				"Type"
+			]
 		},
 		{
 			"name": "Plot",
@@ -2831,10 +3095,13 @@
 		"DataGrid": "Table",
 		"TableView": "Table",
 		"Snackbar": "Toast",
-		"Chart": "Plot",
 		"LinePlot": "Plot",
 		"XYPlot": "Plot",
 		"PdfViewer": "PdfView",
-		"PDFView": "PdfView"
+		"PDFView": "PdfView",
+		"Map": "MapView",
+		"TileMap": "MapView",
+		"PageView": "Carousel",
+		"Slideshow": "Carousel"
 	}
 }

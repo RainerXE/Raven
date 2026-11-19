@@ -91,6 +91,13 @@ static const RBackendVTable* rvn_select_backend(RBackend backend) {
 			rvn_error(R_ERROR_BACKEND, R_SEVERITY_FATAL, "Raven was built without the WebGL backend");
 			return NULL;
 #endif
+		case R_BACKEND_METAL:
+#if defined(RAVEN_BACKEND_METAL_ENABLED)
+			return rvn_backend_metal();
+#else
+			rvn_error(R_ERROR_BACKEND, R_SEVERITY_FATAL, "Raven was built without the Metal backend");
+			return NULL;
+#endif
 		case R_BACKEND_SOKOL:
 #if defined(RAVEN_BACKEND_SOKOL_ENABLED)
 			return rvn_backend_sokol();
@@ -100,6 +107,9 @@ static const RBackendVTable* rvn_select_backend(RBackend backend) {
 #endif
 		case R_BACKEND_NULL:
 			return rvn_backend_null();
+		case R_BACKEND_DEFAULT:
+			/* (resolved by Rinit_ex before) */
+			break;
 		case R_BACKEND_CUSTOM:
 			if (!g_custom_backend_set) {
 				rvn_error(R_ERROR_BACKEND, R_SEVERITY_FATAL, "R_BACKEND_CUSTOM needs Rbackend_register first");
@@ -116,14 +126,19 @@ static RBackend rvn_default_backend(void) {
 	const char* name = getenv("RAVEN_BACKEND");
 	if (name && *name) {
 		if (strcmp(name, "vulkan") == 0) return R_BACKEND_VULKAN;
+		if (strcmp(name, "metal") == 0) return R_BACKEND_METAL;
 		if (strcmp(name, "sokol") == 0) return R_BACKEND_SOKOL;
 		if (strcmp(name, "webgl") == 0) return R_BACKEND_WEBGL;
 		if (strcmp(name, "null") == 0) return R_BACKEND_NULL;
-		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_WARNING, "RAVEN_BACKEND=%s: expected vulkan, sokol, webgl or null; using the default", name);
+		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_WARNING, "RAVEN_BACKEND=%s: expected vulkan, metal, sokol, webgl or null; using the default", name);
 	}
 #if defined(RAVEN_BACKEND_WEBGL_ENABLED)
 	return R_BACKEND_WEBGL;
-#elif !defined(RAVEN_BACKEND_VULKAN_ENABLED) && defined(RAVEN_BACKEND_SOKOL_ENABLED)
+#elif defined(RAVEN_BACKEND_METAL_ENABLED)
+	return R_BACKEND_METAL;
+#elif defined(RAVEN_BACKEND_VULKAN_ENABLED)
+	return R_BACKEND_VULKAN;
+#elif defined(RAVEN_BACKEND_SOKOL_ENABLED)
 	return R_BACKEND_SOKOL;
 #else
 	return R_BACKEND_VULKAN;
@@ -153,7 +168,7 @@ int Rinit_ex(const RInitDesc* user_desc) {
 	}
 	memset(&desc, 0, sizeof(desc));
 	if (user_desc) desc = *user_desc;
-	if (desc.backend == 0) desc.backend = rvn_default_backend();
+	if (desc.backend == R_BACKEND_DEFAULT) desc.backend = rvn_default_backend();
 #if defined(__EMSCRIPTEN__)
 	/* DOM and WebGL contexts belong to the browser main thread. */
 	desc.disable_render_thread = R_TRUE;
@@ -288,6 +303,8 @@ void Rshutdown(void) {
 		}
 	}
 
+	/* (the scripts before the XML: their actions are unbound, their memory goes) */
+	rvn_script_shutdown();
 	rvn_xml_shutdown();
 	rvn_taskbar_shutdown();
 	rvn_tray_shutdown();
@@ -379,7 +396,7 @@ void rvn_tasks_run(void) {
 	rvn_free(tasks);
 }
 
-static int rvn_tasks_pending(void) {
+int rvn_tasks_pending(void) {
 	int pending;
 	rvn_mutex_lock(&g_rvn.task_mutex);
 	pending = g_rvn.task_count > 0;
@@ -553,6 +570,14 @@ void Raction_fire(const char* name, Rid sender) {
 	rvn_free(copy);
 }
 
+int rvn_action_lookup(const char* name, RActionCallback* callback, void** user_data) {
+	rvn_action_t* action = name ? rvn_action_find(name) : NULL;
+	if (!action) return R_FALSE;
+	if (callback) *callback = action->callback;
+	if (user_data) *user_data = action->user_data;
+	return R_TRUE;
+}
+
 void Raction_set_default_handler(RActionCallback callback, void* user_data) {
 	RVN_API_GUARD_VOID();
 	g_rvn.default_action = callback;
@@ -648,6 +673,60 @@ double Rget_time(void) {
 	return g_rvn.initialized ? rvn_clock_seconds() - g_rvn.start_time : 0.0;
 }
 
+/* ---------------------------------------------------------------------------
+ *  Application lifecycle
+ * ------------------------------------------------------------------------- */
+
+void rvn_app_event(RAppEvent event) {
+	switch (event) {
+		case R_APP_DID_PAUSE:
+			/* nothing is drawn from now on (rvn_window_can_paint); what is queued is finished before the system takes the GPU away */
+			g_rvn.app_paused = R_TRUE;
+			rvn_renderer_wait_idle();
+			break;
+		case R_APP_WILL_RESUME:
+		case R_APP_DID_RESUME:
+			/* (DID_RESUME alone too: a platform may miss the first) */
+			if (g_rvn.app_paused) {
+				g_rvn.app_paused = R_FALSE;
+				rvn_repaint_all_windows();
+				rvn_wake();
+			}
+			break;
+		default:
+			break;
+	}
+	if (g_rvn.app_event_callback) {
+		rvn_dispatch_begin();
+		g_rvn.app_event_callback(event, g_rvn.app_event_user);
+		rvn_dispatch_end();
+	}
+	if (event == R_APP_LOW_MEMORY) {
+		/* after the application freed its own: Raven's caches that are made again on use, then the empty pages of the heap */
+		rvn_renderer_trim();
+		Rmemory_trim();
+	}
+}
+
+void Rset_app_event_callback(RAppEventCallback callback, void* user_data) {
+	RVN_API_GUARD_VOID();
+	g_rvn.app_event_callback = callback;
+	g_rvn.app_event_user = user_data;
+}
+
+int Ris_app_paused(void) {
+	return g_rvn.initialized && g_rvn.app_paused ? R_TRUE : R_FALSE;
+}
+
+void Rinject_app_event(RAppEvent event) {
+	RVN_API_GUARD_VOID();
+	if ((int)event < (int)R_APP_WILL_PAUSE || (int)event > (int)R_APP_WILL_TERMINATE) {
+		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_ERROR, "Rinject_app_event: %d is not an RAppEvent", (int)event);
+		return;
+	}
+	rvn_app_event(event);
+}
+
 void Rpoll_events(void) {
 	RVN_API_GUARD_VOID();
 	g_rvn.platform->pump(0.0);
@@ -711,8 +790,8 @@ void rvn_update(void) {
 }
 
 int rvn_frame_pacing(void) {
-	/* (only the Vulkan backend presents to the window: a frame of the null backend would never be answered) */
-	return g_rvn.backend == R_BACKEND_VULKAN && g_rvn.platform &&
+	/* (only the Vulkan and Metal backends present to the window: a frame of the null backend would never be answered) */
+	return (g_rvn.backend == R_BACKEND_VULKAN || g_rvn.backend == R_BACKEND_METAL) && g_rvn.platform &&
 		g_rvn.platform->window_frame_wait && g_rvn.platform->window_frame_begin;
 }
 

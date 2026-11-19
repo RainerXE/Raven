@@ -64,6 +64,11 @@ is a plan, not a promise: issues and pull requests can change the order.
   only; the Win32 and Cocoa platforms are only compiled. Run the headless
   tests on `windows-latest` and `macos-latest`, and the platform tests where
   a display is available.
+- [x] **Tests of interfaces** (`raven_testing.h`): widgets found by name
+  and driven through the input path of the window system (click, double
+  click, drag, wheel, keys, text, tap, swipe), frames until nothing moves,
+  golden PNG images with a tolerance, `.actual.png` / `.diff.png` on a
+  mismatch, `RAVEN_UPDATE_GOLDENS=1` to write them; a PNG writer of its own.
 - [ ] **Win32 event queue.** The queue of events gathered while Windows runs
   its modal loops (moving, resizing) has a fixed size; make it grow, and
   test it with injected bursts.
@@ -96,7 +101,7 @@ is a plan, not a promise: issues and pull requests can change the order.
 - [ ] Date picker: a range of two dates; a time zone aware time picker; a
   12-hour clock where the locale uses one.
 - [ ] Notifications: actions (buttons), a click that brings the window
-  back, replacing a notification, an icon; UNUserNotificationCenter on macOS.
+  back, replacing a notification, an icon.
 - [ ] Node graph: knots on links, groups and comments, minimap, undo.
 - [ ] Timeline: nested tracks, curves between keys.
 - [ ] Markdown: images from the network, HTML, footnotes.

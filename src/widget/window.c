@@ -393,6 +393,68 @@ static void rvn_window_refresh_hover(rvn_window_t* window) {
  *  Focus
  * ------------------------------------------------------------------------- */
 
+/* R_TRUE when the focused widget takes text: the on-screen keyboard shows for it. */
+static int rvn_window_focus_takes_text(const rvn_window_t* window) {
+	RWidgetType type;
+	if (!window->focus || (window->focus->flags & RVN_WF_DEAD)) return R_FALSE;
+	type = window->focus->cls->type;
+	return type == R_WIDGET_TEXT_INPUT || type == R_WIDGET_TEXT_EDITOR || type == R_WIDGET_SPIN_BOX;
+}
+
+void rvn_window_reveal_focus(rvn_window_t* window) {
+	if (!window->focus) return;
+	window->reveal_focus = R_TRUE;
+	window->needs_layout = R_TRUE;
+}
+
+/*
+ * After a layout: the focused widget asked to be seen. The content is laid
+ * out above the on-screen keyboard, so what the ScrollBoxes above the
+ * widget show is not under it.
+ * SHORTCUT: the whole widget is revealed, not its caret: the caret of a
+ * TextEditor taller than its ScrollBox may stay out of view.
+ */
+#define RVN_REVEAL_MARGIN 12.0f
+
+static void rvn_window_reveal_focus_now(rvn_window_t* window) {
+	window->reveal_focus = R_FALSE;
+	if (!window->focus || (window->focus->flags & RVN_WF_DEAD) || !rvn_widget_is_shown(window->focus)) return;
+	rvn_widget_reveal(window->focus, RVN_REVEAL_MARGIN);
+}
+
+/*
+ * The text an input method composes (preedit): kept by the window for its
+ * focus, drawn by the text widgets at their caret, underlined, and not in
+ * their text until it is committed (RVN_PEVENT_TEXT, Rwindow_inject_text).
+ * NULL or "" ends it. Only a focus that takes text has one.
+ */
+static void rvn_window_compose(rvn_window_t* window, const char* text, int start, int end) {
+	int length;
+	if (!text || !text[0] || !rvn_window_focus_takes_text(window)) {
+		if (!window->composition) return;
+		rvn_free(window->composition);
+		window->composition = NULL;
+		window->composition_start = window->composition_end = 0;
+		window->needs_paint = R_TRUE;
+		if (window->focus && !(window->focus->flags & RVN_WF_DEAD)) rvn_widget_invalidate_paint(window->focus);
+		return;
+	}
+	length = (int)strlen(text);
+	if (end < 0 || end > length) end = length;
+	if (start < 0 || start > end) start = end;
+	/* (on character boundaries) */
+	while (start > 0 && ((unsigned char)text[start] & 0xC0) == 0x80) start--;
+	while (end > 0 && end < length && ((unsigned char)text[end] & 0xC0) == 0x80) end--;
+	if (start > end) start = end;
+	if (window->composition && strcmp(window->composition, text) == 0 &&
+		window->composition_start == start && window->composition_end == end) return;
+	rvn_str_set(&window->composition, text);
+	window->composition_start = start;
+	window->composition_end = end;
+	window->needs_paint = R_TRUE;
+	rvn_widget_invalidate_paint(window->focus);
+}
+
 void rvn_window_set_focus(rvn_window_t* window, rvn_widget_t* widget) {
 	rvn_widget_t* old = window->focus;
 	REvent event;
@@ -402,6 +464,8 @@ void rvn_window_set_focus(rvn_window_t* window, rvn_widget_t* widget) {
 	window->focus = widget;
 	window->text_input_owner = R_INVALID_ID;
 	window->needs_paint = R_TRUE;
+	/* (a composition belongs to the field it was typed in: the input method is told by the platform) */
+	rvn_window_compose(window, NULL, 0, 0);
 	if (old) {
 		old->flags &= ~RVN_WF_FOCUSED;
 		event = rvn_window_event(window, R_EVENT_FOCUS_LOST);
@@ -415,6 +479,8 @@ void rvn_window_set_focus(rvn_window_t* window, rvn_widget_t* widget) {
 	}
 	/* an island in the camera housing: its overlay takes the keyboard while something in it has the focus */
 	if (!window->dead && window->notch_owner) rvn_window_notch_focus(window);
+	/* the on-screen keyboard is up and stays for another field: that one is shown above it (when the keyboard comes, see rvn_window_update_keyboard) */
+	if (!window->dead && window->keyboard_height > 0.0f && rvn_window_focus_takes_text(window)) rvn_window_reveal_focus(window);
 	rvn_dispatch_end();
 }
 
@@ -462,6 +528,8 @@ static void rvn_window_focus_next(rvn_window_t* window, int direction) {
 	else index = (index + (direction > 0 ? 1u : list.count - 1u)) % list.count;
 	window->focus_visible = R_TRUE;
 	rvn_window_set_focus(window, list.items[index]);
+	/* the keyboard moved the focus: what has it is shown */
+	if (!window->dead && window->focus == list.items[index]) rvn_window_reveal_focus(window);
 	rvn_free(list.items);
 }
 
@@ -660,10 +728,15 @@ static void rvn_window_layout_popup(rvn_window_t* window, rvn_popup_t* popup) {
 
 	switch (popup->placement) {
 		case RVN_POPUP_DIALOG: {
+			/* in the middle of what the content has: inside the safe area, above the on-screen keyboard
+			 * (the veil behind it covers the whole window, rvn_window_paint_dialog) */
+			const float* safe = window->safe_area;
 			float room = RVN_DIALOG_MARGIN + RVN_DIALOG_PADDING;
-			width = rvn_minf(desired.x, rvn_maxf(area.x - room * 2.0f, 40.0f));
-			height = rvn_minf(desired.y, rvn_maxf(area.y - room * 2.0f, 40.0f));
-			rvn_widget_arrange(popup->root, floorf((area.x - width) * 0.5f), floorf((area.y - height) * 0.5f), width, height);
+			float free_w = rvn_maxf(area.x - safe[1] - safe[3], 0.0f);
+			float free_h = rvn_maxf(area.y - safe[0] - rvn_maxf(safe[2], window->keyboard_height), 0.0f);
+			width = rvn_minf(desired.x, rvn_maxf(free_w - room * 2.0f, 40.0f));
+			height = rvn_minf(desired.y, rvn_maxf(free_h - room * 2.0f, 40.0f));
+			rvn_widget_arrange(popup->root, floorf(safe[3] + (free_w - width) * 0.5f), floorf(safe[0] + (free_h - height) * 0.5f), width, height);
 			return;
 		}
 		case RVN_POPUP_BELOW:
@@ -777,6 +850,8 @@ static void rvn_window_update_keyboard(rvn_window_t* window) {
 	window->keyboard_height = height;
 	window->needs_layout = R_TRUE;
 	window->needs_paint = R_TRUE;
+	/* the keyboard came, or changed height (rotation, another layout of keys): the field typed in stays above it */
+	if (height > 0.0f && rvn_window_focus_takes_text(window)) rvn_window_reveal_focus(window);
 	if (window->keyboard_callback) window->keyboard_callback(window->id, height > 0.0f, height, window->keyboard_user);
 }
 
@@ -818,6 +893,7 @@ void rvn_window_layout(rvn_window_t* window) {
 	}
 	window->needs_layout = R_FALSE;
 	window->needs_paint = R_TRUE;
+	if (window->reveal_focus) rvn_window_reveal_focus_now(window);
 	/* an overlay of the camera housing: its size and the part of it that takes the mouse follow the island */
 	if (window->notch_owner) rvn_window_overlay_fit(window);
 	window->stats.layout_ms = (rvn_clock_seconds() - start) * 1000.0;
@@ -987,7 +1063,8 @@ static void rvn_window_paint_drop(rvn_window_t* window, RPainter* painter) {
 }
 
 static int rvn_window_can_paint(const rvn_window_t* window) {
-	return window->surface_ready && window->width_px > 0 && window->height_px > 0;
+	/* (in the background the system may kill an application that draws) */
+	return window->surface_ready && !g_rvn.app_paused && window->width_px > 0 && window->height_px > 0;
 }
 
 static void rvn_window_paint(rvn_window_t* window, RCapture* capture) {
@@ -1144,6 +1221,14 @@ double rvn_window_frame_in(rvn_window_t* window) {
 	return -1.0;
 }
 
+int rvn_window_is_settled(rvn_window_t* window) {
+	if (window->dead) return R_TRUE;
+	if (window->needs_layout || window->layout_spring_count > 0 || rvn_touch_animating(window)) return R_FALSE;
+	/* (what cannot be painted, hidden or in the background, waits for nothing) */
+	if (!rvn_window_can_paint(window) || !window->visible) return R_TRUE;
+	return !window->needs_paint && rvn_atomic_load(&window->animating) == 0 && rvn_atomic_load(&window->redraw_requested) == 0;
+}
+
 int rvn_window_wants_frame(rvn_window_t* window) {
 	return rvn_window_frame_in(window) == 0.0;
 }
@@ -1221,6 +1306,12 @@ void rvn_window_update(rvn_window_t* window) {
 	if (window->dead) return;
 	/* (the compositor did not ask for a frame yet: it is painted when it does, with all that changed meanwhile) */
 	if (window->needs_paint && rvn_window_frame_wait(window) <= 0.0) rvn_window_paint(window, NULL);
+	if (window->dead) return;
+	/* a system with predictive back asks for Back only while the window takes it */
+	if (g_rvn.platform->window_set_back_wanted && rvn_window_wants_back(window) != window->back_wanted) {
+		window->back_wanted = !window->back_wanted;
+		g_rvn.platform->window_set_back_wanted(window->platform, window->back_wanted);
+	}
 	rvn_window_sync_text_input(window, R_FALSE);
 }
 
@@ -1858,6 +1949,8 @@ static void rvn_window_key(rvn_window_t* window, RKey key, int pressed, uint32_t
 
 static void rvn_window_text(rvn_window_t* window, uint32_t codepoint) {
 	REvent event;
+	/* the committed text of an input method takes the place of its composition */
+	rvn_window_compose(window, NULL, 0, 0);
 	event = rvn_window_event(window, R_EVENT_TEXT);
 	event.codepoint = codepoint;
 	if (rvn_window_hook(window, &event) || window->dead) return;
@@ -1875,6 +1968,8 @@ static void rvn_window_resized(rvn_window_t* window, int width_px, int height_px
 	rvn_window_close_popups(window);
 	window->needs_layout = R_TRUE;
 	window->needs_paint = R_TRUE;
+	/* turned with the on-screen keyboard up: the field typed in stays above it (on a desktop, resizing scrolls nothing) */
+	if (window->keyboard_height > 0.0f && rvn_window_focus_takes_text(window)) rvn_window_reveal_focus(window);
 	if (window->resize_callback) {
 		size = rvn_window_size(window);
 		window->resize_callback(window->id, (int)(size.x + 0.5f), (int)(size.y + 0.5f), window->resize_user);
@@ -1905,6 +2000,61 @@ void rvn_window_emulate_wheel(rvn_window_t* window, float wheel_x, float wheel_y
 
 rvn_widget_t* rvn_window_widget_at(rvn_window_t* window, float x, float y) {
 	return rvn_window_hit(window, x, y, NULL);
+}
+
+/* ---------------------------------------------------------------------------
+ *  Loss of the native surface (mobile)
+ *
+ * The window outlives the surface the system gives it: Android destroys the
+ * ANativeWindow of an activity in the background and gives a new one when it
+ * comes back. Only the surface and swapchain of the renderer go with it;
+ * the widgets, textures and pipelines stay. In between, the window is laid
+ * out but not painted (rvn_window_can_paint).
+ * ------------------------------------------------------------------------- */
+
+static void rvn_window_surface_lost(rvn_window_t* window) {
+	if (!window->surface_ready) return;
+	/* waits for the frames still queued and until the GPU no longer uses the swapchain: the system may destroy the native surface after this */
+	rvn_renderer_destroy_surface(window->id);
+	window->surface_ready = R_FALSE;
+}
+
+static void rvn_window_surface_ready(rvn_window_t* window) {
+	RNativeWindow native;
+	if (window->surface_ready) rvn_renderer_destroy_surface(window->id);
+	memset(&native, 0, sizeof(native));
+	g_rvn.platform->window_get_native(window->platform, &native);
+	window->surface_ready = rvn_renderer_create_surface(window->id, &native, (uint32_t)rvn_maxi(window->width_px, 1),
+		(uint32_t)rvn_maxi(window->height_px, 1));
+	if (!window->surface_ready) {
+		rvn_error(R_ERROR_BACKEND, R_SEVERITY_ERROR, "cannot make the rendering surface of a window again on its new native surface");
+		return;
+	}
+	window->needs_layout = R_TRUE;
+	window->needs_paint = R_TRUE;
+}
+
+/* ---------------------------------------------------------------------------
+ *  Back (mobile)
+ * ------------------------------------------------------------------------- */
+
+int rvn_window_wants_back(const rvn_window_t* window) {
+	return !window->dead && (window->popup_count > 0 || window->back_enabled) ? R_TRUE : R_FALSE;
+}
+
+/* The Back of the system: R_TRUE when something took it. */
+static int rvn_window_back(rvn_window_t* window) {
+	rvn_window_tooltip_hide(window);
+	/* as Escape: the top popup closes first (a dialog with result 0) */
+	if (window->popup_count > 0) {
+		rvn_popup_t* top = &window->popups[window->popup_count - 1];
+		if (top->placement == RVN_POPUP_DIALOG) rvn_window_close_dialog(top->root, 0);
+		else rvn_window_close_popup(window, top->root);
+		return R_TRUE;
+	}
+	/* then the application goes back a page, if it has one */
+	if (!window->back_callback) return R_FALSE;
+	return window->back_callback(window->id, window->back_user) ? R_TRUE : R_FALSE;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1954,6 +2104,11 @@ void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 		rvn_dispatch_end();
 		return;
 	}
+	/* the application changed state: no window needed */
+	if (pevent->type == RVN_PEVENT_APP) {
+		rvn_app_event((RAppEvent)pevent->app_event);
+		return;
+	}
 	/* the system switched between dark and light: no window needed */
 	if (pevent->type == RVN_PEVENT_APPEARANCE) {
 		rvn_dispatch_begin();
@@ -1980,9 +2135,12 @@ void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 			case RVN_PEVENT_EXPOSE:
 			case RVN_PEVENT_FOCUS:
 			case RVN_PEVENT_STATE:
+			case RVN_PEVENT_SURFACE_LOST:
+			case RVN_PEVENT_SURFACE_READY:
 				break;
 			case RVN_PEVENT_DRAG:
 			case RVN_PEVENT_DROP:
+			case RVN_PEVENT_BACK:
 				if (pevent->accepted) *pevent->accepted = R_FALSE;
 				return;
 			default:
@@ -2037,6 +2195,9 @@ void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 		case RVN_PEVENT_TEXT:
 			rvn_window_text(window, pevent->codepoint);
 			break;
+		case RVN_PEVENT_COMPOSITION:
+			rvn_window_compose(window, pevent->composition, pevent->composition_start, pevent->composition_end);
+			break;
 		case RVN_PEVENT_FOCUS:
 			if (!pevent->focused) {
 				/* the window lost the keyboard: drop transient state */
@@ -2080,11 +2241,23 @@ void rvn_window_on_platform_event(const rvn_pevent_t* pevent) {
 			window->modifiers = pevent->modifiers;
 			rvn_touch_on_event(window, pevent, scale);
 			break;
+		case RVN_PEVENT_SURFACE_LOST:
+			rvn_window_surface_lost(window);
+			break;
+		case RVN_PEVENT_SURFACE_READY:
+			rvn_window_surface_ready(window);
+			break;
+		case RVN_PEVENT_BACK: {
+			int taken = rvn_window_back(window);
+			if (pevent->accepted) *pevent->accepted = taken;
+			break;
+		}
 		case RVN_PEVENT_MODAL_TICK:
 		case RVN_PEVENT_COMMAND:
 		case RVN_PEVENT_QUIT:
 		case RVN_PEVENT_TRAY:
 		case RVN_PEVENT_APPEARANCE:
+		case RVN_PEVENT_APP:
 			break;
 	}
 	rvn_dispatch_end();
@@ -2149,6 +2322,9 @@ static void rvn_window_free(rvn_window_t* window) {
 	uint32_t i;
 	/* waits for the frames still queued: they point into this structure */
 	if (window->surface_ready) rvn_renderer_destroy_surface(window->id);
+	/* (Back goes back to the system) */
+	if (window->platform && window->back_wanted && g_rvn.platform->window_set_back_wanted)
+		g_rvn.platform->window_set_back_wanted(window->platform, R_FALSE);
 	if (window->platform) g_rvn.platform->window_destroy(window->platform);
 	rvn_pool_remove(&g_rvn.windows, window->id);
 	for (i = 0; i < window->shortcut_count; i++) rvn_free(window->shortcuts[i].action);
@@ -2159,6 +2335,7 @@ static void rvn_window_free(rvn_window_t* window) {
 	rvn_free(window->float_layers);
 	rvn_free(window->layout_springs);
 	rvn_free(window->title);
+	rvn_free(window->composition);
 	rvn_free(window->drag_type);
 	rvn_free(window->drag_data);
 	rvn_free(window->drag_label);
@@ -2658,6 +2835,28 @@ void Rwindow_clear_focus(Rid id) {
 	rvn_window_set_focus(window, NULL);
 }
 
+void Rwindow_set_back_callback(Rid id, RBackCallback callback, void* user_data) {
+	rvn_window_t* window = rvn_window_check(id, __func__);
+	if (!window) return;
+	window->back_callback = callback;
+	window->back_user = user_data;
+}
+
+void Rwindow_set_back_enabled(Rid id, int enabled) {
+	rvn_window_t* window = rvn_window_check(id, __func__);
+	if (!window) return;
+	enabled = enabled ? R_TRUE : R_FALSE;
+	if (window->back_enabled == enabled) return;
+	window->back_enabled = enabled;
+	/* (the platform is told after the next frame) */
+	if (g_rvn.platform->window_set_back_wanted) rvn_wake();
+}
+
+int Rwindow_wants_back(Rid id) {
+	rvn_window_t* window = rvn_window_check(id, __func__);
+	return window ? rvn_window_wants_back(window) : R_FALSE;
+}
+
 void Rwindow_set_min_size(Rid id, int width, int height) {
 	RVN_WINDOW_VOID(window, id);
 	g_rvn.platform->window_set_min_size(window->platform, (int)((float)rvn_maxi(width, 0) * window->scale + 0.5f),
@@ -2959,6 +3158,23 @@ void Rwindow_inject_text(Rid id, const char* text) {
 	rvn_dispatch_end();
 }
 
+void Rwindow_inject_composition(Rid id, const char* text, int selection_start, int selection_end) {
+	rvn_window_t* window = rvn_window_inject_begin(id, __func__);
+	if (!window) return;
+	rvn_window_compose(window, text, selection_start, selection_end);
+	rvn_dispatch_end();
+}
+
+const char* Rwindow_get_text_composition(Rid id, int* selection_start, int* selection_end) {
+	rvn_window_t* window = rvn_window_check(id, "Rwindow_get_text_composition");
+	if (selection_start) *selection_start = 0;
+	if (selection_end) *selection_end = 0;
+	if (!window || !window->composition) return NULL;
+	if (selection_start) *selection_start = window->composition_start;
+	if (selection_end) *selection_end = window->composition_end;
+	return window->composition;
+}
+
 int Rwindow_inject_drag(Rid id, float x, float y, int inside) {
 	rvn_window_t* window = rvn_window_inject_begin(id, __func__);
 	int accepted;
@@ -2966,6 +3182,15 @@ int Rwindow_inject_drag(Rid id, float x, float y, int inside) {
 	accepted = rvn_window_drag(window, x, y, inside);
 	rvn_dispatch_end();
 	return accepted;
+}
+
+int Rwindow_inject_back(Rid id) {
+	rvn_window_t* window = rvn_window_inject_begin(id, __func__);
+	int taken;
+	if (!window) return R_FALSE;
+	taken = rvn_window_back(window);
+	rvn_dispatch_end();
+	return taken;
 }
 
 int Rwindow_inject_drop(Rid id, float x, float y, const char* const* paths, int path_count, const char* text) {
@@ -3052,10 +3277,7 @@ Rid Rwindow_get_popup(Rid id, int index) {
 
 int Rwindow_wants_text_input(Rid id) {
 	rvn_window_t* window = rvn_window_check(id, "Rwindow_wants_text_input");
-	RWidgetType type;
-	if (!window || !window->focus || (window->focus->flags & RVN_WF_DEAD)) return R_FALSE;
-	type = window->focus->cls->type;
-	return type == R_WIDGET_TEXT_INPUT || type == R_WIDGET_TEXT_EDITOR || type == R_WIDGET_SPIN_BOX ? R_TRUE : R_FALSE;
+	return window && rvn_window_focus_takes_text(window) ? R_TRUE : R_FALSE;
 }
 
 int Rwindow_get_text_input_rect(Rid id, int* x, int* y, int* width, int* height) {

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(raven VERSION 0.2.3 DESCRIPTION "Raven - lightweight multithreaded GUI library in C" LANGUAGES C)
+project(raven VERSION 0.3.0 DESCRIPTION "Raven - lightweight multithreaded GUI library in C" LANGUAGES C)
 
 if(APPLE)
 	# Cocoa is the native macOS window API; almost all Raven code remains C.
@@ -37,6 +37,7 @@ option(RAVEN_BUILD_TOOLS "Build the tools (the designer)" ${RAVEN_IS_TOP_LEVEL})
 option(RAVEN_BUILD_INSTALLER "Build the Raven SDK Installer (tools/installer, C++17)" OFF)
 option(RAVEN_BUILD_WEB "Compile the web pages (raven_web.h: they drive an installed Chromium-based browser) into the library" ON)
 option(RAVEN_BACKEND_VULKAN "Compile the Vulkan backend" ON)
+option(RAVEN_BACKEND_METAL "Compile the Metal backend (macOS, iOS)" ${APPLE})
 option(RAVEN_BACKEND_SOKOL "Compile the sokol_gfx backend, selectable with R_BACKEND_SOKOL (docs/SOKOL_BACKEND_PLAN.md)" OFF)
 set(RAVEN_SOKOL_API "auto" CACHE STRING "Graphics API of the Sokol backend (fixed when Raven is built): auto, gles3 (Linux) or metal (macOS, iOS)")
 set_property(CACHE RAVEN_SOKOL_API PROPERTY STRINGS auto gles3 metal)
@@ -127,10 +128,12 @@ set(RAVEN_PUBLIC_HEADERS
 	include/raven/raven_viewport.h
 	include/raven/raven_draw.h
 	include/raven/raven_xml.h
+	include/raven/raven_script.h
 	include/raven/raven_locale.h
 	include/raven/raven_accessibility.h
 	include/raven/raven_backend.h
 	include/raven/raven_host.h
+	include/raven/raven_testing.h
 	include/raven/raven_android.h
 	include/raven/raven_vulkan.h
 )
@@ -140,7 +143,9 @@ set(RAVEN_CORE_SOURCES
 	src/core/context.c
 	src/core/locale.c
 	src/core/accessibility.c
+	src/core/accessibility_touch.c
 	src/core/context.h
+	src/core/deflate.c
 	src/core/error.c
 	src/core/file.c
 	src/core/handle.c
@@ -162,6 +167,8 @@ set(RAVEN_CORE_SOURCES
 
 set(RAVEN_PLATFORM_SOURCES
 	src/platform/platform.c
+	src/platform/preedit.c
+	src/platform/preedit.h
 	src/platform/notify.c
 	src/platform/taskbar.c
 	src/platform/tray.c
@@ -179,6 +186,7 @@ set(RAVEN_RENDER_SOURCES
 	src/render/font.h
 	src/render/font_raster.c
 	src/render/image_decode.c
+	src/render/image_encode.c
 	src/render/svg_decode.c
 	src/render/renderer.c
 	src/render/renderer.h
@@ -210,6 +218,7 @@ set(RAVEN_WIDGET_SOURCES
 	src/widget/touch.c
 	src/widget/window.c
 	src/widget/inspector.c
+	src/widget/testing.c
 )
 
 set(RAVEN_WIDGETS_SOURCES
@@ -267,6 +276,9 @@ set(RAVEN_WIDGETS_SOURCES
 	src/widgets/pagination.c
 	src/widgets/plot.c
 	src/widgets/pdf_view.c
+	src/widgets/chart.c
+	src/widgets/map_view.c
+	src/widgets/carousel.c
 	src/widgets/pdf_document.c
 	src/widgets/pdf_print.c
 )
@@ -280,6 +292,33 @@ set(RAVEN_XML_SOURCES
 	src/xml/xml_loader.c
 	src/xml/xml_watch.c
 	src/xml/xml_parser.c
+)
+
+# Raven Script: the core of the language (rs_*: no dependency on the rest, shared with the
+# command line tool and the language server) and its bridge to the library (script_raven.c)
+set(RAVEN_SCRIPT_CORE_SOURCES
+	src/script/rs.h
+	src/script/rs_internal.h
+	src/script/rs_common.c
+	src/script/rs_builtins.c
+	src/script/rs_lexer.c
+	src/script/rs_parser.c
+	src/script/rs_checker.c
+	src/script/rs_compiler.c
+	src/script/rs_vm.c
+	src/script/rs_batch.c
+	src/script/rs_format.c
+	src/script/rs_analysis.c
+)
+# (absolute: the tests and the tools compile them too)
+set(RAVEN_SCRIPT_CORE_SOURCES_ABSOLUTE "")
+foreach(source ${RAVEN_SCRIPT_CORE_SOURCES})
+	list(APPEND RAVEN_SCRIPT_CORE_SOURCES_ABSOLUTE "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
+endforeach()
+set(RAVEN_SCRIPT_SOURCES
+	${RAVEN_SCRIPT_CORE_SOURCES}
+	src/script/script_raven.h
+	src/script/script_raven.c
 )
 
 set(RAVEN_DEFINITIONS "")
@@ -359,10 +398,13 @@ elseif(RAVEN_PLATFORM_SELECTED STREQUAL "cocoa")
 	find_library(RAVEN_APPKIT_FRAMEWORK AppKit)
 	find_library(RAVEN_QUARTZCORE_FRAMEWORK QuartzCore)
 	find_library(RAVEN_METAL_FRAMEWORK Metal)
-	if(NOT RAVEN_APPKIT_FRAMEWORK OR NOT RAVEN_QUARTZCORE_FRAMEWORK OR NOT RAVEN_METAL_FRAMEWORK)
-		message(FATAL_ERROR "Raven: Cocoa builds require the AppKit, QuartzCore and Metal frameworks")
+	# (the notifications of Rnotification_show)
+	find_library(RAVEN_USERNOTIFICATIONS_FRAMEWORK UserNotifications)
+	if(NOT RAVEN_APPKIT_FRAMEWORK OR NOT RAVEN_QUARTZCORE_FRAMEWORK OR NOT RAVEN_METAL_FRAMEWORK OR NOT RAVEN_USERNOTIFICATIONS_FRAMEWORK)
+		message(FATAL_ERROR "Raven: Cocoa builds require the AppKit, QuartzCore, Metal and UserNotifications frameworks")
 	endif()
-	list(APPEND RAVEN_LIBRARIES ${RAVEN_APPKIT_FRAMEWORK} ${RAVEN_QUARTZCORE_FRAMEWORK} ${RAVEN_METAL_FRAMEWORK})
+	list(APPEND RAVEN_LIBRARIES ${RAVEN_APPKIT_FRAMEWORK} ${RAVEN_QUARTZCORE_FRAMEWORK} ${RAVEN_METAL_FRAMEWORK}
+		${RAVEN_USERNOTIFICATIONS_FRAMEWORK})
 elseif(RAVEN_PLATFORM_SELECTED STREQUAL "uikit")
 	if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
 		message(FATAL_ERROR "Raven: the uikit platform is only available on iOS (CMAKE_SYSTEM_NAME=iOS)")
@@ -373,10 +415,15 @@ elseif(RAVEN_PLATFORM_SELECTED STREQUAL "uikit")
 	find_library(RAVEN_UIKIT_FRAMEWORK UIKit)
 	find_library(RAVEN_QUARTZCORE_FRAMEWORK QuartzCore)
 	find_library(RAVEN_METAL_FRAMEWORK Metal)
-	if(NOT RAVEN_UIKIT_FRAMEWORK OR NOT RAVEN_QUARTZCORE_FRAMEWORK OR NOT RAVEN_METAL_FRAMEWORK)
-		message(FATAL_ERROR "Raven: UIKit builds require the UIKit, QuartzCore and Metal frameworks")
+	# the fonts of the system: CoreText finds them and draws the color emoji (render/font_system.c)
+	find_library(RAVEN_CORETEXT_FRAMEWORK CoreText)
+	find_library(RAVEN_COREGRAPHICS_FRAMEWORK CoreGraphics)
+	if(NOT RAVEN_UIKIT_FRAMEWORK OR NOT RAVEN_QUARTZCORE_FRAMEWORK OR NOT RAVEN_METAL_FRAMEWORK OR
+		NOT RAVEN_CORETEXT_FRAMEWORK OR NOT RAVEN_COREGRAPHICS_FRAMEWORK)
+		message(FATAL_ERROR "Raven: UIKit builds require the UIKit, QuartzCore, Metal, CoreText and CoreGraphics frameworks")
 	endif()
-	list(APPEND RAVEN_LIBRARIES ${RAVEN_UIKIT_FRAMEWORK} ${RAVEN_QUARTZCORE_FRAMEWORK} ${RAVEN_METAL_FRAMEWORK})
+	list(APPEND RAVEN_LIBRARIES ${RAVEN_UIKIT_FRAMEWORK} ${RAVEN_QUARTZCORE_FRAMEWORK} ${RAVEN_METAL_FRAMEWORK}
+		${RAVEN_CORETEXT_FRAMEWORK} ${RAVEN_COREGRAPHICS_FRAMEWORK})
 elseif(RAVEN_PLATFORM_SELECTED STREQUAL "uikit_sokol")
 	# the iOS platform of the Sokol backend (the loop is Rrun's, single window); "uikit" is the one of the Vulkan backend
 	if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -521,6 +568,31 @@ if(RAVEN_BACKEND_SOKOL)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_BACKEND_SOKOL_ENABLED)
 endif()
 
+# Metal backend: nothing to install, the shaders are compiled at run time from their sources
+if(RAVEN_BACKEND_METAL)
+	if(NOT APPLE)
+		message(FATAL_ERROR "The Metal backend is only available on macOS and iOS")
+	endif()
+	set(RAVEN_METAL_SOURCES
+		src/render/metal/metal_backend.m
+		src/render/metal/metal_pipeline.m
+		src/render/metal/metal_texture.m
+		src/render/metal/metal_frame.m
+	)
+	list(APPEND RAVEN_RENDER_SOURCES ${RAVEN_METAL_SOURCES}
+		src/render/metal/metal_backend.h
+		src/render/metal/generated/shaders.h)
+	set_source_files_properties(${RAVEN_METAL_SOURCES} PROPERTIES COMPILE_OPTIONS "-fobjc-arc;-Wno-overlength-strings")
+	find_library(RAVEN_METAL_FRAMEWORK Metal)
+	find_library(RAVEN_QUARTZCORE_FRAMEWORK QuartzCore)
+	find_library(RAVEN_FOUNDATION_FRAMEWORK Foundation)
+	if(NOT RAVEN_METAL_FRAMEWORK OR NOT RAVEN_QUARTZCORE_FRAMEWORK OR NOT RAVEN_FOUNDATION_FRAMEWORK)
+		message(FATAL_ERROR "Raven: the Metal backend requires the Metal, QuartzCore and Foundation frameworks")
+	endif()
+	list(APPEND RAVEN_LIBRARIES ${RAVEN_METAL_FRAMEWORK} ${RAVEN_QUARTZCORE_FRAMEWORK} ${RAVEN_FOUNDATION_FRAMEWORK})
+	list(APPEND RAVEN_DEFINITIONS RAVEN_BACKEND_METAL_ENABLED)
+endif()
+
 if(RAVEN_WITH_SVG)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_WITH_SVG)
 endif()
@@ -569,10 +641,11 @@ target_sources(raven PRIVATE
 	${RAVEN_WIDGET_SOURCES}
 	${RAVEN_WIDGETS_SOURCES}
 	${RAVEN_XML_SOURCES}
+	${RAVEN_SCRIPT_SOURCES}
 )
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES
 	${RAVEN_PUBLIC_HEADERS} ${RAVEN_CORE_SOURCES} ${RAVEN_PLATFORM_SOURCES} ${RAVEN_RENDER_SOURCES}
-	${RAVEN_WIDGET_SOURCES} ${RAVEN_WIDGETS_SOURCES} ${RAVEN_XML_SOURCES})
+	${RAVEN_WIDGET_SOURCES} ${RAVEN_WIDGETS_SOURCES} ${RAVEN_XML_SOURCES} ${RAVEN_SCRIPT_SOURCES})
 
 target_include_directories(raven
 	PUBLIC
@@ -616,7 +689,8 @@ if(RAVEN_PLATFORM_SELECTED STREQUAL "x11")
 	target_include_directories(raven PRIVATE ${X11_INCLUDE_DIR})
 endif()
 if(RAVEN_PLATFORM_SELECTED STREQUAL "android")
-	target_include_directories(raven PRIVATE ${RAVEN_ANDROID_GLUE_DIR})
+	# SYSTEM: the NDK's header is not held to Raven's warnings (app_dummy() has no prototype, -Wstrict-prototypes)
+	target_include_directories(raven SYSTEM PRIVATE ${RAVEN_ANDROID_GLUE_DIR})
 endif()
 if(RAVEN_BACKEND_VULKAN)
 	target_include_directories(raven PRIVATE ${RAVEN_VULKAN_INCLUDE_DIR})
@@ -633,7 +707,7 @@ if(RAVEN_PLATFORM_SELECTED STREQUAL "x11" AND RAVEN_WAYLAND)
 else()
 	set(RAVEN_PLATFORM_SUMMARY "${RAVEN_PLATFORM_SELECTED}")
 endif()
-message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SUMMARY} vulkan=${RAVEN_BACKEND_VULKAN} sokol=${RAVEN_BACKEND_SOKOL} webgl=${RAVEN_BACKEND_WEBGL} shared=${RAVEN_BUILD_SHARED}")
+message(STATUS "Raven ${PROJECT_VERSION}: platform=${RAVEN_PLATFORM_SUMMARY} vulkan=${RAVEN_BACKEND_VULKAN} metal=${RAVEN_BACKEND_METAL} sokol=${RAVEN_BACKEND_SOKOL} webgl=${RAVEN_BACKEND_WEBGL} shared=${RAVEN_BUILD_SHARED}")
 
 # ---------------------------------------------------------------------------
 #  Examples, tools and tests

@@ -43,8 +43,10 @@
  * widget and pressing it. The effects of Raven all react to it.
  *
  * The guide docs/shaders.html describes everything an effect can use.
- * The Vulkan backend runs effects from SPIR-V or from a bundle, the Sokol backend from a bundle (and the effects of Raven);
- * a backend without them (R_BACKEND_NULL, a custom backend whose CreateShader is NULL) draws the rectangle in `color`.
+ * The Vulkan backend runs effects from SPIR-V or from a bundle, the Sokol backend from a bundle (and the effects of
+ * Raven), and the Metal backend the built-in effects (REffect) with SPIR-V effects drawn as rectangles in `color` (ask
+ * for R_BACKEND_VULKAN to run them); a backend without them (R_BACKEND_NULL, a custom backend whose CreateShader is
+ * NULL) draws the rectangle in `color`.
  */
 
 #ifndef RAVEN_SHADER_H

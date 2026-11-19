@@ -1,6 +1,6 @@
 // Raven for Odin: the enumerations of the C API.
 //
-// Generated from the C headers by tools/bindgen (Raven 0.2): do not edit.
+// Generated from the C headers by tools/bindgen (Raven 0.3): do not edit.
 //
 // Values are those of the C constants, so the raw i32 of the generated package converts both
 // ways: Widget_Type(raw.Rwidget_get_type(widget)). Groups of flags are bit_sets (Window_Flags);
@@ -8,6 +8,8 @@
 package raven_odin
 
 Backend :: enum i32 {
+	// The renderer of the platform: WebGL in browser builds, Metal on macOS and iOS when it is compiled, Vulkan otherwise.
+	Default = 0,
 	// Built-in Vulkan renderer.
 	Vulkan = 1,
 	// Renders nothing. Used for headless runs and unit tests.
@@ -16,9 +18,11 @@ Backend :: enum i32 {
 	Custom = 3,
 	// Browser renderer (Emscripten, WebGL 2).
 	Webgl = 4,
+	// Built-in Metal renderer (macOS, iOS).
+	Metal = 5,
 	// Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
 	// Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
-	Sokol = 5,
+	Sokol = 6,
 }
 
 Error :: enum i32 {
@@ -34,6 +38,8 @@ Error :: enum i32 {
 	Error_File_Not_Found = 0x0079,
 	Error_Xml = 0x007A,
 	Error_Wrong_Thread = 0x007B,
+	// A diagnostic of Raven Script (raven_script.h): the text is the whole message, "error[RS102]: ...".
+	Error_Script = 0x007C,
 }
 
 Severity :: enum i32 {
@@ -41,6 +47,31 @@ Severity :: enum i32 {
 	Warning = 0x0081,
 	Error = 0x0082,
 	Fatal = 0x0083,
+}
+
+// What the system does with the application, on iOS and Android (desktop
+// systems send none of these). A pause is not always followed by
+// R_APP_DID_PAUSE: pulling down the notifications (iOS) or a dialog of the
+// system in front (Android) gives R_APP_WILL_PAUSE, then R_APP_DID_RESUME.
+// At the start, R_APP_WILL_RESUME and R_APP_DID_RESUME may come too.
+//
+//   leaving the front   R_APP_WILL_PAUSE    still seen: save what must not be lost
+//   in the background   R_APP_DID_PAUSE     not seen, no GPU work: Raven stops drawing
+//   coming back         R_APP_WILL_RESUME   Raven draws again
+//   in front again      R_APP_DID_RESUME    takes input again
+App_Event :: enum i32 {
+	// The application is about to leave the front (home, app switcher, a call). Save the state now.
+	Will_Pause = 0x0B80,
+	// The application is in the background: Raven has stopped drawing, and waited until the GPU was idle.
+	Did_Pause = 0x0B81,
+	// The application is coming back to the front: Raven draws again.
+	Will_Resume = 0x0B82,
+	// The application is in front and takes input again.
+	Did_Resume = 0x0B83,
+	// The system is low on memory: free what can be made again. Raven then drops its own caches and trims its heap.
+	Low_Memory = 0x0B84,
+	// The application is about to end (Android: the activity is finishing; its window is closed right after).
+	Will_Terminate = 0x0B85,
 }
 
 Window_Flag :: enum u32 {
@@ -686,6 +717,12 @@ Widget_Type :: enum i32 {
 	Plot = 0x0232,
 	// The pages of a PDF document, scrolled and zoomed (drawn by PDFium, loaded at run time).
 	Pdf_View = 0x0233,
+	// The charts of dashboards: pie, donut, gauge, heatmap, sparkline (RChartKind).
+	Chart = 0x0234,
+	// A map of slippy-map tiles given by the application (or read from files): panned, zoomed, with markers.
+	Map_View = 0x0235,
+	// Pages shown one at a time and swiped (a page view), with dots and arrows.
+	Carousel = 0x0236,
 }
 
 H_Align :: enum i32 {
@@ -888,6 +925,18 @@ Pdf_Print_Flag :: enum u32 {
 }
 Pdf_Print_Flags :: bit_set[Pdf_Print_Flag; u32]
 
+// Where a tile of a MapView stands (Rmap_view_get_tile_state).
+Map_Tile_State :: enum i32 {
+	// Not in the view's cache: never asked for, no longer wanted, or evicted.
+	None = 0x0600,
+	// Asked for (the tile callback was called, or the file is being read): waiting for its pixels.
+	Pending = 0x0601,
+	// Its pixels are in the cache.
+	Loaded = 0x0602,
+	// The application said it has none (Rmap_view_set_tile_failed), or its file could not be read.
+	Failed = 0x0603,
+}
+
 // How an axis of a Plot spreads its values.
 Plot_Scale :: enum i32 {
 	Linear = 0x0530,
@@ -935,6 +984,20 @@ Plot_Legend :: enum i32 {
 	Left = 0x0568,
 	// To the right of the data, outside it.
 	Outside = 0x0569,
+}
+
+// What a Chart draws.
+Chart_Kind :: enum i32 {
+	// Slices of a whole, as parts of a disc (the default).
+	Pie = 0x0590,
+	// Slices of a whole, as parts of a ring; its middle shows the total, or the slice under the pointer.
+	Donut = 0x0591,
+	// One value within a range, on an arc; bands color parts of the range.
+	Gauge = 0x0592,
+	// A grid of values, each cell colored from the low color to the high one.
+	Heatmap = 0x0593,
+	// A small line of values without axes, to sit in a tile or a cell of a table.
+	Sparkline = 0x0594,
 }
 
 // Shorthands of Rtext_editor_set_language for two languages.
@@ -1238,4 +1301,19 @@ Accessible_Role :: enum i32 {
 	Separator = 0x0781,
 	Scroll_Bar = 0x0782,
 	Pane = 0x0783,
+}
+
+Golden_Status :: enum i32 {
+	// The capture matches the golden.
+	Match = 0x0BA0,
+	// RAVEN_UPDATE_GOLDENS=1: the capture was written as the golden.
+	Updated = 0x0BA1,
+	// Too many pixels differ: NAME.actual.png and NAME.diff.png were written.
+	Mismatch = 0x0BA2,
+	// The capture and the golden do not have the same size: NAME.actual.png was written.
+	Size_Mismatch = 0x0BA3,
+	// There is no golden yet: NAME.actual.png was written (run with RAVEN_UPDATE_GOLDENS=1 to keep it).
+	Missing = 0x0BA4,
+	// The window could not be captured, or a file could not be read or written.
+	Failed = 0x0BA5,
 }

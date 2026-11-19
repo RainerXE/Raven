@@ -1,6 +1,6 @@
 // Raven for C#.
 //
-// Generated from the C headers by tools/bindgen (Raven 0.2): do not edit.
+// Generated from the C headers by tools/bindgen (Raven 0.3): do not edit.
 //
 // The C API under its own names, in the static class Raven.R:
 //
@@ -16,7 +16,7 @@
 //
 //   using Raven;
 //
-//   R.Rinit(RBackend.R_BACKEND_VULKAN);
+//   R.Rinit(RBackend.R_BACKEND_DEFAULT);
 //   uint window = R.Rwindow_create_from_xml("<Window Title='Hi'><Button Text='Quit' OnClicked='quit'/></Window>");
 //   R.Raction_bind("quit", R.Keep<RActionCallback>((sender, action, user) => R.Rquit(0)), IntPtr.Zero);
 //   while (R.Rwait_frame(-1.0) != 0) { }
@@ -42,6 +42,10 @@ namespace Raven
     public enum RBackend : int
     {
         /// <summary>
+        /// The renderer of the platform: WebGL in browser builds, Metal on macOS and iOS when it is compiled, Vulkan otherwise.
+        /// </summary>
+        R_BACKEND_DEFAULT = 0,
+        /// <summary>
         /// Built-in Vulkan renderer.
         /// </summary>
         R_BACKEND_VULKAN = 1,
@@ -58,10 +62,14 @@ namespace Raven
         /// </summary>
         R_BACKEND_WEBGL = 4,
         /// <summary>
+        /// Built-in Metal renderer (macOS, iOS).
+        /// </summary>
+        R_BACKEND_METAL = 5,
+        /// <summary>
         /// Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
         /// Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
         /// </summary>
-        R_BACKEND_SOKOL = 5,
+        R_BACKEND_SOKOL = 6,
     }
 
     public enum RError : int
@@ -78,6 +86,10 @@ namespace Raven
         R_ERROR_FILE_NOT_FOUND = 0x0079,
         R_ERROR_XML = 0x007A,
         R_ERROR_WRONG_THREAD = 0x007B,
+        /// <summary>
+        /// A diagnostic of Raven Script (raven_script.h): the text is the whole message, "error[RS102]: ...".
+        /// </summary>
+        R_ERROR_SCRIPT = 0x007C,
     }
 
     public enum RSeverity : int
@@ -86,6 +98,46 @@ namespace Raven
         R_SEVERITY_WARNING = 0x0081,
         R_SEVERITY_ERROR = 0x0082,
         R_SEVERITY_FATAL = 0x0083,
+    }
+
+    /// <summary>
+    /// What the system does with the application, on iOS and Android (desktop
+    /// systems send none of these). A pause is not always followed by
+    /// R_APP_DID_PAUSE: pulling down the notifications (iOS) or a dialog of the
+    /// system in front (Android) gives R_APP_WILL_PAUSE, then R_APP_DID_RESUME.
+    /// At the start, R_APP_WILL_RESUME and R_APP_DID_RESUME may come too.
+    /// 
+    ///   leaving the front   R_APP_WILL_PAUSE    still seen: save what must not be lost
+    ///   in the background   R_APP_DID_PAUSE     not seen, no GPU work: Raven stops drawing
+    ///   coming back         R_APP_WILL_RESUME   Raven draws again
+    ///   in front again      R_APP_DID_RESUME    takes input again
+    /// </summary>
+    public enum RAppEvent : int
+    {
+        /// <summary>
+        /// The application is about to leave the front (home, app switcher, a call). Save the state now.
+        /// </summary>
+        R_APP_WILL_PAUSE = 0x0B80,
+        /// <summary>
+        /// The application is in the background: Raven has stopped drawing, and waited until the GPU was idle.
+        /// </summary>
+        R_APP_DID_PAUSE = 0x0B81,
+        /// <summary>
+        /// The application is coming back to the front: Raven draws again.
+        /// </summary>
+        R_APP_WILL_RESUME = 0x0B82,
+        /// <summary>
+        /// The application is in front and takes input again.
+        /// </summary>
+        R_APP_DID_RESUME = 0x0B83,
+        /// <summary>
+        /// The system is low on memory: free what can be made again. Raven then drops its own caches and trims its heap.
+        /// </summary>
+        R_APP_LOW_MEMORY = 0x0B84,
+        /// <summary>
+        /// The application is about to end (Android: the activity is finishing; its window is closed right after).
+        /// </summary>
+        R_APP_WILL_TERMINATE = 0x0B85,
     }
 
     [Flags]
@@ -1023,6 +1075,18 @@ namespace Raven
         /// The pages of a PDF document, scrolled and zoomed (drawn by PDFium, loaded at run time).
         /// </summary>
         R_WIDGET_PDF_VIEW = 0x0233,
+        /// <summary>
+        /// The charts of dashboards: pie, donut, gauge, heatmap, sparkline (RChartKind).
+        /// </summary>
+        R_WIDGET_CHART = 0x0234,
+        /// <summary>
+        /// A map of slippy-map tiles given by the application (or read from files): panned, zoomed, with markers.
+        /// </summary>
+        R_WIDGET_MAP_VIEW = 0x0235,
+        /// <summary>
+        /// Pages shown one at a time and swiped (a page view), with dots and arrows.
+        /// </summary>
+        R_WIDGET_CAROUSEL = 0x0236,
     }
 
     public enum RHAlign : int
@@ -1353,6 +1417,29 @@ namespace Raven
     }
 
     /// <summary>
+    /// Where a tile of a MapView stands (Rmap_view_get_tile_state).
+    /// </summary>
+    public enum RMapTileState : int
+    {
+        /// <summary>
+        /// Not in the view's cache: never asked for, no longer wanted, or evicted.
+        /// </summary>
+        R_MAP_TILE_NONE = 0x0600,
+        /// <summary>
+        /// Asked for (the tile callback was called, or the file is being read): waiting for its pixels.
+        /// </summary>
+        R_MAP_TILE_PENDING = 0x0601,
+        /// <summary>
+        /// Its pixels are in the cache.
+        /// </summary>
+        R_MAP_TILE_LOADED = 0x0602,
+        /// <summary>
+        /// The application said it has none (Rmap_view_set_tile_failed), or its file could not be read.
+        /// </summary>
+        R_MAP_TILE_FAILED = 0x0603,
+    }
+
+    /// <summary>
     /// How an axis of a Plot spreads its values.
     /// </summary>
     public enum RPlotScale : int
@@ -1419,6 +1506,33 @@ namespace Raven
         /// To the right of the data, outside it.
         /// </summary>
         R_PLOT_LEGEND_OUTSIDE = 0x0569,
+    }
+
+    /// <summary>
+    /// What a Chart draws.
+    /// </summary>
+    public enum RChartKind : int
+    {
+        /// <summary>
+        /// Slices of a whole, as parts of a disc (the default).
+        /// </summary>
+        R_CHART_PIE = 0x0590,
+        /// <summary>
+        /// Slices of a whole, as parts of a ring; its middle shows the total, or the slice under the pointer.
+        /// </summary>
+        R_CHART_DONUT = 0x0591,
+        /// <summary>
+        /// One value within a range, on an arc; bands color parts of the range.
+        /// </summary>
+        R_CHART_GAUGE = 0x0592,
+        /// <summary>
+        /// A grid of values, each cell colored from the low color to the high one.
+        /// </summary>
+        R_CHART_HEATMAP = 0x0593,
+        /// <summary>
+        /// A small line of values without axes, to sit in a tile or a cell of a table.
+        /// </summary>
+        R_CHART_SPARKLINE = 0x0594,
     }
 
     /// <summary>
@@ -1895,6 +2009,34 @@ namespace Raven
         R_ROLE_PANE = 0x0783,
     }
 
+    public enum RGoldenStatus : int
+    {
+        /// <summary>
+        /// The capture matches the golden.
+        /// </summary>
+        R_GOLDEN_MATCH = 0x0BA0,
+        /// <summary>
+        /// RAVEN_UPDATE_GOLDENS=1: the capture was written as the golden.
+        /// </summary>
+        R_GOLDEN_UPDATED = 0x0BA1,
+        /// <summary>
+        /// Too many pixels differ: NAME.actual.png and NAME.diff.png were written.
+        /// </summary>
+        R_GOLDEN_MISMATCH = 0x0BA2,
+        /// <summary>
+        /// The capture and the golden do not have the same size: NAME.actual.png was written.
+        /// </summary>
+        R_GOLDEN_SIZE_MISMATCH = 0x0BA3,
+        /// <summary>
+        /// There is no golden yet: NAME.actual.png was written (run with RAVEN_UPDATE_GOLDENS=1 to keep it).
+        /// </summary>
+        R_GOLDEN_MISSING = 0x0BA4,
+        /// <summary>
+        /// The window could not be captured, or a file could not be read or written.
+        /// </summary>
+        R_GOLDEN_FAILED = 0x0BA5,
+    }
+
     /// <summary>
     /// Optional settings for Rinit_ex. A zero-initialized structure selects the
     /// default for every field, so new fields can be added without breaking code.
@@ -1903,8 +2045,9 @@ namespace Raven
     public struct RInitDesc
     {
         /// <summary>
-        /// Rendering backend. 0 selects the one named by the environment variable RAVEN_BACKEND (vulkan,
-        /// sokol, webgl or null) when it is set, else WebGL in browser builds and Vulkan otherwise.
+        /// Rendering backend. R_BACKEND_DEFAULT (0) selects the one named by the environment variable
+        /// RAVEN_BACKEND (vulkan, metal, sokol, webgl or null) when it is set, else WebGL in browser
+        /// builds, Metal on macOS and iOS when it is compiled, and Vulkan otherwise.
         /// </summary>
         public RBackend backend;
         /// <summary>
@@ -2228,6 +2371,16 @@ namespace Raven
         /// How far (logical units) the fingers of a swipe go across before it navigates. Default 120.
         /// </summary>
         public float swipe_distance;
+        /// <summary>
+        /// Smallest height (logical units) of what a finger presses: buttons,
+        /// fields, combo boxes, tabs and bars are at least this high, rows of
+        /// lists, trees, tables and menus too, and so are check boxes, switches
+        /// and sliders, whose box and handle grow to half of it. Whatever the
+        /// theme or a widget asks for, 0 leaves the sizes as they are.
+        /// Default 44 on iOS (Apple: 44 points), 48 on Android (Material: 48 dp),
+        /// 0 elsewhere.
+        /// </summary>
+        public float min_touch_size;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -2458,6 +2611,35 @@ namespace Raven
         /// </summary>
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         public float[] text_color;
+        /// <summary>
+        /// Layout="Rows": a third line under the detail, dimmer, or NULL.
+        /// </summary>
+        public IntPtr note;
+        /// <summary>
+        /// Color of the detail line; alpha 0 = the theme (dimmer than the name).
+        /// </summary>
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        public float[] detail_color;
+    }
+
+    /// <summary>
+    /// A section of a tile view: its first tile, and what its header shows.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RTileSection
+    {
+        /// <summary>
+        /// Index of the first tile of the section (read when the sections are given).
+        /// </summary>
+        public int first;
+        /// <summary>
+        /// Title of the header (valid until the callback returns).
+        /// </summary>
+        public IntPtr text;
+        /// <summary>
+        /// Dimmer text after the title (a count...), or NULL.
+        /// </summary>
+        public IntPtr detail;
     }
 
     /// <summary>
@@ -2649,9 +2831,21 @@ namespace Raven
         /// </summary>
         public IntPtr render_pass;
         /// <summary>
-        /// Vulkan: VkFormat of the color attachment.
+        /// Vulkan: VkFormat of the color attachment; Metal: MTLPixelFormat.
         /// </summary>
         public uint color_format;
+        /// <summary>
+        /// Metal: id&lt;MTLRenderCommandEncoder&gt; of the frame, inside its render pass (do not end it).
+        /// </summary>
+        public IntPtr metal_encoder;
+        /// <summary>
+        /// Metal: id&lt;MTLCommandBuffer&gt; the encoder belongs to.
+        /// </summary>
+        public IntPtr metal_command_buffer;
+        /// <summary>
+        /// Metal: id&lt;MTLDevice&gt; of the backend, to make pipeline states that match color_format.
+        /// </summary>
+        public IntPtr metal_device;
     }
 
     /// <summary>
@@ -2788,6 +2982,63 @@ namespace Raven
     }
 
     /// <summary>
+    /// How Rtest_expect_golden compares. NULL options: a tolerance of 2 per channel and no different pixel.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RGoldenOptions
+    {
+        /// <summary>
+        /// Largest difference on one channel (0..255) for which two pixels are still the same.
+        /// </summary>
+        public int channel_tolerance;
+        /// <summary>
+        /// Share of the pixels (0..1) that may differ while the images still match.
+        /// </summary>
+        public float max_diff_ratio;
+        /// <summary>
+        /// R_TRUE: the golden of this OS and backend, "button.png" read as "button.macos-metal.png" (Rtest_get_platform_tag).
+        /// </summary>
+        public int per_platform;
+        /// <summary>
+        /// Folder of the .actual.png and .diff.png written on a mismatch. NULL: beside the golden.
+        /// </summary>
+        public IntPtr output_directory;
+    }
+
+    /// <summary>
+    /// What Rtest_expect_golden found.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RGoldenResult
+    {
+        public RGoldenStatus status;
+        /// <summary>
+        /// Size of the capture, in pixels.
+        /// </summary>
+        public int width;
+        /// <summary>
+        /// Size of the capture, in pixels.
+        /// </summary>
+        public int height;
+        /// <summary>
+        /// Pixels farther from the golden than the tolerance.
+        /// </summary>
+        public int differing_pixels;
+        /// <summary>
+        /// Largest difference found on one channel (0..255).
+        /// </summary>
+        public int max_channel_difference;
+        /// <summary>
+        /// The golden that was read or written (with the platform tag). Valid until the next call.
+        /// </summary>
+        public IntPtr golden_path;
+        /// <summary>
+        /// One line that says what happened, for the log of the test. Valid until the next call.
+        /// </summary>
+        public IntPtr message;
+    }
+
+    /// <summary>
     /// Runs the application until it quits, on every platform.
     /// 
     ///     static void finished(int exit_code, void* user) { Rshutdown(); }
@@ -2820,6 +3071,18 @@ namespace Raven
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RFrameCallback(double delta_seconds, IntPtr user_data);
 
+    /// <summary>
+    /// Registers a function called when the application changes state
+    /// (RAppEvent), on the UI thread, while the system waits for it: keep it
+    /// short. Between R_APP_DID_PAUSE and R_APP_WILL_RESUME Raven lays out but
+    /// draws nothing, animations stand still and Rwait_frame sleeps until an
+    /// event, a posted task or a timer: the timers of the application keep
+    /// running, so stop those that only drive drawing. Set it after Rinit;
+    /// NULL removes it.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RAppEventCallback(RAppEvent @event, IntPtr user_data);
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RTaskCallback(IntPtr user_data);
 
@@ -2838,6 +3101,9 @@ namespace Raven
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RActionCallback(uint sender, IntPtr action, IntPtr user_data);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RActionParametersCallback(IntPtr context, IntPtr user_data);
 
     /// <summary>
     /// Registers a function called whenever an error is raised.
@@ -2881,6 +3147,14 @@ namespace Raven
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int RDropCallback(uint target, ref RDropEvent @event, IntPtr user_data);
+
+    /// <summary>
+    /// Called on Back when no popup or dialog of Raven is open. Return
+    /// R_TRUE when the application went back, R_FALSE when it had nowhere to
+    /// go (the system then does its default). NULL removes it.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int RBackCallback(uint window, IntPtr user_data);
 
     /// <summary>
     /// Called when the user asks to close the window.
@@ -3016,6 +3290,13 @@ namespace Raven
     public delegate void RMenuItemClickedCallback(uint item, IntPtr user_data);
 
     /// <summary>
+    /// Describes section `section`: when the sections are given (Rtile_view_set_sections,
+    /// `first` is read) and when its header is drawn (`text`, `detail`). UI thread.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RTileSectionCallback(uint tile_view, int section, ref RTileSection @out, IntPtr user_data);
+
+    /// <summary>
     /// Fills `item` for tile `index`. Called on the UI thread, only for the tiles in view.
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -3054,8 +3335,8 @@ namespace Raven
     /// Colors the text of cells (a verdict, a state): the table asks for the
     /// color of each cell it draws, stored or virtual (`row` is the index of the
     /// order shown). Set r, g, b, a (0..1) and return R_TRUE; R_FALSE (or alpha 0)
-    /// keeps the color of the theme. The color is kept on a selected or hovered
-    /// row. NULL removes the callback.
+    /// keeps the color set with Rtable_set_cell_text_color, else the theme's.
+    /// The color is kept on a selected or hovered row. NULL removes the callback.
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int RTableCellColorCallback(uint table, int row, int column, ref float r, ref float g, ref float b, ref float a, IntPtr user_data);
@@ -3124,10 +3405,50 @@ namespace Raven
     public delegate void RPlotSeriesCallback(uint plot, int series, int visible, IntPtr user_data);
 
     /// <summary>
+    /// Called when the user clicks a slice; `selected` tells whether it is now the selected one.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RChartSliceCallback(uint chart, int slice, int selected, IntPtr user_data);
+
+    /// <summary>
+    /// Called when the user clicks a cell of a heatmap.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RChartCellCallback(uint chart, int row, int column, float value, IntPtr user_data);
+
+    /// <summary>
     /// Called when the current page changes as the user scrolls. This also fires the action of the widget.
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RPdfPageChangedCallback(uint view, int page, IntPtr user_data);
+
+    /// <summary>
+    /// Called when the user goes to another page (a swipe, the keys, a
+    /// dot, an arrow) and when the autoplay does. This also fires the action
+    /// of the widget.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RCarouselPageChangedCallback(uint carousel, int page, IntPtr user_data);
+
+    /// <summary>
+    /// Asks the application for a tile (z, x, y), or tells it that a tile asked for is no longer wanted.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RMapTileCallback(uint map, int z, int x, int y, IntPtr user_data);
+
+    /// <summary>
+    /// Called when the user clicks a marker.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RMapMarkerCallback(uint map, int marker, IntPtr user_data);
+
+    /// <summary>
+    /// Called when the user moves or zooms the map (during a drag, at the
+    /// end of an animated zoom), with its new center and zoom. This also fires
+    /// the action of the widget.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RMapViewCallback(uint map, double latitude, double longitude, double zoom, IntPtr user_data);
 
     /// <summary>
     /// Called when the user zoomed (to zoom other editors the same, or to keep it for the next time).
@@ -3174,6 +3495,21 @@ namespace Raven
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int RDockCloseCallback(uint area, uint panel, IntPtr user_data);
+
+    /// <summary>
+    /// Called when a panel leaves for a window of its own, once the
+    /// window and its floating area are made, before the panel goes there and
+    /// before anything is drawn.
+    /// area          The area the panel belongs to (its home).
+    /// panel         The panel that leaves.
+    /// window        The new window.
+    /// floating_area The dock area of the new window.
+    /// Returns: The content of the window: a widget that holds floating_area
+    /// (a VBox with a header bar above it, for a window made with
+    /// R_WINDOW_CUSTOM_HEADER), or R_INVALID_ID for floating_area itself.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate uint RDockFloatWindowCallback(uint area, uint panel, uint window, uint floating_area, IntPtr user_data);
 
     /// <summary>
     /// Called after the user moved, resized, showed or closed a panel.
@@ -3317,6 +3653,21 @@ namespace Raven
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate int RXmlTagAttributeCallback(uint widget, IntPtr name, IntPtr value, IntPtr user_data);
 
+    /// <summary>
+    /// Where app.log writes: the standard output when NULL.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RScriptLogCallback(IntPtr message, IntPtr user_data);
+
+    /// <summary>
+    /// Receives the diagnostics of the scripts instead of the error
+    /// callback. `text` is the whole message, as the command line shows it;
+    /// `code` is its code ("RS102"); `line` and `column` start at 1 (0 when
+    /// the diagnostic has no place). NULL gives them back to the error callback.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RScriptDiagnosticCallback(RSeverity severity, IntPtr code, IntPtr file, int line, int column, IntPtr text, IntPtr user_data);
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RLocaleChangedCallback(IntPtr language, IntPtr user_data);
 
@@ -3328,9 +3679,9 @@ namespace Raven
         private const string Lib = "raven";
 
         public const int RAVEN_VERSION_MAJOR = 0;
-        public const int RAVEN_VERSION_MINOR = 2;
-        public const int RAVEN_VERSION_PATCH = 3;
-        public const string RAVEN_API_VERSION = "0.2";
+        public const int RAVEN_VERSION_MINOR = 3;
+        public const int RAVEN_VERSION_PATCH = 0;
+        public const string RAVEN_API_VERSION = "0.3";
         public const int R_FALSE = 0;
         public const int R_TRUE = 1;
         public const uint R_INVALID_ID = 0xFFFFFFFF;
@@ -3571,6 +3922,23 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern double Rget_time();
 
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rset_app_event_callback(RAppEventCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// Returns: R_TRUE between R_APP_DID_PAUSE and R_APP_WILL_RESUME: the application is in the background.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Ris_app_paused();
+
+        /// <summary>
+        /// Handles an RAppEvent as if the system had sent it: for tests,
+        /// and for a host application (raven_host.h) that knows the lifecycle.
+        /// UI thread.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rinject_app_event(RAppEvent @event);
+
         /// <summary>
         /// Scale of the whole interface, on top of the one of the monitor
         /// (RInitDesc.ui_scale at start): every window is laid out again. 0.25 .. 4.
@@ -3685,6 +4053,60 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Raction_set_default_handler(RActionCallback callback, IntPtr user_data);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Raction_bind_with_parameters([MarshalAs(Utf8.Str)] string name, [MarshalAs(Utf8.Str)] string signature, RActionParametersCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// Returns: The widget whose event fired the action, R_INVALID_ID when a script calls it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Raction_get_sender(IntPtr context);
+
+        [DllImport(Lib, EntryPoint = "Raction_get_name", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Raction_get_name_(IntPtr context);
+        public static string Raction_get_name(IntPtr context) { return Text(Raction_get_name_(context)); }
+
+        /// <summary>
+        /// Returns: The number of arguments given: the parameters of the signature, fewer when an event gives fewer... never more.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Raction_get_argument_count(IntPtr context);
+
+        /// <summary>
+        /// The arguments, by position from 0. A wrong index or type reports an error and gives 0, "" or R_FALSE.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Raction_get_number(IntPtr context, int index);
+
+        /// <summary>
+        /// Returns: Valid until the function returns.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Raction_get_string", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Raction_get_string_(IntPtr context, int index);
+        public static string Raction_get_string(IntPtr context, int index) { return Text(Raction_get_string_(context, index)); }
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Raction_get_bool(IntPtr context, int index);
+
+        /// <summary>
+        /// The value returned to the script; of the type of the signature (what is set last counts).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Raction_return_number(IntPtr context, double value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Raction_return_string(IntPtr context, [MarshalAs(Utf8.Str)] string value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Raction_return_bool(IntPtr context, int value);
+
+        /// <summary>
+        /// The function failed: the script that called it stops with error
+        /// RS205 and this message (the application goes on; so does the next event).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Raction_fail(IntPtr context, [MarshalAs(Utf8.Str)] string message);
 
         /// <summary>
         /// The actions Raven knows by itself: an interface written in XML
@@ -3840,7 +4262,10 @@ namespace Raven
         /// <summary>
         /// The part of the window the on-screen keyboard covers (only
         /// `bottom` is set), in logical units; 0 when it is hidden or there is
-        /// none (desktop). The content is laid out above it already.
+        /// none (desktop). The content is laid out above it already, and the
+        /// field that has the focus is scrolled into view above it, by the
+        /// ScrollBoxes that hold it, when the keyboard comes or changes height,
+        /// when the window turns, and when another field takes the focus.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwindow_get_keyboard_area(uint window, ref RInsets insets);
@@ -3848,7 +4273,10 @@ namespace Raven
         /// <summary>
         /// The part of the window the on-screen keyboard covers (only
         /// `bottom` is set), in logical units; 0 when it is hidden or there is
-        /// none (desktop). The content is laid out above it already.
+        /// none (desktop). The content is laid out above it already, and the
+        /// field that has the focus is scrolled into view above it, by the
+        /// ScrollBoxes that hold it, when the keyboard comes or changes height,
+        /// when the window turns, and when another field takes the focus.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwindow_get_keyboard_area(uint window, IntPtr insets);
@@ -3864,6 +4292,24 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwindow_clear_focus(uint window);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rwindow_set_back_callback(uint window, RBackCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// R_TRUE while the application has somewhere to go back to (a page
+        /// under the one shown). Android 13 and later ask for Back only while the
+        /// window wants it (predictive back): at the root page the system handles
+        /// Back itself and animates back to the home screen. Default R_FALSE.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rwindow_set_back_enabled(uint window, int enabled);
+
+        /// <summary>
+        /// Returns: R_TRUE while Back would be taken: a popup or dialog is open, or Rwindow_set_back_enabled said so.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rwindow_wants_back(uint window);
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwindow_set_min_size(uint window, int width, int height);
@@ -4206,6 +4652,21 @@ namespace Raven
         public static extern void Rwindow_inject_text(uint window, [MarshalAs(Utf8.Str)] string text);
 
         /// <summary>
+        /// The text an input method is composing (preedit: Chinese,
+        /// Japanese, Korean, dead keys), as the platforms send it. The focused
+        /// TextInput, SpinBox or TextEditor shows it at its caret, underlined, in
+        /// place of its selection, but it is not in its text and no changed
+        /// callback runs. [selection_start, selection_end) are bytes of `text`:
+        /// the part the input method works on (underlined thicker), or the caret
+        /// when they are equal; -1 is the end of `text`. NULL or "" ends the
+        /// composition without typing anything (cancel). The committed text comes
+        /// through Rwindow_inject_text, which ends the composition too, and so
+        /// does a change of focus. Ignored when the focus takes no text.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rwindow_inject_composition(uint window, [MarshalAs(Utf8.Str)] string text, int selection_start, int selection_end);
+
+        /// <summary>
         /// A drag from another application moves over the window
         /// (`inside` R_TRUE) or leaves it.
         /// Returns: R_TRUE when a drop at this position would be accepted.
@@ -4218,6 +4679,12 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rwindow_inject_drop(uint window, float x, float y, [MarshalAs(UnmanagedType.LPArray, ArraySubType = Utf8.Str)] string[] paths, int path_count, [MarshalAs(Utf8.Str)] string text);
+
+        /// <summary>
+        /// Back, as the system sends it (Rwindow_set_back_callback). Returns R_TRUE when something took it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rwindow_inject_back(uint window);
 
         /// <summary>
         /// R_TRUE while the key is held down in the window (cleared when the window loses the keyboard).
@@ -4289,6 +4756,15 @@ namespace Raven
         public static extern int Rwindow_replace_text_input(uint window, int start, int end, [MarshalAs(Utf8.Str)] string text);
 
         /// <summary>
+        /// The composition of the input method in progress (UTF-8, valid
+        /// until it changes) and its selection in bytes; NULL when there is none.
+        /// Any output pointer may be NULL.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rwindow_get_text_composition", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rwindow_get_text_composition_(uint window, out int selection_start, out int selection_end);
+        public static string Rwindow_get_text_composition(uint window, out int selection_start, out int selection_end) { return Text(Rwindow_get_text_composition_(window, out selection_start, out selection_end)); }
+
+        /// <summary>
         /// R_TRUE while a menu, list or dialog is open over the window.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -4298,7 +4774,9 @@ namespace Raven
         /// Last painted caret in window pixels (x, y, width, height), including scrolling and scale.
         /// Call after Rdraw_frame. Independent of the blink phase. Returns R_FALSE and zeros the
         /// outputs when there is no visible editable caret, the window is inactive, or focus changed
-        /// since painting. Any output pointer may be NULL.
+        /// since painting. Any output pointer may be NULL. While an input method
+        /// composes, it is the caret inside the composition: where its candidate
+        /// window goes.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rwindow_get_text_input_rect(uint window, out int x, out int y, out int width, out int height);
@@ -4559,6 +5037,11 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtheme_get_color(RColorRole role, out float r, out float g, out float b, out float a);
 
+        /// <summary>
+        /// Changes a size of the theme in use. It lasts until the look or
+        /// the theme is chosen again (Rlook_set, Rtheme_use), but not through a
+        /// switch between light and dark made by Rtheme_follow_system.
+        /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtheme_set_metric(RMetric metric, float value);
 
@@ -4610,6 +5093,13 @@ namespace Raven
         /// Follows the dark or light mode of the system with the Raven look
         /// (R_LOOK_RAVEN_DARK / R_LOOK_RAVEN_LIGHT), now and when it changes.
         /// Off by default. Does nothing where the platform does not tell (desktop today).
+        /// 
+        /// A switch is Rlook_set, except that the sizes given with
+        /// Rtheme_set_metric stay. Colors and styles set with Rtheme_set_... are
+        /// those of one mode and are lost; to keep colors, sizes and styles of
+        /// the application through the switch, put them in a theme that names no
+        /// look (Rtheme_load_from_memory, then Rtheme_use): it is laid over the
+        /// new look.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtheme_follow_system(int enabled);
@@ -4865,6 +5355,24 @@ namespace Raven
         public static extern void Rpixels_free(IntPtr pixels);
 
         /// <summary>
+        /// Encodes tightly packed RGBA8 pixels (what Rwindow_capture
+        /// returns) as a PNG file in memory. Thread-safe.
+        /// size Receives the number of bytes.
+        /// Returns: The bytes of the file, to release with Rpixels_free; NULL when
+        /// there are no pixels.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Rimage_encode_png(byte[] rgba, int width, int height, out UIntPtr size);
+
+        /// <summary>
+        /// Writes tightly packed RGBA8 pixels to a PNG file: a screenshot
+        /// of Rwindow_capture, a picture made by the application. Thread-safe.
+        /// Returns: R_FALSE when the file cannot be written.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rimage_save_png([MarshalAs(Utf8.Str)] string path, byte[] rgba, int width, int height);
+
+        /// <summary>
         /// Returns: R_TRUE once an asynchronous texture is decoded (or failed).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -4917,6 +5425,9 @@ namespace Raven
         /// A widget that already has a parent is moved.
         /// Returns: `child`, so calls can be nested:
         ///         Rid ok = Rwidget_add_child(row, Rbutton_create("OK"));
+        ///         R_INVALID_ID when the child replaced in a single-child container
+        ///         had a destroy callback that destroyed the container or `child`;
+        ///         `child`, when it is still there, is then not added.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern uint Rwidget_add_child(uint parent, uint child);
@@ -5089,7 +5600,8 @@ namespace Raven
         public static extern void Rwidget_set_clipping(uint widget, int clip);
 
         /// <summary>
-        /// Text shown when the cursor rests on the widget. NULL removes it.
+        /// Text shown when the cursor rests on the widget. NULL removes it. A label, which otherwise
+        ///  lets the mouse through, takes the hover while it has a tooltip (events it does not use still bubble).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwidget_set_tooltip(uint widget, [MarshalAs(Utf8.Str)] string text);
@@ -5134,7 +5646,7 @@ namespace Raven
         public static extern void Rwidget_set_focusable(uint widget, int focusable);
 
         /// <summary>
-        /// Gives the keyboard focus to the widget.
+        /// Gives the keyboard focus to the widget, and scrolls it into view (Rwidget_scroll_into_view).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwidget_focus(uint widget);
@@ -5253,7 +5765,9 @@ namespace Raven
         public static extern void Rwidget_clear_metric(uint widget, RMetric metric);
 
         /// <summary>
-        /// Returns: The metric the widget uses: its own, else the one of a style, else the one of its theme.
+        /// Returns: The metric the widget uses: its own, else the one of a style,
+        /// else the one of its theme; grown for larger text
+        /// (Raccessibility_set_text_scale) and for a finger (RTouchSettings::min_touch_size).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern float Rwidget_get_metric(uint widget, RMetric metric);
@@ -5415,7 +5929,10 @@ namespace Raven
         public static extern void Rscroll_box_scroll_to_end(uint scroll_box);
 
         /// <summary>
-        /// Scrolls every ScrollBox above the widget so that the widget is visible.
+        /// Scrolls every ScrollBox above the widget so that the widget is
+        /// visible. The library does it by itself for the focused widget when the
+        /// focus comes from Tab or Rwidget_focus, and for a text field above the
+        /// on-screen keyboard (Rwindow_get_keyboard_area).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rwidget_scroll_into_view(uint widget);
@@ -6281,6 +6798,49 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtile_view_set_empty_text(uint tile_view, [MarshalAs(Utf8.Str)] string text);
 
+        /// <summary>
+        /// Layout="Rows": width of the box the icon is drawn in (its height is the
+        /// icon size), for icons that are not square; 0 = square (default). XML: IconWidth.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtile_view_set_icon_width(uint tile_view, float width);
+
+        /// <summary>
+        /// `count` sections, described by `callback`, all unfolded. Rtile_view_set_items removes them: give them after the tiles.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtile_view_set_sections(uint tile_view, int count, RTileSectionCallback callback, IntPtr user_data);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtile_view_get_section_count(uint tile_view);
+
+        /// <summary>
+        /// The section of a tile, or -1 (before the first section).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtile_view_get_section_of(uint tile_view, int index);
+
+        /// <summary>
+        /// Folds or unfolds a section (the toggled callback is not called).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtile_view_set_section_folded(uint tile_view, int section, int folded);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtile_view_is_section_folded(uint tile_view, int section);
+
+        /// <summary>
+        /// The section whose header is at a point relative to the widget, or -1.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtile_view_get_section_at(uint tile_view, float local_x, float local_y);
+
+        /// <summary>
+        /// Called when the user folds or unfolds a section (`index`: the section).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtile_view_set_section_toggled_callback(uint tile_view, RTileEventCallback callback, IntPtr user_data);
+
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtile_view_set_selected(uint tile_view, int index, int selected);
 
@@ -6425,7 +6985,38 @@ namespace Raven
         public static extern void Rtable_set_cell_color_callback(uint table, RTableCellColorCallback callback, IntPtr user_data);
 
         /// <summary>
-        /// Selects a row. -1 selects nothing.
+        /// Stored rows: a fixed text color; column -1 colors the row; cells override it.
+        /// Alpha 0 restores the inherited/theme color. A color from the cell color callback wins over it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtable_set_cell_text_color(uint table, int row, int column, float r, float g, float b, float a);
+
+        /// <summary>
+        /// Opt into Ctrl/Cmd toggles and Shift ranges; single selection is the default.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtable_set_multi_select(uint table, int enabled);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtable_set_row_selected(uint table, int row, int selected);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtable_is_row_selected(uint table, int row);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtable_clear_selection(uint table);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtable_get_selection_count(uint table);
+
+        /// <summary>
+        /// Selected row at index, top to bottom; -1 outside the selection.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtable_get_selection(uint table, int index);
+
+        /// <summary>
+        /// Replaces the selection with one row. -1 selects nothing, including in multi-select mode.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtable_set_selected(uint table, int row);
@@ -6971,6 +7562,242 @@ namespace Raven
         public static extern void Rplot_set_series_toggled_callback(uint plot, RPlotSeriesCallback callback, IntPtr user_data);
 
         /// <summary>
+        /// A chart of a kind (Rwidget_create(R_WIDGET_CHART) makes a pie).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rchart_create(RChartKind kind);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_kind(uint chart, RChartKind kind);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern RChartKind Rchart_get_kind(uint chart);
+
+        /// <summary>
+        /// The title over a pie, a donut or a heatmap, under the value of a gauge (a sparkline only tells it to screen readers).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_title(uint chart, [MarshalAs(Utf8.Str)] string title);
+
+        [DllImport(Lib, EntryPoint = "Rchart_get_title", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rchart_get_title_(uint chart);
+        public static string Rchart_get_title(uint chart) { return Text(Rchart_get_title_(chart)); }
+
+        /// <summary>
+        /// How the values are written (the gauge, the middle of a donut, what
+        /// the pointer shows): a printf format for one double with its unit, "%.0f%%",
+        /// "$%.2f". NULL: whole numbers as they are, others with up to two decimals.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_format(uint chart, [MarshalAs(Utf8.Str)] string format);
+
+        /// <summary>
+        /// The color of the arc of a gauge outside any band, and of the line of a sparkline (default: the accent).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_color(uint chart, float r, float g, float b, float a);
+
+        /// <summary>
+        /// The legend: the slices beside a pie or a donut, the scale of colors under a heatmap (shown by default).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_legend(uint chart, int shown);
+
+        /// <summary>
+        /// Removes the slices, the bands, the grid and the values.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_clear(uint chart);
+
+        /// <summary>
+        /// What is under the pointer: a slice, a point of a sparkline, or a
+        /// cell of a heatmap as row * columns + column; -1 for nothing.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_hovered(uint chart);
+
+        /// <summary>
+        /// Adds a slice (a value of 0 or more). Returns its index, -1 when the value is not valid.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_add_slice(uint chart, [MarshalAs(Utf8.Str)] string label, double value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_remove_slice(uint chart, int slice);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_slice_count(uint chart);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_slice_value(uint chart, int slice, double value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Rchart_get_slice_value(uint chart, int slice);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_slice_label(uint chart, int slice, [MarshalAs(Utf8.Str)] string label);
+
+        [DllImport(Lib, EntryPoint = "Rchart_get_slice_label", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rchart_get_slice_label_(uint chart, int slice);
+        public static string Rchart_get_slice_label(uint chart, int slice) { return Text(Rchart_get_slice_label_(chart, slice)); }
+
+        /// <summary>
+        /// The color of a slice; an alpha of 0 gives it back its color of the palette.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_slice_color(uint chart, int slice, float r, float g, float b, float a);
+
+        /// <summary>
+        /// The sum of the values of the slices.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Rchart_get_total(uint chart);
+
+        /// <summary>
+        /// The slice lifted as selected, or -1 for none (the user selects one with a click).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_selected(uint chart, int slice);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_selected(uint chart);
+
+        /// <summary>
+        /// The hole of a donut, as a part of its radius, from 0.2 to 0.9 (default 0.62).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_hole(uint chart, float ratio);
+
+        /// <summary>
+        /// What the middle of a donut shows when the pointer is not over a
+        /// slice: `text` in large (NULL or "": the total) over `caption` in small
+        /// (NULL or "": none).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_center_text(uint chart, [MarshalAs(Utf8.Str)] string text, [MarshalAs(Utf8.Str)] string caption);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_slice_clicked_callback(uint chart, RChartSliceCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// The range of a gauge (default 0 to 100), and a fixed range for the
+        /// colors of a heatmap and the height of a sparkline, which otherwise follow
+        /// their values. min == max goes back to these defaults.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_range(uint chart, double min, double max);
+
+        /// <summary>
+        /// The range in use now (a gauge's, or the one of the values of a heatmap or a sparkline).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_get_range(uint chart, out double min, out double max);
+
+        /// <summary>
+        /// The value of a gauge, kept within its range when drawn.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_value(uint chart, double value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Rchart_get_value(uint chart);
+
+        /// <summary>
+        /// Colors a part of the range of a gauge (an alpha of 0: the success,
+        /// warning and danger colors of the theme, one after the other). The arc
+        /// takes the color of the band its value is in. Returns the index of the band.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_add_band(uint chart, double from, double to, float r, float g, float b, float a);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_clear_bands(uint chart);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_band_count(uint chart);
+
+        /// <summary>
+        /// The cells of a heatmap: `rows` x `columns` values, row after row,
+        /// copied (NULL: all 0). NaN leaves a cell empty.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_grid(uint chart, int rows, int columns, float[] values);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_row_count(uint chart);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_column_count(uint chart);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_cell(uint chart, int row, int column, float value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern float Rchart_get_cell(uint chart, int row, int column);
+
+        /// <summary>
+        /// The names of the rows, separated by '|': "Mon|Tue|Wed" (shown at their left).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_row_labels(uint chart, [MarshalAs(Utf8.Str)] string labels);
+
+        /// <summary>
+        /// The names of the columns, separated by '|' (shown over them, as many as fit).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_column_labels(uint chart, [MarshalAs(Utf8.Str)] string labels);
+
+        /// <summary>
+        /// The name of a row or of a column, "" when it has none.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rchart_get_row_label", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rchart_get_row_label_(uint chart, int row);
+        public static string Rchart_get_row_label(uint chart, int row) { return Text(Rchart_get_row_label_(chart, row)); }
+
+        [DllImport(Lib, EntryPoint = "Rchart_get_column_label", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rchart_get_column_label_(uint chart, int column);
+        public static string Rchart_get_column_label(uint chart, int column) { return Text(Rchart_get_column_label_(chart, column)); }
+
+        /// <summary>
+        /// The colors of the lowest and of the highest values of a heatmap (default: a tint of the accent, the accent).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_color_scale(uint chart, float low_r, float low_g, float low_b, float low_a, float high_r, float high_g, float high_b, float high_a);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_cell_clicked_callback(uint chart, RChartCellCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// The values of a sparkline, copied. NaN leaves a gap.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_values(uint chart, float[] values, int count);
+
+        /// <summary>
+        /// Adds a value after the others, for live data; only the last `max_count` are kept (0: all of them).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_push_value(uint chart, float value, int max_count);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rchart_get_value_count(uint chart);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern float Rchart_get_value_at(uint chart, int index);
+
+        /// <summary>
+        /// Shades the area under the line of a sparkline (on by default).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_fill(uint chart, int fill);
+
+        /// <summary>
+        /// A dot on the last value of a sparkline (on by default).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rchart_set_marker(uint chart, int shown);
+
+        /// <summary>
         /// R_TRUE when PDFium can be loaded (it is, the first time this is asked).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -7056,6 +7883,89 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rpdf_view_set_page_changed_callback(uint view, RPdfPageChangedCallback callback, IntPtr user_data);
 
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rcarousel_create();
+
+        /// <summary>
+        /// Shows a page, gliding to it when `animated` (and the animations
+        /// are on), at once otherwise. The page changed callback is not called.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_page(uint carousel, int page, int animated);
+
+        /// <summary>
+        /// The page shown, -1 when the carousel has none.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rcarousel_get_page(uint carousel);
+
+        /// <summary>
+        /// Its children.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rcarousel_get_page_count(uint carousel);
+
+        /// <summary>
+        /// Glides to the next / previous page; nothing at the last / first one unless it loops.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_next(uint carousel);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_prev(uint carousel);
+
+        /// <summary>
+        /// R_TRUE: after the last page comes the first one, and before the first the last (default R_FALSE).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_loop(uint carousel, int loop);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rcarousel_get_loop(uint carousel);
+
+        /// <summary>
+        /// Goes to the next page by itself every `seconds` (0: never, the
+        /// default); after the last page it comes back to the first. It waits
+        /// while the pointer is on the carousel, while the pages are dragged and
+        /// while the keyboard is in it; a page chosen by the user starts the
+        /// interval again.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_autoplay(uint carousel, double seconds);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Rcarousel_get_autoplay(uint carousel);
+
+        /// <summary>
+        /// The dots along the bottom edge (the right edge when vertical), one per page (default R_TRUE).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_indicators_visible(uint carousel, int visible);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rcarousel_get_indicators_visible(uint carousel);
+
+        /// <summary>
+        /// The previous / next buttons shown while the pointer is on the carousel (default R_TRUE).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_arrows_visible(uint carousel, int visible);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rcarousel_get_arrows_visible(uint carousel);
+
+        /// <summary>
+        /// R_HORIZONTAL: the pages side by side (default); R_VERTICAL: one above the other.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_orientation(uint carousel, ROrientation orientation);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern ROrientation Rcarousel_get_orientation(uint carousel);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rcarousel_set_page_changed_callback(uint carousel, RCarouselPageChangedCallback callback, IntPtr user_data);
+
         /// <summary>
         /// Prints the document shown (see Rpdf_print); the job is named after its title.
         /// </summary>
@@ -7067,6 +7977,179 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rpdf_view_print(uint view, IntPtr desc);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rmap_view_create();
+
+        /// <summary>
+        /// Centers the map on a place. The latitude is held within +/-85.0511; the longitude wraps.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_center(uint map, double latitude, double longitude);
+
+        /// <summary>
+        /// The place at the middle of the map (longitude from -180 to 180).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_get_center(uint map, out double latitude, out double longitude);
+
+        /// <summary>
+        /// The zoom: 0 shows the whole world in one tile, each step doubles the scale. Fractions are allowed.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_zoom(uint map, double zoom);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Rmap_view_get_zoom(uint map);
+
+        /// <summary>
+        /// The zooms the user can reach (default 0 to 19, at most 0 to 24). Tiles are asked for at whole zooms of this range.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_zoom_range(uint map, double min_zoom, double max_zoom);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_get_zoom_range(uint map, out double min_zoom, out double max_zoom);
+
+        /// <summary>
+        /// Glides to a place and a zoom (at once when animations are off).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_animate_to(uint map, double latitude, double longitude, double zoom);
+
+        /// <summary>
+        /// The place at a point of the widget.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_screen_to_latlon(uint map, float x, float y, out double latitude, out double longitude);
+
+        /// <summary>
+        /// Where a place is in the widget (of the copies of the world side by side, the one nearest the middle).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_latlon_to_screen(uint map, double latitude, double longitude, out float x, out float y);
+
+        /// <summary>
+        /// Called once for each tile the map needs. Answer with
+        /// Rmap_view_set_tile, Rmap_view_set_tile_data or Rmap_view_set_tile_failed,
+        /// at once or later. Setting it forgets the tiles of the previous source.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile_callback(uint map, RMapTileCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// Called when a tile asked for and not answered yet is no longer wanted (the user went elsewhere). Optional.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile_cancel_callback(uint map, RMapTileCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// The pixels of a tile: `width` x `height` RGBA8, tightly packed
+        /// (they are copied; any size, shown at the tile size). Thread-safe: from
+        /// another thread it is applied on the UI thread during the next frame.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile(uint map, int z, int x, int y, byte[] rgba, int width, int height);
+
+        /// <summary>
+        /// A tile as the bytes of an image file (PNG, JPEG...), decoded on the calling thread. Thread-safe.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile_data(uint map, int z, int x, int y, byte[] data, UIntPtr data_size);
+
+        /// <summary>
+        /// There is no such tile: the coarser one stays shown in its place. Thread-safe.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile_failed(uint map, int z, int x, int y);
+
+        /// <summary>
+        /// Reads the tiles from files instead of asking for them: a path
+        /// where {z}, {x} and {y} are replaced ({-y}: the row counted from the
+        /// south, as in TMS and MBTiles). The files are read and decoded on a
+        /// worker thread; a missing file is a tile that failed. NULL or "": the
+        /// tile callback again. Local files only.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile_path(uint map, [MarshalAs(Utf8.Str)] string path_template);
+
+        [DllImport(Lib, EntryPoint = "Rmap_view_get_tile_path", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rmap_view_get_tile_path_(uint map);
+        public static string Rmap_view_get_tile_path(uint map) { return Text(Rmap_view_get_tile_path_(map)); }
+
+        /// <summary>
+        /// Logical size of a tile at a whole zoom (default 256, from 16 to 1024): larger tiles show the map larger.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_tile_size(uint map, int size);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rmap_view_get_tile_size(uint map);
+
+        /// <summary>
+        /// Memory the decoded tiles may take, in bytes (default 64 MiB). The tiles on screen are always kept.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_cache_size(uint map, UIntPtr bytes);
+
+        /// <summary>
+        /// Memory the decoded tiles take now, in bytes.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern UIntPtr Rmap_view_get_cache_usage(uint map);
+
+        /// <summary>
+        /// Forgets every tile (they are asked for again): the tiles of the source changed.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_clear_tiles(uint map);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern RMapTileState Rmap_view_get_tile_state(uint map, int z, int x, int y);
+
+        /// <summary>
+        /// Adds a pin at a place, with a label written next to it (may be NULL). Returns its id (from 1), or -1.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rmap_view_add_marker(uint map, double latitude, double longitude, [MarshalAs(Utf8.Str)] string label);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_remove_marker(uint map, int marker);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_clear_markers(uint map);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rmap_view_get_marker_count(uint map);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_marker_position(uint map, int marker, double latitude, double longitude);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_marker_label(uint map, int marker, [MarshalAs(Utf8.Str)] string label);
+
+        /// <summary>
+        /// The color of a pin (by default the accent of the theme).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_marker_color(uint map, int marker, float r, float g, float b, float a);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_marker_clicked_callback(uint map, RMapMarkerCallback callback, IntPtr user_data);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_view_changed_callback(uint map, RMapViewCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// A line written in the bottom right corner: the credit most tile
+        /// licences ask for, such as "(c) OpenStreetMap contributors". NULL or "": none.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rmap_view_set_attribution(uint map, [MarshalAs(Utf8.Str)] string text);
+
+        [DllImport(Lib, EntryPoint = "Rmap_view_get_attribution", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rmap_view_get_attribution_(uint map);
+        public static string Rmap_view_get_attribution(uint map) { return Text(Rmap_view_get_attribution_(map)); }
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern uint Rpdf_document_create();
@@ -7748,6 +8831,20 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rdock_area_set_float_mode(uint area, RDockFloatMode mode);
+
+        /// <summary>
+        /// How the windows of torn-off panels are made (native windows,
+        /// R_DOCK_FLOAT_WINDOW; in-window cards are not windows).
+        /// flags    RWindowFlags they are created with: R_WINDOW_NO_RESIZE,
+        ///                 R_WINDOW_BORDERLESS, R_WINDOW_CUSTOM_HEADER and
+        ///                 R_WINDOW_TRANSPARENT (the others are ignored).
+        ///                 R_WINDOW_DEFAULT by default.
+        /// callback May be NULL: the floating area is the whole window.
+        /// Dragging the only tab of such a window still moves it, and closing
+        /// it (its header bar's close button too) docks its panels back.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rdock_area_set_float_window(uint area, uint flags, RDockFloatWindowCallback callback, IntPtr user_data);
 
         /// <summary>
         /// Floats a panel. Native mode: screen x/y; in-window mode: window-local logical x/y. Returns its containing window.
@@ -9136,6 +10233,9 @@ namespace Raven
 
         /// <summary>
         /// Whole files, with UTF-8 paths on every platform.
+        /// On Android and iOS, a relative path that names no file held in memory
+        /// and no file on disk is read from the app's package (the APK's assets/,
+        /// the bundle's resources), and so is every file Raven reads by its path.
         /// Returns: Rfile_read: the content followed by a '\0', to release with
         /// Rmemory_free; NULL when the file cannot be read. `size` may be NULL.
         /// </summary>
@@ -9267,7 +10367,7 @@ namespace Raven
         /// (on the UI thread; the application may then bring its window to the
         /// front: the system lets it). It is the last one shown that was clicked:
         /// the application remembers what it was about. NULL: none.
-        /// Windows only for now (elsewhere it is never called).
+        /// Windows and macOS (elsewhere it is never called).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rnotification_set_clicked_callback(RNotificationClickedCallback callback, IntPtr user_data);
@@ -9950,6 +11050,88 @@ namespace Raven
         public static extern int Rxml_get_attribute_info([MarshalAs(Utf8.Str)] string tag, int index, IntPtr info);
 
         /// <summary>
+        /// Loads a script given as text (not an XML document): its
+        /// functions become actions, its globals are initialized.
+        /// name Names it in the diagnostics (a file name); may be NULL.
+        /// Returns: R_FALSE when it has an error (nothing of it is installed).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rscript_load([MarshalAs(Utf8.Str)] string source, UIntPtr size, [MarshalAs(Utf8.Str)] string name);
+        public static int Rscript_load(string source, string name) { return Rscript_load(source, Utf8Length(source), name); }
+
+        /// <summary>
+        /// The same from a file (.rvs).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rscript_load_file([MarshalAs(Utf8.Str)] string path);
+
+        /// <summary>
+        /// Checks a script, or the scripts of an XML document and the
+        /// functions its widgets name, without running anything nor building a
+        /// widget. The diagnostics are reported as usual.
+        /// source A script, or an XML document (text that starts with '&lt;').
+        /// Returns: The number of errors.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rscript_check([MarshalAs(Utf8.Str)] string source, UIntPtr size, [MarshalAs(Utf8.Str)] string name);
+        public static int Rscript_check(string source, string name) { return Rscript_check(source, Utf8Length(source), name); }
+
+        /// <summary>
+        /// Returns: The number of errors in the file (a .rvs or an .xml), -1 when it cannot be read.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rscript_check_file([MarshalAs(Utf8.Str)] string path);
+
+        /// <summary>
+        /// Formats a script: one statement per line, blocks indented,
+        /// spaces around operators; comments are kept.
+        /// indent One level of indentation; NULL for four spaces.
+        /// Returns: The text, valid until the next call; NULL when the script has a
+        /// syntax error (it is not changed).
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rscript_format", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rscript_format_([MarshalAs(Utf8.Str)] string source, UIntPtr size, [MarshalAs(Utf8.Str)] string indent);
+        public static string Rscript_format(string source, UIntPtr size, string indent) { return Text(Rscript_format_(source, size, indent)); }
+
+        /// <summary>
+        /// Removes every script function (their actions are unbound) and every global. Not while a script runs.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rscript_reset();
+
+        /// <summary>
+        /// Returns: R_TRUE when a script function has that name.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rscript_has_function([MarshalAs(Utf8.Str)] string name);
+
+        /// <summary>
+        /// R_FALSE: the &lt;Script&gt; elements of the documents are read but not
+        /// compiled nor run (a design tool that shows interfaces without running
+        /// them). On by default.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rscript_set_enabled(int enabled);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rscript_is_enabled();
+
+        /// <summary>
+        /// The limits of the scripts. 0 keeps a value.
+        /// max_instructions Instructions one invocation (an event) may run (10 000 000).
+        /// max_depth Calls nested (200).
+        /// max_memory Bytes of strings and arrays alive (64 MB).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rscript_set_limits(uint max_instructions, int max_depth, UIntPtr max_memory);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rscript_set_log_callback(RScriptLogCallback callback, IntPtr user_data);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rscript_set_diagnostic_callback(RScriptDiagnosticCallback callback, IntPtr user_data);
+
+        /// <summary>
         /// Loads a CSV table of translations from a file. Returns the number of keys read, -1 on an error.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -10225,6 +11407,32 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rhost_window_set_size(uint window, int width, int height, float scale);
 
+        /// <summary>
+        /// What covers a host window on a phone or a tablet, in pixels: the
+        /// safe area (status bar, notch, home indicator; NULL: none) and the height
+        /// of the on-screen keyboard over its bottom (0: hidden). The content is laid
+        /// out inside them (Rwindow_get_safe_area, Rwindow_get_keyboard_area).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rhost_window_set_insets(uint window, ref RInsets safe_area, int keyboard_height);
+
+        /// <summary>
+        /// What covers a host window on a phone or a tablet, in pixels: the
+        /// safe area (status bar, notch, home indicator; NULL: none) and the height
+        /// of the on-screen keyboard over its bottom (0: hidden). The content is laid
+        /// out inside them (Rwindow_get_safe_area, Rwindow_get_keyboard_area).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rhost_window_set_insets(uint window, IntPtr safe_area, int keyboard_height);
+
+        /// <summary>
+        /// The application's system is in dark (R_TRUE) or light (R_FALSE)
+        /// mode, -1 when it does not tell (the default): Rtheme_get_system_dark,
+        /// and Rtheme_follow_system follows it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rhost_set_system_dark(int dark);
+
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rhost_inject_mouse_move(uint window, int x, int y, uint modifiers);
 
@@ -10253,6 +11461,16 @@ namespace Raven
         public static extern void Rhost_inject_text(uint window, uint codepoint);
 
         /// <summary>
+        /// The input method of the application's system composes `text`
+        /// (preedit), with its selection in bytes (see Rwindow_inject_composition).
+        /// NULL or "" cancels it; the committed text then comes through
+        /// Rhost_inject_text. Rwindow_get_text_input_rect tells where to put the
+        /// candidate window.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rhost_inject_composition(uint window, [MarshalAs(Utf8.Str)] string text, int selection_start, int selection_end);
+
+        /// <summary>
         /// The window gained or lost the keyboard. Losing it closes popups and drops captures.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -10263,5 +11481,210 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rhost_inject_close(uint window);
+
+        /// <summary>
+        /// R_TRUE makes what is drawn depend only on what the test does:
+        /// every frame advances the animations by 1/60 s (Rset_animation_time_step),
+        /// and the carets of the text fields stay lit instead of blinking. R_FALSE
+        /// gives the clock back (time step 0).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtest_set_deterministic(int enabled);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_is_deterministic();
+
+        /// <summary>
+        /// Returns: What the goldens of this run are made with, "OS-backend":
+        /// "macos-metal", "linux-vulkan", "windows-vulkan", "web-webgl"... and
+        /// "null" with the null backend.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rtest_get_platform_tag", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rtest_get_platform_tag_();
+        public static string Rtest_get_platform_tag() { return Text(Rtest_get_platform_tag_()); }
+
+        /// <summary>
+        /// Finds a widget by name (Rwidget_set_name, Name="" in XML). The
+        /// path may have several names separated by '/': "settings/ok" is the
+        /// widget named "ok" inside the one named "settings". In a window, the
+        /// open popups (menus, dialogs) are searched first, top first, then the
+        /// content.
+        /// scope A window or a widget.
+        /// Returns: R_INVALID_ID when nothing has that name (no error is reported).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rtest_find(uint scope, [MarshalAs(Utf8.Str)] string path);
+
+        /// <summary>
+        /// Moves the mouse to the middle of the widget, presses and releases the left button.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_click(uint widget);
+
+        /// <summary>
+        /// Two clicks in a row on the middle of the widget, seen as a double click.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_double_click(uint widget);
+
+        /// <summary>
+        /// A click of the right button on the middle of the widget (a context menu).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_right_click(uint widget);
+
+        /// <summary>
+        /// Clicks at a position of a widget or a window.
+        /// clicks 1 for a click, 2 for a double click, 3 for a triple click.
+        /// modifiers RModifier held during the clicks (R_MOD_SHIFT...).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_click_at(uint target, float x, float y, RMouseButton button, int clicks, uint modifiers);
+
+        /// <summary>
+        /// Moves the mouse over the middle of the widget, without clicking.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_hover(uint widget);
+
+        /// <summary>
+        /// Moves the mouse to a position of a widget or a window.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_hover_at(uint target, float x, float y);
+
+        /// <summary>
+        /// Presses the left button on the middle of the widget, moves by
+        /// (dx, dy) in several steps, and releases: a slider, a splitter, a
+        /// window dragged by a widget.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_drag(uint widget, float dx, float dy);
+
+        /// <summary>
+        /// Drags from the middle of one widget to the middle of another (drag and drop).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_drag_to(uint from, uint to);
+
+        /// <summary>
+        /// Turns the mouse wheel over the middle of the widget: `wheel_y`
+        /// notches (positive: toward the top, as a wheel turned away from the
+        /// user), `wheel_x` notches sideways.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_scroll(uint widget, float wheel_x, float wheel_y);
+
+        /// <summary>
+        /// Presses and releases a key, with RModifier held. A widget
+        /// target gets the keyboard focus first; a window sends the key to what
+        /// has the focus.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_key(uint target, RKey key, uint modifiers);
+
+        /// <summary>
+        /// Types UTF-8 text as a keyboard would. A widget target gets the
+        /// keyboard focus first. '\n', '\t' and '\b' are sent as the keys Enter,
+        /// Tab and Backspace.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_type_text(uint target, [MarshalAs(Utf8.Str)] string text);
+
+        /// <summary>
+        /// A finger touches the middle of the widget and leaves at once.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_tap(uint widget);
+
+        /// <summary>
+        /// A finger put on the middle of the widget moves by (dx, dy) in
+        /// `seconds`, and leaves: a fast swipe flicks a list, which then coasts
+        /// (Rtest_settle lets it stop).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_swipe(uint widget, float dx, float dy, double seconds);
+
+        /// <summary>
+        /// Produces `frames` frames (Rdraw_frame). Returns: R_FALSE once the application quits.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_pump(int frames);
+
+        /// <summary>
+        /// Returns: R_TRUE when nothing waits for a frame: no posted task, no layout
+        /// to do, nothing to paint, no animation, no layout spring, no inertia.
+        /// Windows that redraw all the time (Rwindow_set_continuous_redraw, a
+        /// realtime viewport) and the timers are not counted.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_is_idle();
+
+        /// <summary>
+        /// Produces frames until Rtest_is_idle, each advancing the
+        /// animations by the time step (1/60 s unless Rset_animation_time_step
+        /// gives another), for at most `max_seconds` of that time.
+        /// Returns: R_FALSE when it was still moving at the end.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_settle(double max_seconds);
+
+        /// <summary>
+        /// Returns: What the user reads in the widget: the text of a field, else
+        /// its label (as screen readers say it: the text of a Label, a Button, a
+        /// Checkbox...). "" when it has none. Valid until the next call.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rtest_get_text", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rtest_get_text_(uint widget);
+        public static string Rtest_get_text(uint widget) { return Text(Rtest_get_text_(widget)); }
+
+        /// <summary>
+        /// Returns: R_TRUE when the widget can be seen: in a window, Visible with
+        /// all that holds it, on the page a Switcher or a TabView shows, and laid
+        /// out with a size.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_is_shown(uint widget);
+
+        /// <summary>
+        /// Returns: R_TRUE for a checked Checkbox, Switch, RadioButton, toggle Button or menu item.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_is_checked(uint widget);
+
+        /// <summary>
+        /// Captures a window, or the rectangle of one widget, and compares
+        /// it with the PNG file `golden_path` (see the top of this file).
+        /// target A window or a widget.
+        /// options NULL for the defaults.
+        /// result Receives the details; may be NULL.
+        /// Returns: R_TRUE when the capture matches (or the golden was written
+        /// because RAVEN_UPDATE_GOLDENS=1).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_expect_golden(uint target, [MarshalAs(Utf8.Str)] string golden_path, ref RGoldenOptions options, ref RGoldenResult result);
+
+        /// <summary>
+        /// Captures a window, or the rectangle of one widget, and compares
+        /// it with the PNG file `golden_path` (see the top of this file).
+        /// target A window or a widget.
+        /// options NULL for the defaults.
+        /// result Receives the details; may be NULL.
+        /// Returns: R_TRUE when the capture matches (or the golden was written
+        /// because RAVEN_UPDATE_GOLDENS=1).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_expect_golden(uint target, [MarshalAs(Utf8.Str)] string golden_path, IntPtr options, IntPtr result);
+
+        /// <summary>
+        /// Compares two RGBA8 images of the same size as Rtest_expect_golden
+        /// does, without files.
+        /// diff_rgba When not NULL, receives width * height * 4 bytes: the
+        /// expected image faded, with the different pixels in red.
+        /// Returns: The number of pixels farther apart than `channel_tolerance`;
+        /// -1 when an image is missing.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtest_compare_pixels(byte[] actual, byte[] expected, int width, int height, int channel_tolerance, out int max_channel_difference, IntPtr diff_rgba);
     }
 }

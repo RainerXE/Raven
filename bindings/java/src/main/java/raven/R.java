@@ -1,6 +1,6 @@
 // Raven for Java.
 //
-// Generated from the C headers by tools/bindgen (Raven 0.2): do not edit.
+// Generated from the C headers by tools/bindgen (Raven 0.3): do not edit.
 //
 // The C API under its own names, in the class raven.R, over the Foreign
 // Function & Memory API of Java 22 and later (java.lang.foreign): no
@@ -24,7 +24,7 @@
 //
 //   public class Hello {
 //       public static void main(String[] args) {
-//           Rinit(R_BACKEND_VULKAN);
+//           Rinit(R_BACKEND_DEFAULT);
 //           Rwindow_create_from_xml("<Window Title='Hi'><Button Text='Quit' OnClicked='quit'/></Window>");
 //           Raction_bind("quit", (sender, action, user) -> Rquit(0));
 //           while (Rwait_frame(-1.0) != 0) { }
@@ -193,14 +193,18 @@ public final class R {
     // ---- constants
 
     public static final int RAVEN_VERSION_MAJOR = 0;
-    public static final int RAVEN_VERSION_MINOR = 2;
-    public static final int RAVEN_VERSION_PATCH = 3;
-    public static final String RAVEN_API_VERSION = "0.2";
+    public static final int RAVEN_VERSION_MINOR = 3;
+    public static final int RAVEN_VERSION_PATCH = 0;
+    public static final String RAVEN_API_VERSION = "0.3";
     public static final int R_FALSE = 0;
     public static final int R_TRUE = 1;
     public static final int R_INVALID_ID = 0xFFFFFFFF;
 
     // RBackend
+    /**
+     * The renderer of the platform: WebGL in browser builds, Metal on macOS and iOS when it is compiled, Vulkan otherwise.
+     */
+    public static final int R_BACKEND_DEFAULT = 0;
     /**
      * Built-in Vulkan renderer.
      */
@@ -218,10 +222,14 @@ public final class R {
      */
     public static final int R_BACKEND_WEBGL = 4;
     /**
+     * Built-in Metal renderer (macOS, iOS).
+     */
+    public static final int R_BACKEND_METAL = 5;
+    /**
      * Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
      * Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
      */
-    public static final int R_BACKEND_SOKOL = 5;
+    public static final int R_BACKEND_SOKOL = 6;
 
     // RError
     public static final int R_NO_ERROR = 0x0070;
@@ -236,12 +244,42 @@ public final class R {
     public static final int R_ERROR_FILE_NOT_FOUND = 0x0079;
     public static final int R_ERROR_XML = 0x007A;
     public static final int R_ERROR_WRONG_THREAD = 0x007B;
+    /**
+     * A diagnostic of Raven Script (raven_script.h): the text is the whole message, "error[RS102]: ...".
+     */
+    public static final int R_ERROR_SCRIPT = 0x007C;
 
     // RSeverity
     public static final int R_SEVERITY_WEAK_WARNING = 0x0080;
     public static final int R_SEVERITY_WARNING = 0x0081;
     public static final int R_SEVERITY_ERROR = 0x0082;
     public static final int R_SEVERITY_FATAL = 0x0083;
+
+    // RAppEvent: What the system does with the application, on iOS and Android (desktop
+    /**
+     * The application is about to leave the front (home, app switcher, a call). Save the state now.
+     */
+    public static final int R_APP_WILL_PAUSE = 0x0B80;
+    /**
+     * The application is in the background: Raven has stopped drawing, and waited until the GPU was idle.
+     */
+    public static final int R_APP_DID_PAUSE = 0x0B81;
+    /**
+     * The application is coming back to the front: Raven draws again.
+     */
+    public static final int R_APP_WILL_RESUME = 0x0B82;
+    /**
+     * The application is in front and takes input again.
+     */
+    public static final int R_APP_DID_RESUME = 0x0B83;
+    /**
+     * The system is low on memory: free what can be made again. Raven then drops its own caches and trims its heap.
+     */
+    public static final int R_APP_LOW_MEMORY = 0x0B84;
+    /**
+     * The application is about to end (Android: the activity is finishing; its window is closed right after).
+     */
+    public static final int R_APP_WILL_TERMINATE = 0x0B85;
 
     // RWindowFlags
     public static final int R_WINDOW_DEFAULT = 0;
@@ -1043,6 +1081,18 @@ public final class R {
      * The pages of a PDF document, scrolled and zoomed (drawn by PDFium, loaded at run time).
      */
     public static final int R_WIDGET_PDF_VIEW = 0x0233;
+    /**
+     * The charts of dashboards: pie, donut, gauge, heatmap, sparkline (RChartKind).
+     */
+    public static final int R_WIDGET_CHART = 0x0234;
+    /**
+     * A map of slippy-map tiles given by the application (or read from files): panned, zoomed, with markers.
+     */
+    public static final int R_WIDGET_MAP_VIEW = 0x0235;
+    /**
+     * Pages shown one at a time and swiped (a page view), with dots and arrows.
+     */
+    public static final int R_WIDGET_CAROUSEL = 0x0236;
 
     // RHAlign
     public static final int R_HALIGN_FILL = 0x0240;
@@ -1298,6 +1348,24 @@ public final class R {
      */
     public static final int R_PDF_PRINT_NO_DIALOG = 1;
 
+    // RMapTileState: Where a tile of a MapView stands (Rmap_view_get_tile_state).
+    /**
+     * Not in the view's cache: never asked for, no longer wanted, or evicted.
+     */
+    public static final int R_MAP_TILE_NONE = 0x0600;
+    /**
+     * Asked for (the tile callback was called, or the file is being read): waiting for its pixels.
+     */
+    public static final int R_MAP_TILE_PENDING = 0x0601;
+    /**
+     * Its pixels are in the cache.
+     */
+    public static final int R_MAP_TILE_LOADED = 0x0602;
+    /**
+     * The application said it has none (Rmap_view_set_tile_failed), or its file could not be read.
+     */
+    public static final int R_MAP_TILE_FAILED = 0x0603;
+
     // RPlotScale: How an axis of a Plot spreads its values.
     public static final int R_PLOT_SCALE_LINEAR = 0x0530;
     /**
@@ -1346,6 +1414,28 @@ public final class R {
      * To the right of the data, outside it.
      */
     public static final int R_PLOT_LEGEND_OUTSIDE = 0x0569;
+
+    // RChartKind: What a Chart draws.
+    /**
+     * Slices of a whole, as parts of a disc (the default).
+     */
+    public static final int R_CHART_PIE = 0x0590;
+    /**
+     * Slices of a whole, as parts of a ring; its middle shows the total, or the slice under the pointer.
+     */
+    public static final int R_CHART_DONUT = 0x0591;
+    /**
+     * One value within a range, on an arc; bands color parts of the range.
+     */
+    public static final int R_CHART_GAUGE = 0x0592;
+    /**
+     * A grid of values, each cell colored from the low color to the high one.
+     */
+    public static final int R_CHART_HEATMAP = 0x0593;
+    /**
+     * A small line of values without axes, to sit in a tile or a cell of a table.
+     */
+    public static final int R_CHART_SPARKLINE = 0x0594;
 
     // RSyntax: Shorthands of Rtext_editor_set_language for two languages.
     public static final int R_SYNTAX_NONE = 0x0340;
@@ -1733,6 +1823,32 @@ public final class R {
     public static final int R_ROLE_SCROLL_BAR = 0x0782;
     public static final int R_ROLE_PANE = 0x0783;
 
+    // RGoldenStatus
+    /**
+     * The capture matches the golden.
+     */
+    public static final int R_GOLDEN_MATCH = 0x0BA0;
+    /**
+     * RAVEN_UPDATE_GOLDENS=1: the capture was written as the golden.
+     */
+    public static final int R_GOLDEN_UPDATED = 0x0BA1;
+    /**
+     * Too many pixels differ: NAME.actual.png and NAME.diff.png were written.
+     */
+    public static final int R_GOLDEN_MISMATCH = 0x0BA2;
+    /**
+     * The capture and the golden do not have the same size: NAME.actual.png was written.
+     */
+    public static final int R_GOLDEN_SIZE_MISMATCH = 0x0BA3;
+    /**
+     * There is no golden yet: NAME.actual.png was written (run with RAVEN_UPDATE_GOLDENS=1 to keep it).
+     */
+    public static final int R_GOLDEN_MISSING = 0x0BA4;
+    /**
+     * The window could not be captured, or a file could not be read or written.
+     */
+    public static final int R_GOLDEN_FAILED = 0x0BA5;
+
     // ---- structures
 
     /**
@@ -1779,8 +1895,9 @@ public final class R {
         }
 
         /**
-         * Rendering backend. 0 selects the one named by the environment variable RAVEN_BACKEND (vulkan,
-         * sokol, webgl or null) when it is set, else WebGL in browser builds and Vulkan otherwise.
+         * Rendering backend. R_BACKEND_DEFAULT (0) selects the one named by the environment variable
+         * RAVEN_BACKEND (vulkan, metal, sokol, webgl or null) when it is set, else WebGL in browser
+         * builds, Metal on macOS and iOS when it is compiled, and Vulkan otherwise.
          */
         public int backend() { return s.get(JAVA_INT, 0); }
         public RInitDesc backend(int value) { s.set(JAVA_INT, 0, value); return this; }
@@ -2470,7 +2587,7 @@ public final class R {
      */
     public static final class RTouchSettings {
         /** The size of the structure in C, in bytes. */
-        public static final long SIZE = 52;
+        public static final long SIZE = 56;
         private final MemorySegment s;
         private Arena arena;
 
@@ -2584,6 +2701,18 @@ public final class R {
          */
         public float swipe_distance() { return s.get(JAVA_FLOAT, 48); }
         public RTouchSettings swipe_distance(float value) { s.set(JAVA_FLOAT, 48, value); return this; }
+
+        /**
+         * Smallest height (logical units) of what a finger presses: buttons,
+         * fields, combo boxes, tabs and bars are at least this high, rows of
+         * lists, trees, tables and menus too, and so are check boxes, switches
+         * and sliders, whose box and handle grow to half of it. Whatever the
+         * theme or a widget asks for, 0 leaves the sizes as they are.
+         * Default 44 on iOS (Apple: 44 points), 48 on Android (Material: 48 dp),
+         * 0 elsewhere.
+         */
+        public float min_touch_size() { return s.get(JAVA_FLOAT, 52); }
+        public RTouchSettings min_touch_size(float value) { s.set(JAVA_FLOAT, 52, value); return this; }
     }
 
     public static final class RTouchEvent {
@@ -3035,7 +3164,7 @@ public final class R {
      */
     public static final class RTileItem {
         /** The size of the structure in C, in bytes. */
-        public static final long SIZE = 80;
+        public static final long SIZE = 104;
         private final MemorySegment s;
         private Arena arena;
 
@@ -3110,6 +3239,79 @@ public final class R {
          */
         public float text_color(int index) { return s.getAtIndex(JAVA_FLOAT, 64 / 4 + java.util.Objects.checkIndex(index, 4)); }
         public RTileItem text_color(int index, float value) { s.setAtIndex(JAVA_FLOAT, 64 / 4 + java.util.Objects.checkIndex(index, 4), value); return this; }
+
+        /**
+         * Layout="Rows": a third line under the detail, dimmer, or NULL.
+         */
+        public String note() { return R.text(s.get(ADDRESS, 80)); }
+        public RTileItem note(String value) { s.set(ADDRESS, 80, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * Color of the detail line; alpha 0 = the theme (dimmer than the name).
+         */
+        public float detail_color(int index) { return s.getAtIndex(JAVA_FLOAT, 88 / 4 + java.util.Objects.checkIndex(index, 4)); }
+        public RTileItem detail_color(int index, float value) { s.setAtIndex(JAVA_FLOAT, 88 / 4 + java.util.Objects.checkIndex(index, 4), value); return this; }
+    }
+
+    /**
+     * A section of a tile view: its first tile, and what its header shows.
+     */
+    public static final class RTileSection {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 24;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RTileSection x = {0};` is in C). */
+        public RTileSection() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RTileSection(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RTileSection(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RTileSection[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RTileSection[] items = new RTileSection[count];
+            for (int i = 0; i < count; i++) items[i] = new RTileSection(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        /**
+         * Index of the first tile of the section (read when the sections are given).
+         */
+        public int first() { return s.get(JAVA_INT, 0); }
+        public RTileSection first(int value) { s.set(JAVA_INT, 0, value); return this; }
+
+        /**
+         * Title of the header (valid until the callback returns).
+         */
+        public String text() { return R.text(s.get(ADDRESS, 8)); }
+        public RTileSection text(String value) { s.set(ADDRESS, 8, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * Dimmer text after the title (a count...), or NULL.
+         */
+        public String detail() { return R.text(s.get(ADDRESS, 16)); }
+        public RTileSection detail(String value) { s.set(ADDRESS, 16, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
     }
 
     /**
@@ -3447,7 +3649,7 @@ public final class R {
      */
     public static final class RViewportDrawInfo {
         /** The size of the structure in C, in bytes. */
-        public static final long SIZE = 88;
+        public static final long SIZE = 112;
         private final MemorySegment s;
         private Arena arena;
 
@@ -3563,10 +3765,28 @@ public final class R {
         public RViewportDrawInfo render_pass(MemorySegment value) { s.set(ADDRESS, 72, value == null ? MemorySegment.NULL : value); return this; }
 
         /**
-         * Vulkan: VkFormat of the color attachment.
+         * Vulkan: VkFormat of the color attachment; Metal: MTLPixelFormat.
          */
         public int color_format() { return s.get(JAVA_INT, 80); }
         public RViewportDrawInfo color_format(int value) { s.set(JAVA_INT, 80, value); return this; }
+
+        /**
+         * Metal: id&lt;MTLRenderCommandEncoder&gt; of the frame, inside its render pass (do not end it).
+         */
+        public MemorySegment metal_encoder() { return s.get(ADDRESS, 88); }
+        public RViewportDrawInfo metal_encoder(MemorySegment value) { s.set(ADDRESS, 88, value == null ? MemorySegment.NULL : value); return this; }
+
+        /**
+         * Metal: id&lt;MTLCommandBuffer&gt; the encoder belongs to.
+         */
+        public MemorySegment metal_command_buffer() { return s.get(ADDRESS, 96); }
+        public RViewportDrawInfo metal_command_buffer(MemorySegment value) { s.set(ADDRESS, 96, value == null ? MemorySegment.NULL : value); return this; }
+
+        /**
+         * Metal: id&lt;MTLDevice&gt; of the backend, to make pipeline states that match color_format.
+         */
+        public MemorySegment metal_device() { return s.get(ADDRESS, 104); }
+        public RViewportDrawInfo metal_device(MemorySegment value) { s.set(ADDRESS, 104, value == null ? MemorySegment.NULL : value); return this; }
     }
 
     /**
@@ -3965,6 +4185,155 @@ public final class R {
         public RHostPlatformDesc user_data(MemorySegment value) { s.set(ADDRESS, 32, value == null ? MemorySegment.NULL : value); return this; }
     }
 
+    /**
+     * How Rtest_expect_golden compares. NULL options: a tolerance of 2 per channel and no different pixel.
+     */
+    public static final class RGoldenOptions {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 24;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RGoldenOptions x = {0};` is in C). */
+        public RGoldenOptions() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RGoldenOptions(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RGoldenOptions(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RGoldenOptions[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RGoldenOptions[] items = new RGoldenOptions[count];
+            for (int i = 0; i < count; i++) items[i] = new RGoldenOptions(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        /**
+         * Largest difference on one channel (0..255) for which two pixels are still the same.
+         */
+        public int channel_tolerance() { return s.get(JAVA_INT, 0); }
+        public RGoldenOptions channel_tolerance(int value) { s.set(JAVA_INT, 0, value); return this; }
+
+        /**
+         * Share of the pixels (0..1) that may differ while the images still match.
+         */
+        public float max_diff_ratio() { return s.get(JAVA_FLOAT, 4); }
+        public RGoldenOptions max_diff_ratio(float value) { s.set(JAVA_FLOAT, 4, value); return this; }
+
+        /**
+         * R_TRUE: the golden of this OS and backend, "button.png" read as "button.macos-metal.png" (Rtest_get_platform_tag).
+         */
+        public int per_platform() { return s.get(JAVA_INT, 8); }
+        public RGoldenOptions per_platform(int value) { s.set(JAVA_INT, 8, value); return this; }
+
+        /**
+         * Folder of the .actual.png and .diff.png written on a mismatch. NULL: beside the golden.
+         */
+        public String output_directory() { return R.text(s.get(ADDRESS, 16)); }
+        public RGoldenOptions output_directory(String value) { s.set(ADDRESS, 16, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+    }
+
+    /**
+     * What Rtest_expect_golden found.
+     */
+    public static final class RGoldenResult {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 40;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RGoldenResult x = {0};` is in C). */
+        public RGoldenResult() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RGoldenResult(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RGoldenResult(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RGoldenResult[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RGoldenResult[] items = new RGoldenResult[count];
+            for (int i = 0; i < count; i++) items[i] = new RGoldenResult(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        public int status() { return s.get(JAVA_INT, 0); }
+        public RGoldenResult status(int value) { s.set(JAVA_INT, 0, value); return this; }
+
+        /**
+         * Size of the capture, in pixels.
+         */
+        public int width() { return s.get(JAVA_INT, 4); }
+        public RGoldenResult width(int value) { s.set(JAVA_INT, 4, value); return this; }
+
+        /**
+         * Size of the capture, in pixels.
+         */
+        public int height() { return s.get(JAVA_INT, 8); }
+        public RGoldenResult height(int value) { s.set(JAVA_INT, 8, value); return this; }
+
+        /**
+         * Pixels farther from the golden than the tolerance.
+         */
+        public int differing_pixels() { return s.get(JAVA_INT, 12); }
+        public RGoldenResult differing_pixels(int value) { s.set(JAVA_INT, 12, value); return this; }
+
+        /**
+         * Largest difference found on one channel (0..255).
+         */
+        public int max_channel_difference() { return s.get(JAVA_INT, 16); }
+        public RGoldenResult max_channel_difference(int value) { s.set(JAVA_INT, 16, value); return this; }
+
+        /**
+         * The golden that was read or written (with the platform tag). Valid until the next call.
+         */
+        public String golden_path() { return R.text(s.get(ADDRESS, 24)); }
+        public RGoldenResult golden_path(String value) { s.set(ADDRESS, 24, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * One line that says what happened, for the log of the test. Valid until the next call.
+         */
+        public String message() { return R.text(s.get(ADDRESS, 32)); }
+        public RGoldenResult message(String value) { s.set(ADDRESS, 32, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+    }
+
     // ---- callbacks
 
     /**
@@ -4028,6 +4397,33 @@ public final class R {
 
     private static MemorySegment upcall(RFrameCallback f) {
         return stub(f, RFrameCallback.class, "RFrameCallback$raw", FunctionDescriptor.ofVoid(JAVA_DOUBLE, ADDRESS));
+    }
+
+    /**
+     * Registers a function called when the application changes state
+     * (RAppEvent), on the UI thread, while the system waits for it: keep it
+     * short. Between R_APP_DID_PAUSE and R_APP_WILL_RESUME Raven lays out but
+     * draws nothing, animations stand still and Rwait_frame sleeps until an
+     * event, a posted task or a timer: the timers of the application keep
+     * running, so stop those that only drive drawing. Set it after Rinit;
+     * NULL removes it.
+     */
+    @FunctionalInterface
+    public interface RAppEventCallback {
+        void invoke(int event, MemorySegment user_data);
+    }
+
+    private static void RAppEventCallback$raw(RAppEventCallback f, int event, MemorySegment user_data) {
+        try {
+            f.invoke(event, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RAppEventCallback f) {
+        return stub(f, RAppEventCallback.class, "RAppEventCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
     }
 
     @FunctionalInterface
@@ -4107,6 +4503,24 @@ public final class R {
 
     private static MemorySegment upcall(RActionCallback f) {
         return stub(f, RActionCallback.class, "RActionCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+    }
+
+    @FunctionalInterface
+    public interface RActionParametersCallback {
+        void invoke(MemorySegment context, MemorySegment user_data);
+    }
+
+    private static void RActionParametersCallback$raw(RActionParametersCallback f, MemorySegment context, MemorySegment user_data) {
+        try {
+            f.invoke(context, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RActionParametersCallback f) {
+        return stub(f, RActionParametersCallback.class, "RActionParametersCallback$raw", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
     }
 
     /**
@@ -4211,6 +4625,30 @@ public final class R {
 
     private static MemorySegment upcall(RDropCallback f) {
         return stub(f, RDropCallback.class, "RDropCallback$raw", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+    }
+
+    /**
+     * Called on Back when no popup or dialog of Raven is open. Return
+     * R_TRUE when the application went back, R_FALSE when it had nowhere to
+     * go (the system then does its default). NULL removes it.
+     */
+    @FunctionalInterface
+    public interface RBackCallback {
+        int invoke(int window, MemorySegment user_data);
+    }
+
+    private static int RBackCallback$raw(RBackCallback f, int window, MemorySegment user_data) {
+        try {
+            return f.invoke(window, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+            return 0;
+        }
+    }
+
+    private static MemorySegment upcall(RBackCallback f) {
+        return stub(f, RBackCallback.class, "RBackCallback$raw", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
     }
 
     /**
@@ -4720,6 +5158,28 @@ public final class R {
     }
 
     /**
+     * Describes section `section`: when the sections are given (Rtile_view_set_sections,
+     * `first` is read) and when its header is drawn (`text`, `detail`). UI thread.
+     */
+    @FunctionalInterface
+    public interface RTileSectionCallback {
+        void invoke(int tile_view, int section, RTileSection out, MemorySegment user_data);
+    }
+
+    private static void RTileSectionCallback$raw(RTileSectionCallback f, int tile_view, int section, MemorySegment out, MemorySegment user_data) {
+        try {
+            f.invoke(tile_view, section, out.equals(MemorySegment.NULL) ? null : new RTileSection(out), user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RTileSectionCallback f) {
+        return stub(f, RTileSectionCallback.class, "RTileSectionCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+    }
+
+    /**
      * Fills `item` for tile `index`. Called on the UI thread, only for the tiles in view.
      */
     @FunctionalInterface
@@ -4843,8 +5303,8 @@ public final class R {
      * Colors the text of cells (a verdict, a state): the table asks for the
      * color of each cell it draws, stored or virtual (`row` is the index of the
      * order shown). Set r, g, b, a (0..1) and return R_TRUE; R_FALSE (or alpha 0)
-     * keeps the color of the theme. The color is kept on a selected or hovered
-     * row. NULL removes the callback.
+     * keeps the color set with Rtable_set_cell_text_color, else the theme's.
+     * The color is kept on a selected or hovered row. NULL removes the callback.
      */
     @FunctionalInterface
     public interface RTableCellColorCallback {
@@ -5094,6 +5554,48 @@ public final class R {
     }
 
     /**
+     * Called when the user clicks a slice; `selected` tells whether it is now the selected one.
+     */
+    @FunctionalInterface
+    public interface RChartSliceCallback {
+        void invoke(int chart, int slice, int selected, MemorySegment user_data);
+    }
+
+    private static void RChartSliceCallback$raw(RChartSliceCallback f, int chart, int slice, int selected, MemorySegment user_data) {
+        try {
+            f.invoke(chart, slice, selected, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RChartSliceCallback f) {
+        return stub(f, RChartSliceCallback.class, "RChartSliceCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Called when the user clicks a cell of a heatmap.
+     */
+    @FunctionalInterface
+    public interface RChartCellCallback {
+        void invoke(int chart, int row, int column, float value, MemorySegment user_data);
+    }
+
+    private static void RChartCellCallback$raw(RChartCellCallback f, int chart, int row, int column, float value, MemorySegment user_data) {
+        try {
+            f.invoke(chart, row, column, value, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RChartCellCallback f) {
+        return stub(f, RChartCellCallback.class, "RChartCellCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_FLOAT, ADDRESS));
+    }
+
+    /**
      * Called when the current page changes as the user scrolls. This also fires the action of the widget.
      */
     @FunctionalInterface
@@ -5112,6 +5614,94 @@ public final class R {
 
     private static MemorySegment upcall(RPdfPageChangedCallback f) {
         return stub(f, RPdfPageChangedCallback.class, "RPdfPageChangedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Called when the user goes to another page (a swipe, the keys, a
+     * dot, an arrow) and when the autoplay does. This also fires the action
+     * of the widget.
+     */
+    @FunctionalInterface
+    public interface RCarouselPageChangedCallback {
+        void invoke(int carousel, int page, MemorySegment user_data);
+    }
+
+    private static void RCarouselPageChangedCallback$raw(RCarouselPageChangedCallback f, int carousel, int page, MemorySegment user_data) {
+        try {
+            f.invoke(carousel, page, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RCarouselPageChangedCallback f) {
+        return stub(f, RCarouselPageChangedCallback.class, "RCarouselPageChangedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Asks the application for a tile (z, x, y), or tells it that a tile asked for is no longer wanted.
+     */
+    @FunctionalInterface
+    public interface RMapTileCallback {
+        void invoke(int map, int z, int x, int y, MemorySegment user_data);
+    }
+
+    private static void RMapTileCallback$raw(RMapTileCallback f, int map, int z, int x, int y, MemorySegment user_data) {
+        try {
+            f.invoke(map, z, x, y, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RMapTileCallback f) {
+        return stub(f, RMapTileCallback.class, "RMapTileCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Called when the user clicks a marker.
+     */
+    @FunctionalInterface
+    public interface RMapMarkerCallback {
+        void invoke(int map, int marker, MemorySegment user_data);
+    }
+
+    private static void RMapMarkerCallback$raw(RMapMarkerCallback f, int map, int marker, MemorySegment user_data) {
+        try {
+            f.invoke(map, marker, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RMapMarkerCallback f) {
+        return stub(f, RMapMarkerCallback.class, "RMapMarkerCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Called when the user moves or zooms the map (during a drag, at the
+     * end of an animated zoom), with its new center and zoom. This also fires
+     * the action of the widget.
+     */
+    @FunctionalInterface
+    public interface RMapViewCallback {
+        void invoke(int map, double latitude, double longitude, double zoom, MemorySegment user_data);
+    }
+
+    private static void RMapViewCallback$raw(RMapViewCallback f, int map, double latitude, double longitude, double zoom, MemorySegment user_data) {
+        try {
+            f.invoke(map, latitude, longitude, zoom, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RMapViewCallback f) {
+        return stub(f, RMapViewCallback.class, "RMapViewCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS));
     }
 
     /**
@@ -5254,6 +5844,37 @@ public final class R {
 
     private static MemorySegment upcall(RDockCloseCallback f) {
         return stub(f, RDockCloseCallback.class, "RDockCloseCallback$raw", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Called when a panel leaves for a window of its own, once the
+     * window and its floating area are made, before the panel goes there and
+     * before anything is drawn.
+     * area          The area the panel belongs to (its home).
+     * panel         The panel that leaves.
+     * window        The new window.
+     * floating_area The dock area of the new window.
+     * Returns: The content of the window: a widget that holds floating_area
+     * (a VBox with a header bar above it, for a window made with
+     * R_WINDOW_CUSTOM_HEADER), or R_INVALID_ID for floating_area itself.
+     */
+    @FunctionalInterface
+    public interface RDockFloatWindowCallback {
+        int invoke(int area, int panel, int window, int floating_area, MemorySegment user_data);
+    }
+
+    private static int RDockFloatWindowCallback$raw(RDockFloatWindowCallback f, int area, int panel, int window, int floating_area, MemorySegment user_data) {
+        try {
+            return f.invoke(area, panel, window, floating_area, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+            return 0;
+        }
+    }
+
+    private static MemorySegment upcall(RDockFloatWindowCallback f) {
+        return stub(f, RDockFloatWindowCallback.class, "RDockFloatWindowCallback$raw", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
     }
 
     /**
@@ -5731,6 +6352,51 @@ public final class R {
         return stub(f, RXmlTagAttributeCallback.class, "RXmlTagAttributeCallback$raw", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
     }
 
+    /**
+     * Where app.log writes: the standard output when NULL.
+     */
+    @FunctionalInterface
+    public interface RScriptLogCallback {
+        void invoke(String message, MemorySegment user_data);
+    }
+
+    private static void RScriptLogCallback$raw(RScriptLogCallback f, MemorySegment message, MemorySegment user_data) {
+        try {
+            f.invoke(text(message), user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RScriptLogCallback f) {
+        return stub(f, RScriptLogCallback.class, "RScriptLogCallback$raw", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+    }
+
+    /**
+     * Receives the diagnostics of the scripts instead of the error
+     * callback. `text` is the whole message, as the command line shows it;
+     * `code` is its code ("RS102"); `line` and `column` start at 1 (0 when
+     * the diagnostic has no place). NULL gives them back to the error callback.
+     */
+    @FunctionalInterface
+    public interface RScriptDiagnosticCallback {
+        void invoke(int severity, String code, String file, int line, int column, String text, MemorySegment user_data);
+    }
+
+    private static void RScriptDiagnosticCallback$raw(RScriptDiagnosticCallback f, int severity, MemorySegment code, MemorySegment file, int line, int column, MemorySegment text, MemorySegment user_data) {
+        try {
+            f.invoke(severity, text(code), text(file), line, column, text(text), user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RScriptDiagnosticCallback f) {
+        return stub(f, RScriptDiagnosticCallback.class, "RScriptDiagnosticCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+    }
+
     @FunctionalInterface
     public interface RLocaleChangedCallback {
         void invoke(String language, MemorySegment user_data);
@@ -6204,6 +6870,55 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rset_app_event_callback$;
+
+    public static void Rset_app_event_callback(RAppEventCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rset_app_event_callback$;
+        if ($h == null) Rset_app_event_callback$ = $h = find("Rset_app_event_callback", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rset_app_event_callback(RAppEventCallback callback) {
+        Rset_app_event_callback(callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Ris_app_paused$;
+
+    /**
+     * Returns: R_TRUE between R_APP_DID_PAUSE and R_APP_WILL_RESUME: the application is in the background.
+     */
+    public static int Ris_app_paused() {
+        MethodHandle $h = Ris_app_paused$;
+        if ($h == null) Ris_app_paused$ = $h = find("Ris_app_paused", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rinject_app_event$;
+
+    /**
+     * Handles an RAppEvent as if the system had sent it: for tests,
+     * and for a host application (raven_host.h) that knows the lifecycle.
+     * UI thread.
+     */
+    public static void Rinject_app_event(int event) {
+        MethodHandle $h = Rinject_app_event$;
+        if ($h == null) Rinject_app_event$ = $h = find("Rinject_app_event", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(event);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rset_ui_scale$;
 
     /**
@@ -6568,6 +7283,172 @@ public final class R {
      */
     public static void Raction_set_default_handler(RActionCallback callback) {
         Raction_set_default_handler(callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Raction_bind_with_parameters$;
+
+    public static int Raction_bind_with_parameters(String name, String signature, RActionParametersCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Raction_bind_with_parameters$;
+        if ($h == null) Raction_bind_with_parameters$ = $h = find("Raction_bind_with_parameters", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            MemorySegment signature$ = signature == null ? MemorySegment.NULL : utf8($a, signature);
+            int $r = (int) $h.invokeExact(name$, signature$, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static int Raction_bind_with_parameters(String name, String signature, RActionParametersCallback callback) {
+        return Raction_bind_with_parameters(name, signature, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Raction_get_sender$;
+
+    /**
+     * Returns: The widget whose event fired the action, R_INVALID_ID when a script calls it.
+     */
+    public static int Raction_get_sender(MemorySegment context) {
+        MethodHandle $h = Raction_get_sender$;
+        if ($h == null) Raction_get_sender$ = $h = find("Raction_get_sender", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try {
+            int $r = (int) $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_get_name$;
+
+    public static String Raction_get_name(MemorySegment context) {
+        MethodHandle $h = Raction_get_name$;
+        if ($h == null) Raction_get_name$ = $h = find("Raction_get_name", FunctionDescriptor.of(ADDRESS, ADDRESS));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context));
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_get_argument_count$;
+
+    /**
+     * Returns: The number of arguments given: the parameters of the signature, fewer when an event gives fewer... never more.
+     */
+    public static int Raction_get_argument_count(MemorySegment context) {
+        MethodHandle $h = Raction_get_argument_count$;
+        if ($h == null) Raction_get_argument_count$ = $h = find("Raction_get_argument_count", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try {
+            int $r = (int) $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_get_number$;
+
+    /**
+     * The arguments, by position from 0. A wrong index or type reports an error and gives 0, "" or R_FALSE.
+     */
+    public static double Raction_get_number(MemorySegment context, int index) {
+        MethodHandle $h = Raction_get_number$;
+        if ($h == null) Raction_get_number$ = $h = find("Raction_get_number", FunctionDescriptor.of(JAVA_DOUBLE, ADDRESS, JAVA_INT));
+        try {
+            double $r = (double) $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), index);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_get_string$;
+
+    /**
+     * Returns: Valid until the function returns.
+     */
+    public static String Raction_get_string(MemorySegment context, int index) {
+        MethodHandle $h = Raction_get_string$;
+        if ($h == null) Raction_get_string$ = $h = find("Raction_get_string", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), index);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_get_bool$;
+
+    public static int Raction_get_bool(MemorySegment context, int index) {
+        MethodHandle $h = Raction_get_bool$;
+        if ($h == null) Raction_get_bool$ = $h = find("Raction_get_bool", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), index);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_return_number$;
+
+    /**
+     * The value returned to the script; of the type of the signature (what is set last counts).
+     */
+    public static void Raction_return_number(MemorySegment context, double value) {
+        MethodHandle $h = Raction_return_number$;
+        if ($h == null) Raction_return_number$ = $h = find("Raction_return_number", FunctionDescriptor.ofVoid(ADDRESS, JAVA_DOUBLE));
+        try {
+            $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_return_string$;
+
+    public static void Raction_return_string(MemorySegment context, String value) {
+        MethodHandle $h = Raction_return_string$;
+        if ($h == null) Raction_return_string$ = $h = find("Raction_return_string", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment value$ = value == null ? MemorySegment.NULL : utf8($a, value);
+            $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), value$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_return_bool$;
+
+    public static void Raction_return_bool(MemorySegment context, int value) {
+        MethodHandle $h = Raction_return_bool$;
+        if ($h == null) Raction_return_bool$ = $h = find("Raction_return_bool", FunctionDescriptor.ofVoid(ADDRESS, JAVA_INT));
+        try {
+            $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Raction_fail$;
+
+    /**
+     * The function failed: the script that called it stops with error
+     * RS205 and this message (the application goes on; so does the next event).
+     */
+    public static void Raction_fail(MemorySegment context, String message) {
+        MethodHandle $h = Raction_fail$;
+        if ($h == null) Raction_fail$ = $h = find("Raction_fail", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment message$ = message == null ? MemorySegment.NULL : utf8($a, message);
+            $h.invokeExact((MemorySegment) (context == null ? MemorySegment.NULL : context), message$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
     }
 
     private static MethodHandle Raction_set_builtins$;
@@ -6938,7 +7819,10 @@ public final class R {
     /**
      * The part of the window the on-screen keyboard covers (only
      * `bottom` is set), in logical units; 0 when it is hidden or there is
-     * none (desktop). The content is laid out above it already.
+     * none (desktop). The content is laid out above it already, and the
+     * field that has the focus is scrolled into view above it, by the
+     * ScrollBoxes that hold it, when the keyboard comes or changes height,
+     * when the window turns, and when another field takes the focus.
      */
     public static void Rwindow_get_keyboard_area(int window, RInsets insets) {
         MethodHandle $h = Rwindow_get_keyboard_area$;
@@ -6982,6 +7866,56 @@ public final class R {
         if ($h == null) Rwindow_clear_focus$ = $h = find("Rwindow_clear_focus", FunctionDescriptor.ofVoid(JAVA_INT));
         try {
             $h.invokeExact(window);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_set_back_callback$;
+
+    public static void Rwindow_set_back_callback(int window, RBackCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rwindow_set_back_callback$;
+        if ($h == null) Rwindow_set_back_callback$ = $h = find("Rwindow_set_back_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(window, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rwindow_set_back_callback(int window, RBackCallback callback) {
+        Rwindow_set_back_callback(window, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rwindow_set_back_enabled$;
+
+    /**
+     * R_TRUE while the application has somewhere to go back to (a page
+     * under the one shown). Android 13 and later ask for Back only while the
+     * window wants it (predictive back): at the root page the system handles
+     * Back itself and animates back to the home screen. Default R_FALSE.
+     */
+    public static void Rwindow_set_back_enabled(int window, int enabled) {
+        MethodHandle $h = Rwindow_set_back_enabled$;
+        if ($h == null) Rwindow_set_back_enabled$ = $h = find("Rwindow_set_back_enabled", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(window, enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_wants_back$;
+
+    /**
+     * Returns: R_TRUE while Back would be taken: a popup or dialog is open, or Rwindow_set_back_enabled said so.
+     */
+    public static int Rwindow_wants_back(int window) {
+        MethodHandle $h = Rwindow_wants_back$;
+        if ($h == null) Rwindow_wants_back$ = $h = find("Rwindow_wants_back", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(window);
+            return $r;
         } catch (Throwable $t) {
             throw fail($t);
         }
@@ -7883,6 +8817,31 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rwindow_inject_composition$;
+
+    /**
+     * The text an input method is composing (preedit: Chinese,
+     * Japanese, Korean, dead keys), as the platforms send it. The focused
+     * TextInput, SpinBox or TextEditor shows it at its caret, underlined, in
+     * place of its selection, but it is not in its text and no changed
+     * callback runs. [selection_start, selection_end) are bytes of `text`:
+     * the part the input method works on (underlined thicker), or the caret
+     * when they are equal; -1 is the end of `text`. NULL or "" ends the
+     * composition without typing anything (cancel). The committed text comes
+     * through Rwindow_inject_text, which ends the composition too, and so
+     * does a change of focus. Ignored when the focus takes no text.
+     */
+    public static void Rwindow_inject_composition(int window, String text, int selection_start, int selection_end) {
+        MethodHandle $h = Rwindow_inject_composition$;
+        if ($h == null) Rwindow_inject_composition$ = $h = find("Rwindow_inject_composition", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            $h.invokeExact(window, text$, selection_start, selection_end);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rwindow_inject_drag$;
 
     /**
@@ -7913,6 +8872,22 @@ public final class R {
             MemorySegment paths$ = texts($a, paths);
             MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
             int $r = (int) $h.invokeExact(window, x, y, paths$, (int) (paths$.byteSize() / ADDRESS.byteSize()), text$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_inject_back$;
+
+    /**
+     * Back, as the system sends it (Rwindow_set_back_callback). Returns R_TRUE when something took it.
+     */
+    public static int Rwindow_inject_back(int window) {
+        MethodHandle $h = Rwindow_inject_back$;
+        if ($h == null) Rwindow_inject_back$ = $h = find("Rwindow_inject_back", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(window);
             return $r;
         } catch (Throwable $t) {
             throw fail($t);
@@ -8086,6 +9061,28 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rwindow_get_text_composition$;
+
+    /**
+     * The composition of the input method in progress (UTF-8, valid
+     * until it changes) and its selection in bytes; NULL when there is none.
+     * Any output pointer may be NULL.
+     */
+    public static String Rwindow_get_text_composition(int window, int[] selection_start, int[] selection_end) {
+        MethodHandle $h = Rwindow_get_text_composition$;
+        if ($h == null) Rwindow_get_text_composition$ = $h = find("Rwindow_get_text_composition", FunctionDescriptor.of(ADDRESS, JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment selection_start$ = selection_start == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment selection_end$ = selection_end == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(window, selection_start$, selection_end$);
+            if (selection_start != null && selection_start.length > 0) selection_start[0] = selection_start$.get(JAVA_INT, 0);
+            if (selection_end != null && selection_end.length > 0) selection_end[0] = selection_end$.get(JAVA_INT, 0);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rwindow_has_popup$;
 
     /**
@@ -8108,7 +9105,9 @@ public final class R {
      * Last painted caret in window pixels (x, y, width, height), including scrolling and scale.
      * Call after Rdraw_frame. Independent of the blink phase. Returns R_FALSE and zeros the
      * outputs when there is no visible editable caret, the window is inactive, or focus changed
-     * since painting. Any output pointer may be NULL.
+     * since painting. Any output pointer may be NULL. While an input method
+     * composes, it is the caret inside the composition: where its candidate
+     * window goes.
      */
     public static int Rwindow_get_text_input_rect(int window, int[] x, int[] y, int[] width, int[] height) {
         MethodHandle $h = Rwindow_get_text_input_rect$;
@@ -8747,6 +9746,11 @@ public final class R {
 
     private static MethodHandle Rtheme_set_metric$;
 
+    /**
+     * Changes a size of the theme in use. It lasts until the look or
+     * the theme is chosen again (Rlook_set, Rtheme_use), but not through a
+     * switch between light and dark made by Rtheme_follow_system.
+     */
     public static void Rtheme_set_metric(int metric, float value) {
         MethodHandle $h = Rtheme_set_metric$;
         if ($h == null) Rtheme_set_metric$ = $h = find("Rtheme_set_metric", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT));
@@ -8883,6 +9887,13 @@ public final class R {
      * Follows the dark or light mode of the system with the Raven look
      * (R_LOOK_RAVEN_DARK / R_LOOK_RAVEN_LIGHT), now and when it changes.
      * Off by default. Does nothing where the platform does not tell (desktop today).
+     *
+     * A switch is Rlook_set, except that the sizes given with
+     * Rtheme_set_metric stay. Colors and styles set with Rtheme_set_... are
+     * those of one mode and are lost; to keep colors, sizes and styles of
+     * the application through the switch, put them in a theme that names no
+     * look (Rtheme_load_from_memory, then Rtheme_use): it is laid over the
+     * new look.
      */
     public static void Rtheme_follow_system(int enabled) {
         MethodHandle $h = Rtheme_follow_system$;
@@ -9499,6 +10510,49 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rimage_encode_png$;
+
+    /**
+     * Encodes tightly packed RGBA8 pixels (what Rwindow_capture
+     * returns) as a PNG file in memory. Thread-safe.
+     * size Receives the number of bytes.
+     * Returns: The bytes of the file, to release with Rpixels_free; NULL when
+     * there are no pixels.
+     */
+    public static MemorySegment Rimage_encode_png(byte[] rgba, int width, int height, long[] size) {
+        MethodHandle $h = Rimage_encode_png$;
+        if ($h == null) Rimage_encode_png$ = $h = find("Rimage_encode_png", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment rgba$ = rgba == null ? MemorySegment.NULL : bytes($a, rgba);
+            MemorySegment size$ = size == null ? MemorySegment.NULL : $a.allocate(JAVA_LONG);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(rgba$, width, height, size$);
+            if (size != null && size.length > 0) size[0] = size$.get(JAVA_LONG, 0);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rimage_save_png$;
+
+    /**
+     * Writes tightly packed RGBA8 pixels to a PNG file: a screenshot
+     * of Rwindow_capture, a picture made by the application. Thread-safe.
+     * Returns: R_FALSE when the file cannot be written.
+     */
+    public static int Rimage_save_png(String path, byte[] rgba, int width, int height) {
+        MethodHandle $h = Rimage_save_png$;
+        if ($h == null) Rimage_save_png$ = $h = find("Rimage_save_png", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            MemorySegment rgba$ = rgba == null ? MemorySegment.NULL : bytes($a, rgba);
+            int $r = (int) $h.invokeExact(path$, rgba$, width, height);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtexture_is_ready$;
 
     /**
@@ -9653,6 +10707,9 @@ public final class R {
      * A widget that already has a parent is moved.
      * Returns: `child`, so calls can be nested:
      *         Rid ok = Rwidget_add_child(row, Rbutton_create("OK"));
+     *         R_INVALID_ID when the child replaced in a single-child container
+     *         had a destroy callback that destroyed the container or `child`;
+     *         `child`, when it is still there, is then not added.
      */
     public static int Rwidget_add_child(int parent, int child) {
         MethodHandle $h = Rwidget_add_child$;
@@ -10134,7 +11191,8 @@ public final class R {
     private static MethodHandle Rwidget_set_tooltip$;
 
     /**
-     * Text shown when the cursor rests on the widget. NULL removes it.
+     * Text shown when the cursor rests on the widget. NULL removes it. A label, which otherwise
+     *  lets the mouse through, takes the hover while it has a tooltip (events it does not use still bubble).
      */
     public static void Rwidget_set_tooltip(int widget, String text) {
         MethodHandle $h = Rwidget_set_tooltip$;
@@ -10283,7 +11341,7 @@ public final class R {
     private static MethodHandle Rwidget_focus$;
 
     /**
-     * Gives the keyboard focus to the widget.
+     * Gives the keyboard focus to the widget, and scrolls it into view (Rwidget_scroll_into_view).
      */
     public static void Rwidget_focus(int widget) {
         MethodHandle $h = Rwidget_focus$;
@@ -10622,7 +11680,9 @@ public final class R {
     private static MethodHandle Rwidget_get_metric$;
 
     /**
-     * Returns: The metric the widget uses: its own, else the one of a style, else the one of its theme.
+     * Returns: The metric the widget uses: its own, else the one of a style,
+     * else the one of its theme; grown for larger text
+     * (Raccessibility_set_text_scale) and for a finger (RTouchSettings::min_touch_size).
      */
     public static float Rwidget_get_metric(int widget, int metric) {
         MethodHandle $h = Rwidget_get_metric$;
@@ -11059,7 +12119,10 @@ public final class R {
     private static MethodHandle Rwidget_scroll_into_view$;
 
     /**
-     * Scrolls every ScrollBox above the widget so that the widget is visible.
+     * Scrolls every ScrollBox above the widget so that the widget is
+     * visible. The library does it by itself for the focused widget when the
+     * focus comes from Tab or Rwidget_focus, and for a text field above the
+     * on-screen keyboard (Rwindow_get_keyboard_area).
      */
     public static void Rwidget_scroll_into_view(int widget) {
         MethodHandle $h = Rwidget_scroll_into_view$;
@@ -13764,6 +14827,139 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rtile_view_set_icon_width$;
+
+    /**
+     * Layout="Rows": width of the box the icon is drawn in (its height is the
+     * icon size), for icons that are not square; 0 = square (default). XML: IconWidth.
+     */
+    public static void Rtile_view_set_icon_width(int tile_view, float width) {
+        MethodHandle $h = Rtile_view_set_icon_width$;
+        if ($h == null) Rtile_view_set_icon_width$ = $h = find("Rtile_view_set_icon_width", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(tile_view, width);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtile_view_set_sections$;
+
+    /**
+     * `count` sections, described by `callback`, all unfolded. Rtile_view_set_items removes them: give them after the tiles.
+     */
+    public static void Rtile_view_set_sections(int tile_view, int count, RTileSectionCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rtile_view_set_sections$;
+        if ($h == null) Rtile_view_set_sections$ = $h = find("Rtile_view_set_sections", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(tile_view, count, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * `count` sections, described by `callback`, all unfolded. Rtile_view_set_items removes them: give them after the tiles.
+     */
+    public static void Rtile_view_set_sections(int tile_view, int count, RTileSectionCallback callback) {
+        Rtile_view_set_sections(tile_view, count, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rtile_view_get_section_count$;
+
+    public static int Rtile_view_get_section_count(int tile_view) {
+        MethodHandle $h = Rtile_view_get_section_count$;
+        if ($h == null) Rtile_view_get_section_count$ = $h = find("Rtile_view_get_section_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(tile_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtile_view_get_section_of$;
+
+    /**
+     * The section of a tile, or -1 (before the first section).
+     */
+    public static int Rtile_view_get_section_of(int tile_view, int index) {
+        MethodHandle $h = Rtile_view_get_section_of$;
+        if ($h == null) Rtile_view_get_section_of$ = $h = find("Rtile_view_get_section_of", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(tile_view, index);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtile_view_set_section_folded$;
+
+    /**
+     * Folds or unfolds a section (the toggled callback is not called).
+     */
+    public static void Rtile_view_set_section_folded(int tile_view, int section, int folded) {
+        MethodHandle $h = Rtile_view_set_section_folded$;
+        if ($h == null) Rtile_view_set_section_folded$ = $h = find("Rtile_view_set_section_folded", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(tile_view, section, folded);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtile_view_is_section_folded$;
+
+    public static int Rtile_view_is_section_folded(int tile_view, int section) {
+        MethodHandle $h = Rtile_view_is_section_folded$;
+        if ($h == null) Rtile_view_is_section_folded$ = $h = find("Rtile_view_is_section_folded", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(tile_view, section);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtile_view_get_section_at$;
+
+    /**
+     * The section whose header is at a point relative to the widget, or -1.
+     */
+    public static int Rtile_view_get_section_at(int tile_view, float local_x, float local_y) {
+        MethodHandle $h = Rtile_view_get_section_at$;
+        if ($h == null) Rtile_view_get_section_at$ = $h = find("Rtile_view_get_section_at", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            int $r = (int) $h.invokeExact(tile_view, local_x, local_y);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtile_view_set_section_toggled_callback$;
+
+    /**
+     * Called when the user folds or unfolds a section (`index`: the section).
+     */
+    public static void Rtile_view_set_section_toggled_callback(int tile_view, RTileEventCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rtile_view_set_section_toggled_callback$;
+        if ($h == null) Rtile_view_set_section_toggled_callback$ = $h = find("Rtile_view_set_section_toggled_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(tile_view, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * Called when the user folds or unfolds a section (`index`: the section).
+     */
+    public static void Rtile_view_set_section_toggled_callback(int tile_view, RTileEventCallback callback) {
+        Rtile_view_set_section_toggled_callback(tile_view, callback, (MemorySegment) null);
+    }
+
     private static MethodHandle Rtile_view_set_selected$;
 
     public static void Rtile_view_set_selected(int tile_view, int index, int selected) {
@@ -14243,10 +15439,107 @@ public final class R {
         Rtable_set_cell_color_callback(table, callback, (MemorySegment) null);
     }
 
+    private static MethodHandle Rtable_set_cell_text_color$;
+
+    /**
+     * Stored rows: a fixed text color; column -1 colors the row; cells override it.
+     * Alpha 0 restores the inherited/theme color. A color from the cell color callback wins over it.
+     */
+    public static void Rtable_set_cell_text_color(int table, int row, int column, float r, float g, float b, float a) {
+        MethodHandle $h = Rtable_set_cell_text_color$;
+        if ($h == null) Rtable_set_cell_text_color$ = $h = find("Rtable_set_cell_text_color", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(table, row, column, r, g, b, a);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtable_set_multi_select$;
+
+    /**
+     * Opt into Ctrl/Cmd toggles and Shift ranges; single selection is the default.
+     */
+    public static void Rtable_set_multi_select(int table, int enabled) {
+        MethodHandle $h = Rtable_set_multi_select$;
+        if ($h == null) Rtable_set_multi_select$ = $h = find("Rtable_set_multi_select", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(table, enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtable_set_row_selected$;
+
+    public static void Rtable_set_row_selected(int table, int row, int selected) {
+        MethodHandle $h = Rtable_set_row_selected$;
+        if ($h == null) Rtable_set_row_selected$ = $h = find("Rtable_set_row_selected", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(table, row, selected);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtable_is_row_selected$;
+
+    public static int Rtable_is_row_selected(int table, int row) {
+        MethodHandle $h = Rtable_is_row_selected$;
+        if ($h == null) Rtable_is_row_selected$ = $h = find("Rtable_is_row_selected", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(table, row);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtable_clear_selection$;
+
+    public static void Rtable_clear_selection(int table) {
+        MethodHandle $h = Rtable_clear_selection$;
+        if ($h == null) Rtable_clear_selection$ = $h = find("Rtable_clear_selection", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(table);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtable_get_selection_count$;
+
+    public static int Rtable_get_selection_count(int table) {
+        MethodHandle $h = Rtable_get_selection_count$;
+        if ($h == null) Rtable_get_selection_count$ = $h = find("Rtable_get_selection_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(table);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtable_get_selection$;
+
+    /**
+     * Selected row at index, top to bottom; -1 outside the selection.
+     */
+    public static int Rtable_get_selection(int table, int index) {
+        MethodHandle $h = Rtable_get_selection$;
+        if ($h == null) Rtable_get_selection$ = $h = find("Rtable_get_selection", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(table, index);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtable_set_selected$;
 
     /**
-     * Selects a row. -1 selects nothing.
+     * Replaces the selection with one row. -1 selects nothing, including in multi-select mode.
      */
     public static void Rtable_set_selected(int table, int row) {
         MethodHandle $h = Rtable_set_selected$;
@@ -15938,6 +17231,712 @@ public final class R {
         Rplot_set_series_toggled_callback(plot, callback, (MemorySegment) null);
     }
 
+    private static MethodHandle Rchart_create$;
+
+    /**
+     * A chart of a kind (Rwidget_create(R_WIDGET_CHART) makes a pie).
+     */
+    public static int Rchart_create(int kind) {
+        MethodHandle $h = Rchart_create$;
+        if ($h == null) Rchart_create$ = $h = find("Rchart_create", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(kind);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_kind$;
+
+    public static void Rchart_set_kind(int chart, int kind) {
+        MethodHandle $h = Rchart_set_kind$;
+        if ($h == null) Rchart_set_kind$ = $h = find("Rchart_set_kind", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, kind);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_kind$;
+
+    public static int Rchart_get_kind(int chart) {
+        MethodHandle $h = Rchart_get_kind$;
+        if ($h == null) Rchart_get_kind$ = $h = find("Rchart_get_kind", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_title$;
+
+    /**
+     * The title over a pie, a donut or a heatmap, under the value of a gauge (a sparkline only tells it to screen readers).
+     */
+    public static void Rchart_set_title(int chart, String title) {
+        MethodHandle $h = Rchart_set_title$;
+        if ($h == null) Rchart_set_title$ = $h = find("Rchart_set_title", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment title$ = title == null ? MemorySegment.NULL : utf8($a, title);
+            $h.invokeExact(chart, title$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_title$;
+
+    public static String Rchart_get_title(int chart) {
+        MethodHandle $h = Rchart_get_title$;
+        if ($h == null) Rchart_get_title$ = $h = find("Rchart_get_title", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(chart);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_format$;
+
+    /**
+     * How the values are written (the gauge, the middle of a donut, what
+     * the pointer shows): a printf format for one double with its unit, "%.0f%%",
+     * "$%.2f". NULL: whole numbers as they are, others with up to two decimals.
+     */
+    public static void Rchart_set_format(int chart, String format) {
+        MethodHandle $h = Rchart_set_format$;
+        if ($h == null) Rchart_set_format$ = $h = find("Rchart_set_format", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment format$ = format == null ? MemorySegment.NULL : utf8($a, format);
+            $h.invokeExact(chart, format$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_color$;
+
+    /**
+     * The color of the arc of a gauge outside any band, and of the line of a sparkline (default: the accent).
+     */
+    public static void Rchart_set_color(int chart, float r, float g, float b, float a) {
+        MethodHandle $h = Rchart_set_color$;
+        if ($h == null) Rchart_set_color$ = $h = find("Rchart_set_color", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(chart, r, g, b, a);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_legend$;
+
+    /**
+     * The legend: the slices beside a pie or a donut, the scale of colors under a heatmap (shown by default).
+     */
+    public static void Rchart_set_legend(int chart, int shown) {
+        MethodHandle $h = Rchart_set_legend$;
+        if ($h == null) Rchart_set_legend$ = $h = find("Rchart_set_legend", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, shown);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_clear$;
+
+    /**
+     * Removes the slices, the bands, the grid and the values.
+     */
+    public static void Rchart_clear(int chart) {
+        MethodHandle $h = Rchart_clear$;
+        if ($h == null) Rchart_clear$ = $h = find("Rchart_clear", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(chart);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_hovered$;
+
+    /**
+     * What is under the pointer: a slice, a point of a sparkline, or a
+     * cell of a heatmap as row * columns + column; -1 for nothing.
+     */
+    public static int Rchart_get_hovered(int chart) {
+        MethodHandle $h = Rchart_get_hovered$;
+        if ($h == null) Rchart_get_hovered$ = $h = find("Rchart_get_hovered", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_add_slice$;
+
+    /**
+     * Adds a slice (a value of 0 or more). Returns its index, -1 when the value is not valid.
+     */
+    public static int Rchart_add_slice(int chart, String label, double value) {
+        MethodHandle $h = Rchart_add_slice$;
+        if ($h == null) Rchart_add_slice$ = $h = find("Rchart_add_slice", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_DOUBLE));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment label$ = label == null ? MemorySegment.NULL : utf8($a, label);
+            int $r = (int) $h.invokeExact(chart, label$, value);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_remove_slice$;
+
+    public static void Rchart_remove_slice(int chart, int slice) {
+        MethodHandle $h = Rchart_remove_slice$;
+        if ($h == null) Rchart_remove_slice$ = $h = find("Rchart_remove_slice", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, slice);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_slice_count$;
+
+    public static int Rchart_get_slice_count(int chart) {
+        MethodHandle $h = Rchart_get_slice_count$;
+        if ($h == null) Rchart_get_slice_count$ = $h = find("Rchart_get_slice_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_slice_value$;
+
+    public static void Rchart_set_slice_value(int chart, int slice, double value) {
+        MethodHandle $h = Rchart_set_slice_value$;
+        if ($h == null) Rchart_set_slice_value$ = $h = find("Rchart_set_slice_value", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(chart, slice, value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_slice_value$;
+
+    public static double Rchart_get_slice_value(int chart, int slice) {
+        MethodHandle $h = Rchart_get_slice_value$;
+        if ($h == null) Rchart_get_slice_value$ = $h = find("Rchart_get_slice_value", FunctionDescriptor.of(JAVA_DOUBLE, JAVA_INT, JAVA_INT));
+        try {
+            double $r = (double) $h.invokeExact(chart, slice);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_slice_label$;
+
+    public static void Rchart_set_slice_label(int chart, int slice, String label) {
+        MethodHandle $h = Rchart_set_slice_label$;
+        if ($h == null) Rchart_set_slice_label$ = $h = find("Rchart_set_slice_label", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment label$ = label == null ? MemorySegment.NULL : utf8($a, label);
+            $h.invokeExact(chart, slice, label$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_slice_label$;
+
+    public static String Rchart_get_slice_label(int chart, int slice) {
+        MethodHandle $h = Rchart_get_slice_label$;
+        if ($h == null) Rchart_get_slice_label$ = $h = find("Rchart_get_slice_label", FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(chart, slice);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_slice_color$;
+
+    /**
+     * The color of a slice; an alpha of 0 gives it back its color of the palette.
+     */
+    public static void Rchart_set_slice_color(int chart, int slice, float r, float g, float b, float a) {
+        MethodHandle $h = Rchart_set_slice_color$;
+        if ($h == null) Rchart_set_slice_color$ = $h = find("Rchart_set_slice_color", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(chart, slice, r, g, b, a);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_total$;
+
+    /**
+     * The sum of the values of the slices.
+     */
+    public static double Rchart_get_total(int chart) {
+        MethodHandle $h = Rchart_get_total$;
+        if ($h == null) Rchart_get_total$ = $h = find("Rchart_get_total", FunctionDescriptor.of(JAVA_DOUBLE, JAVA_INT));
+        try {
+            double $r = (double) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_selected$;
+
+    /**
+     * The slice lifted as selected, or -1 for none (the user selects one with a click).
+     */
+    public static void Rchart_set_selected(int chart, int slice) {
+        MethodHandle $h = Rchart_set_selected$;
+        if ($h == null) Rchart_set_selected$ = $h = find("Rchart_set_selected", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, slice);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_selected$;
+
+    public static int Rchart_get_selected(int chart) {
+        MethodHandle $h = Rchart_get_selected$;
+        if ($h == null) Rchart_get_selected$ = $h = find("Rchart_get_selected", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_hole$;
+
+    /**
+     * The hole of a donut, as a part of its radius, from 0.2 to 0.9 (default 0.62).
+     */
+    public static void Rchart_set_hole(int chart, float ratio) {
+        MethodHandle $h = Rchart_set_hole$;
+        if ($h == null) Rchart_set_hole$ = $h = find("Rchart_set_hole", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(chart, ratio);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_center_text$;
+
+    /**
+     * What the middle of a donut shows when the pointer is not over a
+     * slice: `text` in large (NULL or "": the total) over `caption` in small
+     * (NULL or "": none).
+     */
+    public static void Rchart_set_center_text(int chart, String text, String caption) {
+        MethodHandle $h = Rchart_set_center_text$;
+        if ($h == null) Rchart_set_center_text$ = $h = find("Rchart_set_center_text", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            MemorySegment caption$ = caption == null ? MemorySegment.NULL : utf8($a, caption);
+            $h.invokeExact(chart, text$, caption$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_slice_clicked_callback$;
+
+    public static void Rchart_set_slice_clicked_callback(int chart, RChartSliceCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rchart_set_slice_clicked_callback$;
+        if ($h == null) Rchart_set_slice_clicked_callback$ = $h = find("Rchart_set_slice_clicked_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(chart, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rchart_set_slice_clicked_callback(int chart, RChartSliceCallback callback) {
+        Rchart_set_slice_clicked_callback(chart, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rchart_set_range$;
+
+    /**
+     * The range of a gauge (default 0 to 100), and a fixed range for the
+     * colors of a heatmap and the height of a sparkline, which otherwise follow
+     * their values. min == max goes back to these defaults.
+     */
+    public static void Rchart_set_range(int chart, double min, double max) {
+        MethodHandle $h = Rchart_set_range$;
+        if ($h == null) Rchart_set_range$ = $h = find("Rchart_set_range", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(chart, min, max);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_range$;
+
+    /**
+     * The range in use now (a gauge's, or the one of the values of a heatmap or a sparkline).
+     */
+    public static void Rchart_get_range(int chart, double[] min, double[] max) {
+        MethodHandle $h = Rchart_get_range$;
+        if ($h == null) Rchart_get_range$ = $h = find("Rchart_get_range", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment min$ = min == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            MemorySegment max$ = max == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            $h.invokeExact(chart, min$, max$);
+            if (min != null && min.length > 0) min[0] = min$.get(JAVA_DOUBLE, 0);
+            if (max != null && max.length > 0) max[0] = max$.get(JAVA_DOUBLE, 0);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_value$;
+
+    /**
+     * The value of a gauge, kept within its range when drawn.
+     */
+    public static void Rchart_set_value(int chart, double value) {
+        MethodHandle $h = Rchart_set_value$;
+        if ($h == null) Rchart_set_value$ = $h = find("Rchart_set_value", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(chart, value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_value$;
+
+    public static double Rchart_get_value(int chart) {
+        MethodHandle $h = Rchart_get_value$;
+        if ($h == null) Rchart_get_value$ = $h = find("Rchart_get_value", FunctionDescriptor.of(JAVA_DOUBLE, JAVA_INT));
+        try {
+            double $r = (double) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_add_band$;
+
+    /**
+     * Colors a part of the range of a gauge (an alpha of 0: the success,
+     * warning and danger colors of the theme, one after the other). The arc
+     * takes the color of the band its value is in. Returns the index of the band.
+     */
+    public static int Rchart_add_band(int chart, double from, double to_, float r, float g, float b, float a) {
+        MethodHandle $h = Rchart_add_band$;
+        if ($h == null) Rchart_add_band$ = $h = find("Rchart_add_band", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            int $r = (int) $h.invokeExact(chart, from, to_, r, g, b, a);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_clear_bands$;
+
+    public static void Rchart_clear_bands(int chart) {
+        MethodHandle $h = Rchart_clear_bands$;
+        if ($h == null) Rchart_clear_bands$ = $h = find("Rchart_clear_bands", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(chart);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_band_count$;
+
+    public static int Rchart_get_band_count(int chart) {
+        MethodHandle $h = Rchart_get_band_count$;
+        if ($h == null) Rchart_get_band_count$ = $h = find("Rchart_get_band_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_grid$;
+
+    /**
+     * The cells of a heatmap: `rows` x `columns` values, row after row,
+     * copied (NULL: all 0). NaN leaves a cell empty.
+     */
+    public static void Rchart_set_grid(int chart, int rows, int columns, float[] values) {
+        MethodHandle $h = Rchart_set_grid$;
+        if ($h == null) Rchart_set_grid$ = $h = find("Rchart_set_grid", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment values$ = values == null ? MemorySegment.NULL : $a.allocateFrom(JAVA_FLOAT, values);
+            $h.invokeExact(chart, rows, columns, values$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_row_count$;
+
+    public static int Rchart_get_row_count(int chart) {
+        MethodHandle $h = Rchart_get_row_count$;
+        if ($h == null) Rchart_get_row_count$ = $h = find("Rchart_get_row_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_column_count$;
+
+    public static int Rchart_get_column_count(int chart) {
+        MethodHandle $h = Rchart_get_column_count$;
+        if ($h == null) Rchart_get_column_count$ = $h = find("Rchart_get_column_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_cell$;
+
+    public static void Rchart_set_cell(int chart, int row, int column, float value) {
+        MethodHandle $h = Rchart_set_cell$;
+        if ($h == null) Rchart_set_cell$ = $h = find("Rchart_set_cell", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(chart, row, column, value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_cell$;
+
+    public static float Rchart_get_cell(int chart, int row, int column) {
+        MethodHandle $h = Rchart_get_cell$;
+        if ($h == null) Rchart_get_cell$ = $h = find("Rchart_get_cell", FunctionDescriptor.of(JAVA_FLOAT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            float $r = (float) $h.invokeExact(chart, row, column);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_row_labels$;
+
+    /**
+     * The names of the rows, separated by '|': "Mon|Tue|Wed" (shown at their left).
+     */
+    public static void Rchart_set_row_labels(int chart, String labels) {
+        MethodHandle $h = Rchart_set_row_labels$;
+        if ($h == null) Rchart_set_row_labels$ = $h = find("Rchart_set_row_labels", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment labels$ = labels == null ? MemorySegment.NULL : utf8($a, labels);
+            $h.invokeExact(chart, labels$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_column_labels$;
+
+    /**
+     * The names of the columns, separated by '|' (shown over them, as many as fit).
+     */
+    public static void Rchart_set_column_labels(int chart, String labels) {
+        MethodHandle $h = Rchart_set_column_labels$;
+        if ($h == null) Rchart_set_column_labels$ = $h = find("Rchart_set_column_labels", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment labels$ = labels == null ? MemorySegment.NULL : utf8($a, labels);
+            $h.invokeExact(chart, labels$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_row_label$;
+
+    /**
+     * The name of a row or of a column, "" when it has none.
+     */
+    public static String Rchart_get_row_label(int chart, int row) {
+        MethodHandle $h = Rchart_get_row_label$;
+        if ($h == null) Rchart_get_row_label$ = $h = find("Rchart_get_row_label", FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(chart, row);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_column_label$;
+
+    public static String Rchart_get_column_label(int chart, int column) {
+        MethodHandle $h = Rchart_get_column_label$;
+        if ($h == null) Rchart_get_column_label$ = $h = find("Rchart_get_column_label", FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(chart, column);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_color_scale$;
+
+    /**
+     * The colors of the lowest and of the highest values of a heatmap (default: a tint of the accent, the accent).
+     */
+    public static void Rchart_set_color_scale(int chart, float low_r, float low_g, float low_b, float low_a, float high_r, float high_g, float high_b, float high_a) {
+        MethodHandle $h = Rchart_set_color_scale$;
+        if ($h == null) Rchart_set_color_scale$ = $h = find("Rchart_set_color_scale", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(chart, low_r, low_g, low_b, low_a, high_r, high_g, high_b, high_a);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_cell_clicked_callback$;
+
+    public static void Rchart_set_cell_clicked_callback(int chart, RChartCellCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rchart_set_cell_clicked_callback$;
+        if ($h == null) Rchart_set_cell_clicked_callback$ = $h = find("Rchart_set_cell_clicked_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(chart, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rchart_set_cell_clicked_callback(int chart, RChartCellCallback callback) {
+        Rchart_set_cell_clicked_callback(chart, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rchart_set_values$;
+
+    /**
+     * The values of a sparkline, copied. NaN leaves a gap.
+     */
+    public static void Rchart_set_values(int chart, float[] values, int count) {
+        MethodHandle $h = Rchart_set_values$;
+        if ($h == null) Rchart_set_values$ = $h = find("Rchart_set_values", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment values$ = values == null ? MemorySegment.NULL : $a.allocateFrom(JAVA_FLOAT, values);
+            $h.invokeExact(chart, values$, count);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_push_value$;
+
+    /**
+     * Adds a value after the others, for live data; only the last `max_count` are kept (0: all of them).
+     */
+    public static void Rchart_push_value(int chart, float value, int max_count) {
+        MethodHandle $h = Rchart_push_value$;
+        if ($h == null) Rchart_push_value$ = $h = find("Rchart_push_value", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, value, max_count);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_value_count$;
+
+    public static int Rchart_get_value_count(int chart) {
+        MethodHandle $h = Rchart_get_value_count$;
+        if ($h == null) Rchart_get_value_count$ = $h = find("Rchart_get_value_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(chart);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_get_value_at$;
+
+    public static float Rchart_get_value_at(int chart, int index) {
+        MethodHandle $h = Rchart_get_value_at$;
+        if ($h == null) Rchart_get_value_at$ = $h = find("Rchart_get_value_at", FunctionDescriptor.of(JAVA_FLOAT, JAVA_INT, JAVA_INT));
+        try {
+            float $r = (float) $h.invokeExact(chart, index);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_fill$;
+
+    /**
+     * Shades the area under the line of a sparkline (on by default).
+     */
+    public static void Rchart_set_fill(int chart, int fill) {
+        MethodHandle $h = Rchart_set_fill$;
+        if ($h == null) Rchart_set_fill$ = $h = find("Rchart_set_fill", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, fill);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rchart_set_marker$;
+
+    /**
+     * A dot on the last value of a sparkline (on by default).
+     */
+    public static void Rchart_set_marker(int chart, int shown) {
+        MethodHandle $h = Rchart_set_marker$;
+        if ($h == null) Rchart_set_marker$ = $h = find("Rchart_set_marker", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(chart, shown);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rpdf_is_available$;
 
     /**
@@ -16188,6 +18187,254 @@ public final class R {
         Rpdf_view_set_page_changed_callback(view, callback, (MemorySegment) null);
     }
 
+    private static MethodHandle Rcarousel_create$;
+
+    public static int Rcarousel_create() {
+        MethodHandle $h = Rcarousel_create$;
+        if ($h == null) Rcarousel_create$ = $h = find("Rcarousel_create", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_page$;
+
+    /**
+     * Shows a page, gliding to it when `animated` (and the animations
+     * are on), at once otherwise. The page changed callback is not called.
+     */
+    public static void Rcarousel_set_page(int carousel, int page, int animated) {
+        MethodHandle $h = Rcarousel_set_page$;
+        if ($h == null) Rcarousel_set_page$ = $h = find("Rcarousel_set_page", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(carousel, page, animated);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_page$;
+
+    /**
+     * The page shown, -1 when the carousel has none.
+     */
+    public static int Rcarousel_get_page(int carousel) {
+        MethodHandle $h = Rcarousel_get_page$;
+        if ($h == null) Rcarousel_get_page$ = $h = find("Rcarousel_get_page", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_page_count$;
+
+    /**
+     * Its children.
+     */
+    public static int Rcarousel_get_page_count(int carousel) {
+        MethodHandle $h = Rcarousel_get_page_count$;
+        if ($h == null) Rcarousel_get_page_count$ = $h = find("Rcarousel_get_page_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_next$;
+
+    /**
+     * Glides to the next / previous page; nothing at the last / first one unless it loops.
+     */
+    public static void Rcarousel_next(int carousel) {
+        MethodHandle $h = Rcarousel_next$;
+        if ($h == null) Rcarousel_next$ = $h = find("Rcarousel_next", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(carousel);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_prev$;
+
+    public static void Rcarousel_prev(int carousel) {
+        MethodHandle $h = Rcarousel_prev$;
+        if ($h == null) Rcarousel_prev$ = $h = find("Rcarousel_prev", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(carousel);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_loop$;
+
+    /**
+     * R_TRUE: after the last page comes the first one, and before the first the last (default R_FALSE).
+     */
+    public static void Rcarousel_set_loop(int carousel, int loop) {
+        MethodHandle $h = Rcarousel_set_loop$;
+        if ($h == null) Rcarousel_set_loop$ = $h = find("Rcarousel_set_loop", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(carousel, loop);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_loop$;
+
+    public static int Rcarousel_get_loop(int carousel) {
+        MethodHandle $h = Rcarousel_get_loop$;
+        if ($h == null) Rcarousel_get_loop$ = $h = find("Rcarousel_get_loop", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_autoplay$;
+
+    /**
+     * Goes to the next page by itself every `seconds` (0: never, the
+     * default); after the last page it comes back to the first. It waits
+     * while the pointer is on the carousel, while the pages are dragged and
+     * while the keyboard is in it; a page chosen by the user starts the
+     * interval again.
+     */
+    public static void Rcarousel_set_autoplay(int carousel, double seconds) {
+        MethodHandle $h = Rcarousel_set_autoplay$;
+        if ($h == null) Rcarousel_set_autoplay$ = $h = find("Rcarousel_set_autoplay", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(carousel, seconds);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_autoplay$;
+
+    public static double Rcarousel_get_autoplay(int carousel) {
+        MethodHandle $h = Rcarousel_get_autoplay$;
+        if ($h == null) Rcarousel_get_autoplay$ = $h = find("Rcarousel_get_autoplay", FunctionDescriptor.of(JAVA_DOUBLE, JAVA_INT));
+        try {
+            double $r = (double) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_indicators_visible$;
+
+    /**
+     * The dots along the bottom edge (the right edge when vertical), one per page (default R_TRUE).
+     */
+    public static void Rcarousel_set_indicators_visible(int carousel, int visible) {
+        MethodHandle $h = Rcarousel_set_indicators_visible$;
+        if ($h == null) Rcarousel_set_indicators_visible$ = $h = find("Rcarousel_set_indicators_visible", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(carousel, visible);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_indicators_visible$;
+
+    public static int Rcarousel_get_indicators_visible(int carousel) {
+        MethodHandle $h = Rcarousel_get_indicators_visible$;
+        if ($h == null) Rcarousel_get_indicators_visible$ = $h = find("Rcarousel_get_indicators_visible", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_arrows_visible$;
+
+    /**
+     * The previous / next buttons shown while the pointer is on the carousel (default R_TRUE).
+     */
+    public static void Rcarousel_set_arrows_visible(int carousel, int visible) {
+        MethodHandle $h = Rcarousel_set_arrows_visible$;
+        if ($h == null) Rcarousel_set_arrows_visible$ = $h = find("Rcarousel_set_arrows_visible", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(carousel, visible);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_arrows_visible$;
+
+    public static int Rcarousel_get_arrows_visible(int carousel) {
+        MethodHandle $h = Rcarousel_get_arrows_visible$;
+        if ($h == null) Rcarousel_get_arrows_visible$ = $h = find("Rcarousel_get_arrows_visible", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_orientation$;
+
+    /**
+     * R_HORIZONTAL: the pages side by side (default); R_VERTICAL: one above the other.
+     */
+    public static void Rcarousel_set_orientation(int carousel, int orientation) {
+        MethodHandle $h = Rcarousel_set_orientation$;
+        if ($h == null) Rcarousel_set_orientation$ = $h = find("Rcarousel_set_orientation", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(carousel, orientation);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_get_orientation$;
+
+    public static int Rcarousel_get_orientation(int carousel) {
+        MethodHandle $h = Rcarousel_get_orientation$;
+        if ($h == null) Rcarousel_get_orientation$ = $h = find("Rcarousel_get_orientation", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(carousel);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rcarousel_set_page_changed_callback$;
+
+    public static void Rcarousel_set_page_changed_callback(int carousel, RCarouselPageChangedCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rcarousel_set_page_changed_callback$;
+        if ($h == null) Rcarousel_set_page_changed_callback$ = $h = find("Rcarousel_set_page_changed_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(carousel, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rcarousel_set_page_changed_callback(int carousel, RCarouselPageChangedCallback callback) {
+        Rcarousel_set_page_changed_callback(carousel, callback, (MemorySegment) null);
+    }
+
     private static MethodHandle Rpdf_view_print$;
 
     /**
@@ -16199,6 +18446,538 @@ public final class R {
         try {
             int $r = (int) $h.invokeExact(view, (MemorySegment) (desc == null ? MemorySegment.NULL : desc.segment()));
             return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_create$;
+
+    public static int Rmap_view_create() {
+        MethodHandle $h = Rmap_view_create$;
+        if ($h == null) Rmap_view_create$ = $h = find("Rmap_view_create", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_center$;
+
+    /**
+     * Centers the map on a place. The latitude is held within +/-85.0511; the longitude wraps.
+     */
+    public static void Rmap_view_set_center(int map, double latitude, double longitude) {
+        MethodHandle $h = Rmap_view_set_center$;
+        if ($h == null) Rmap_view_set_center$ = $h = find("Rmap_view_set_center", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(map, latitude, longitude);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_center$;
+
+    /**
+     * The place at the middle of the map (longitude from -180 to 180).
+     */
+    public static void Rmap_view_get_center(int map, double[] latitude, double[] longitude) {
+        MethodHandle $h = Rmap_view_get_center$;
+        if ($h == null) Rmap_view_get_center$ = $h = find("Rmap_view_get_center", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment latitude$ = latitude == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            MemorySegment longitude$ = longitude == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            $h.invokeExact(map, latitude$, longitude$);
+            if (latitude != null && latitude.length > 0) latitude[0] = latitude$.get(JAVA_DOUBLE, 0);
+            if (longitude != null && longitude.length > 0) longitude[0] = longitude$.get(JAVA_DOUBLE, 0);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_zoom$;
+
+    /**
+     * The zoom: 0 shows the whole world in one tile, each step doubles the scale. Fractions are allowed.
+     */
+    public static void Rmap_view_set_zoom(int map, double zoom) {
+        MethodHandle $h = Rmap_view_set_zoom$;
+        if ($h == null) Rmap_view_set_zoom$ = $h = find("Rmap_view_set_zoom", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(map, zoom);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_zoom$;
+
+    public static double Rmap_view_get_zoom(int map) {
+        MethodHandle $h = Rmap_view_get_zoom$;
+        if ($h == null) Rmap_view_get_zoom$ = $h = find("Rmap_view_get_zoom", FunctionDescriptor.of(JAVA_DOUBLE, JAVA_INT));
+        try {
+            double $r = (double) $h.invokeExact(map);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_zoom_range$;
+
+    /**
+     * The zooms the user can reach (default 0 to 19, at most 0 to 24). Tiles are asked for at whole zooms of this range.
+     */
+    public static void Rmap_view_set_zoom_range(int map, double min_zoom, double max_zoom) {
+        MethodHandle $h = Rmap_view_set_zoom_range$;
+        if ($h == null) Rmap_view_set_zoom_range$ = $h = find("Rmap_view_set_zoom_range", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(map, min_zoom, max_zoom);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_zoom_range$;
+
+    public static void Rmap_view_get_zoom_range(int map, double[] min_zoom, double[] max_zoom) {
+        MethodHandle $h = Rmap_view_get_zoom_range$;
+        if ($h == null) Rmap_view_get_zoom_range$ = $h = find("Rmap_view_get_zoom_range", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment min_zoom$ = min_zoom == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            MemorySegment max_zoom$ = max_zoom == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            $h.invokeExact(map, min_zoom$, max_zoom$);
+            if (min_zoom != null && min_zoom.length > 0) min_zoom[0] = min_zoom$.get(JAVA_DOUBLE, 0);
+            if (max_zoom != null && max_zoom.length > 0) max_zoom[0] = max_zoom$.get(JAVA_DOUBLE, 0);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_animate_to$;
+
+    /**
+     * Glides to a place and a zoom (at once when animations are off).
+     */
+    public static void Rmap_view_animate_to(int map, double latitude, double longitude, double zoom) {
+        MethodHandle $h = Rmap_view_animate_to$;
+        if ($h == null) Rmap_view_animate_to$ = $h = find("Rmap_view_animate_to", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(map, latitude, longitude, zoom);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_screen_to_latlon$;
+
+    /**
+     * The place at a point of the widget.
+     */
+    public static void Rmap_view_screen_to_latlon(int map, float x, float y, double[] latitude, double[] longitude) {
+        MethodHandle $h = Rmap_view_screen_to_latlon$;
+        if ($h == null) Rmap_view_screen_to_latlon$ = $h = find("Rmap_view_screen_to_latlon", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment latitude$ = latitude == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            MemorySegment longitude$ = longitude == null ? MemorySegment.NULL : $a.allocate(JAVA_DOUBLE);
+            $h.invokeExact(map, x, y, latitude$, longitude$);
+            if (latitude != null && latitude.length > 0) latitude[0] = latitude$.get(JAVA_DOUBLE, 0);
+            if (longitude != null && longitude.length > 0) longitude[0] = longitude$.get(JAVA_DOUBLE, 0);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_latlon_to_screen$;
+
+    /**
+     * Where a place is in the widget (of the copies of the world side by side, the one nearest the middle).
+     */
+    public static void Rmap_view_latlon_to_screen(int map, double latitude, double longitude, float[] x, float[] y) {
+        MethodHandle $h = Rmap_view_latlon_to_screen$;
+        if ($h == null) Rmap_view_latlon_to_screen$ = $h = find("Rmap_view_latlon_to_screen", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment x$ = x == null ? MemorySegment.NULL : $a.allocate(JAVA_FLOAT);
+            MemorySegment y$ = y == null ? MemorySegment.NULL : $a.allocate(JAVA_FLOAT);
+            $h.invokeExact(map, latitude, longitude, x$, y$);
+            if (x != null && x.length > 0) x[0] = x$.get(JAVA_FLOAT, 0);
+            if (y != null && y.length > 0) y[0] = y$.get(JAVA_FLOAT, 0);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_tile_callback$;
+
+    /**
+     * Called once for each tile the map needs. Answer with
+     * Rmap_view_set_tile, Rmap_view_set_tile_data or Rmap_view_set_tile_failed,
+     * at once or later. Setting it forgets the tiles of the previous source.
+     */
+    public static void Rmap_view_set_tile_callback(int map, RMapTileCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rmap_view_set_tile_callback$;
+        if ($h == null) Rmap_view_set_tile_callback$ = $h = find("Rmap_view_set_tile_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(map, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * Called once for each tile the map needs. Answer with
+     * Rmap_view_set_tile, Rmap_view_set_tile_data or Rmap_view_set_tile_failed,
+     * at once or later. Setting it forgets the tiles of the previous source.
+     */
+    public static void Rmap_view_set_tile_callback(int map, RMapTileCallback callback) {
+        Rmap_view_set_tile_callback(map, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rmap_view_set_tile_cancel_callback$;
+
+    /**
+     * Called when a tile asked for and not answered yet is no longer wanted (the user went elsewhere). Optional.
+     */
+    public static void Rmap_view_set_tile_cancel_callback(int map, RMapTileCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rmap_view_set_tile_cancel_callback$;
+        if ($h == null) Rmap_view_set_tile_cancel_callback$ = $h = find("Rmap_view_set_tile_cancel_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(map, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * Called when a tile asked for and not answered yet is no longer wanted (the user went elsewhere). Optional.
+     */
+    public static void Rmap_view_set_tile_cancel_callback(int map, RMapTileCallback callback) {
+        Rmap_view_set_tile_cancel_callback(map, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rmap_view_set_tile$;
+
+    /**
+     * The pixels of a tile: `width` x `height` RGBA8, tightly packed
+     * (they are copied; any size, shown at the tile size). Thread-safe: from
+     * another thread it is applied on the UI thread during the next frame.
+     */
+    public static void Rmap_view_set_tile(int map, int z, int x, int y, byte[] rgba, int width, int height) {
+        MethodHandle $h = Rmap_view_set_tile$;
+        if ($h == null) Rmap_view_set_tile$ = $h = find("Rmap_view_set_tile", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment rgba$ = rgba == null ? MemorySegment.NULL : bytes($a, rgba);
+            $h.invokeExact(map, z, x, y, rgba$, width, height);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_tile_data$;
+
+    /**
+     * A tile as the bytes of an image file (PNG, JPEG...), decoded on the calling thread. Thread-safe.
+     */
+    public static void Rmap_view_set_tile_data(int map, int z, int x, int y, byte[] data) {
+        MethodHandle $h = Rmap_view_set_tile_data$;
+        if ($h == null) Rmap_view_set_tile_data$ = $h = find("Rmap_view_set_tile_data", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, JAVA_LONG));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment data$ = data == null ? MemorySegment.NULL : bytes($a, data);
+            $h.invokeExact(map, z, x, y, data$, data$.byteSize());
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_tile_failed$;
+
+    /**
+     * There is no such tile: the coarser one stays shown in its place. Thread-safe.
+     */
+    public static void Rmap_view_set_tile_failed(int map, int z, int x, int y) {
+        MethodHandle $h = Rmap_view_set_tile_failed$;
+        if ($h == null) Rmap_view_set_tile_failed$ = $h = find("Rmap_view_set_tile_failed", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(map, z, x, y);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_tile_path$;
+
+    /**
+     * Reads the tiles from files instead of asking for them: a path
+     * where {z}, {x} and {y} are replaced ({-y}: the row counted from the
+     * south, as in TMS and MBTiles). The files are read and decoded on a
+     * worker thread; a missing file is a tile that failed. NULL or "": the
+     * tile callback again. Local files only.
+     */
+    public static void Rmap_view_set_tile_path(int map, String path_template) {
+        MethodHandle $h = Rmap_view_set_tile_path$;
+        if ($h == null) Rmap_view_set_tile_path$ = $h = find("Rmap_view_set_tile_path", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path_template$ = path_template == null ? MemorySegment.NULL : utf8($a, path_template);
+            $h.invokeExact(map, path_template$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_tile_path$;
+
+    public static String Rmap_view_get_tile_path(int map) {
+        MethodHandle $h = Rmap_view_get_tile_path$;
+        if ($h == null) Rmap_view_get_tile_path$ = $h = find("Rmap_view_get_tile_path", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(map);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_tile_size$;
+
+    /**
+     * Logical size of a tile at a whole zoom (default 256, from 16 to 1024): larger tiles show the map larger.
+     */
+    public static void Rmap_view_set_tile_size(int map, int size) {
+        MethodHandle $h = Rmap_view_set_tile_size$;
+        if ($h == null) Rmap_view_set_tile_size$ = $h = find("Rmap_view_set_tile_size", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(map, size);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_tile_size$;
+
+    public static int Rmap_view_get_tile_size(int map) {
+        MethodHandle $h = Rmap_view_get_tile_size$;
+        if ($h == null) Rmap_view_get_tile_size$ = $h = find("Rmap_view_get_tile_size", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(map);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_cache_size$;
+
+    /**
+     * Memory the decoded tiles may take, in bytes (default 64 MiB). The tiles on screen are always kept.
+     */
+    public static void Rmap_view_set_cache_size(int map, long bytes) {
+        MethodHandle $h = Rmap_view_set_cache_size$;
+        if ($h == null) Rmap_view_set_cache_size$ = $h = find("Rmap_view_set_cache_size", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_LONG));
+        try {
+            $h.invokeExact(map, bytes);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_cache_usage$;
+
+    /**
+     * Memory the decoded tiles take now, in bytes.
+     */
+    public static long Rmap_view_get_cache_usage(int map) {
+        MethodHandle $h = Rmap_view_get_cache_usage$;
+        if ($h == null) Rmap_view_get_cache_usage$ = $h = find("Rmap_view_get_cache_usage", FunctionDescriptor.of(JAVA_LONG, JAVA_INT));
+        try {
+            long $r = (long) $h.invokeExact(map);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_clear_tiles$;
+
+    /**
+     * Forgets every tile (they are asked for again): the tiles of the source changed.
+     */
+    public static void Rmap_view_clear_tiles(int map) {
+        MethodHandle $h = Rmap_view_clear_tiles$;
+        if ($h == null) Rmap_view_clear_tiles$ = $h = find("Rmap_view_clear_tiles", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(map);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_tile_state$;
+
+    public static int Rmap_view_get_tile_state(int map, int z, int x, int y) {
+        MethodHandle $h = Rmap_view_get_tile_state$;
+        if ($h == null) Rmap_view_get_tile_state$ = $h = find("Rmap_view_get_tile_state", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(map, z, x, y);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_add_marker$;
+
+    /**
+     * Adds a pin at a place, with a label written next to it (may be NULL). Returns its id (from 1), or -1.
+     */
+    public static int Rmap_view_add_marker(int map, double latitude, double longitude, String label) {
+        MethodHandle $h = Rmap_view_add_marker$;
+        if ($h == null) Rmap_view_add_marker$ = $h = find("Rmap_view_add_marker", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment label$ = label == null ? MemorySegment.NULL : utf8($a, label);
+            int $r = (int) $h.invokeExact(map, latitude, longitude, label$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_remove_marker$;
+
+    public static void Rmap_view_remove_marker(int map, int marker) {
+        MethodHandle $h = Rmap_view_remove_marker$;
+        if ($h == null) Rmap_view_remove_marker$ = $h = find("Rmap_view_remove_marker", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(map, marker);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_clear_markers$;
+
+    public static void Rmap_view_clear_markers(int map) {
+        MethodHandle $h = Rmap_view_clear_markers$;
+        if ($h == null) Rmap_view_clear_markers$ = $h = find("Rmap_view_clear_markers", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(map);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_marker_count$;
+
+    public static int Rmap_view_get_marker_count(int map) {
+        MethodHandle $h = Rmap_view_get_marker_count$;
+        if ($h == null) Rmap_view_get_marker_count$ = $h = find("Rmap_view_get_marker_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(map);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_marker_position$;
+
+    public static void Rmap_view_set_marker_position(int map, int marker, double latitude, double longitude) {
+        MethodHandle $h = Rmap_view_set_marker_position$;
+        if ($h == null) Rmap_view_set_marker_position$ = $h = find("Rmap_view_set_marker_position", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_DOUBLE, JAVA_DOUBLE));
+        try {
+            $h.invokeExact(map, marker, latitude, longitude);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_marker_label$;
+
+    public static void Rmap_view_set_marker_label(int map, int marker, String label) {
+        MethodHandle $h = Rmap_view_set_marker_label$;
+        if ($h == null) Rmap_view_set_marker_label$ = $h = find("Rmap_view_set_marker_label", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment label$ = label == null ? MemorySegment.NULL : utf8($a, label);
+            $h.invokeExact(map, marker, label$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_marker_color$;
+
+    /**
+     * The color of a pin (by default the accent of the theme).
+     */
+    public static void Rmap_view_set_marker_color(int map, int marker, float r, float g, float b, float a) {
+        MethodHandle $h = Rmap_view_set_marker_color$;
+        if ($h == null) Rmap_view_set_marker_color$ = $h = find("Rmap_view_set_marker_color", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(map, marker, r, g, b, a);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_set_marker_clicked_callback$;
+
+    public static void Rmap_view_set_marker_clicked_callback(int map, RMapMarkerCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rmap_view_set_marker_clicked_callback$;
+        if ($h == null) Rmap_view_set_marker_clicked_callback$ = $h = find("Rmap_view_set_marker_clicked_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(map, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rmap_view_set_marker_clicked_callback(int map, RMapMarkerCallback callback) {
+        Rmap_view_set_marker_clicked_callback(map, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rmap_view_set_view_changed_callback$;
+
+    public static void Rmap_view_set_view_changed_callback(int map, RMapViewCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rmap_view_set_view_changed_callback$;
+        if ($h == null) Rmap_view_set_view_changed_callback$ = $h = find("Rmap_view_set_view_changed_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(map, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rmap_view_set_view_changed_callback(int map, RMapViewCallback callback) {
+        Rmap_view_set_view_changed_callback(map, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rmap_view_set_attribution$;
+
+    /**
+     * A line written in the bottom right corner: the credit most tile
+     * licences ask for, such as "(c) OpenStreetMap contributors". NULL or "": none.
+     */
+    public static void Rmap_view_set_attribution(int map, String text) {
+        MethodHandle $h = Rmap_view_set_attribution$;
+        if ($h == null) Rmap_view_set_attribution$ = $h = find("Rmap_view_set_attribution", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            $h.invokeExact(map, text$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rmap_view_get_attribution$;
+
+    public static String Rmap_view_get_attribution(int map) {
+        MethodHandle $h = Rmap_view_get_attribution$;
+        if ($h == null) Rmap_view_get_attribution$ = $h = find("Rmap_view_get_attribution", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(map);
+            return text($r);
         } catch (Throwable $t) {
             throw fail($t);
         }
@@ -17948,6 +20727,44 @@ public final class R {
         } catch (Throwable $t) {
             throw fail($t);
         }
+    }
+
+    private static MethodHandle Rdock_area_set_float_window$;
+
+    /**
+     * How the windows of torn-off panels are made (native windows,
+     * R_DOCK_FLOAT_WINDOW; in-window cards are not windows).
+     * flags    RWindowFlags they are created with: R_WINDOW_NO_RESIZE,
+     *                 R_WINDOW_BORDERLESS, R_WINDOW_CUSTOM_HEADER and
+     *                 R_WINDOW_TRANSPARENT (the others are ignored).
+     *                 R_WINDOW_DEFAULT by default.
+     * callback May be NULL: the floating area is the whole window.
+     * Dragging the only tab of such a window still moves it, and closing
+     * it (its header bar's close button too) docks its panels back.
+     */
+    public static void Rdock_area_set_float_window(int area, int flags, RDockFloatWindowCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rdock_area_set_float_window$;
+        if ($h == null) Rdock_area_set_float_window$ = $h = find("Rdock_area_set_float_window", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(area, flags, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * How the windows of torn-off panels are made (native windows,
+     * R_DOCK_FLOAT_WINDOW; in-window cards are not windows).
+     * flags    RWindowFlags they are created with: R_WINDOW_NO_RESIZE,
+     *                 R_WINDOW_BORDERLESS, R_WINDOW_CUSTOM_HEADER and
+     *                 R_WINDOW_TRANSPARENT (the others are ignored).
+     *                 R_WINDOW_DEFAULT by default.
+     * callback May be NULL: the floating area is the whole window.
+     * Dragging the only tab of such a window still moves it, and closing
+     * it (its header bar's close button too) docks its panels back.
+     */
+    public static void Rdock_area_set_float_window(int area, int flags, RDockFloatWindowCallback callback) {
+        Rdock_area_set_float_window(area, flags, callback, (MemorySegment) null);
     }
 
     private static MethodHandle Rdock_area_float_panel$;
@@ -21935,6 +24752,9 @@ public final class R {
 
     /**
      * Whole files, with UTF-8 paths on every platform.
+     * On Android and iOS, a relative path that names no file held in memory
+     * and no file on disk is read from the app's package (the APK's assets/,
+     * the bundle's resources), and so is every file Raven reads by its path.
      * Returns: Rfile_read: the content followed by a '\0', to release with
      * Rmemory_free; NULL when the file cannot be read. `size` may be NULL.
      */
@@ -22312,7 +25132,7 @@ public final class R {
      * (on the UI thread; the application may then bring its window to the
      * front: the system lets it). It is the last one shown that was clicked:
      * the application remembers what it was about. NULL: none.
-     * Windows only for now (elsewhere it is never called).
+     * Windows and macOS (elsewhere it is never called).
      */
     public static void Rnotification_set_clicked_callback(RNotificationClickedCallback callback, MemorySegment user_data) {
         MethodHandle $h = Rnotification_set_clicked_callback$;
@@ -22329,7 +25149,7 @@ public final class R {
      * (on the UI thread; the application may then bring its window to the
      * front: the system lets it). It is the last one shown that was clicked:
      * the application remembers what it was about. NULL: none.
-     * Windows only for now (elsewhere it is never called).
+     * Windows and macOS (elsewhere it is never called).
      */
     public static void Rnotification_set_clicked_callback(RNotificationClickedCallback callback) {
         Rnotification_set_clicked_callback(callback, (MemorySegment) null);
@@ -23987,6 +26807,217 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rscript_load$;
+
+    /**
+     * Loads a script given as text (not an XML document): its
+     * functions become actions, its globals are initialized.
+     * name Names it in the diagnostics (a file name); may be NULL.
+     * Returns: R_FALSE when it has an error (nothing of it is installed).
+     */
+    public static int Rscript_load(String source, String name) {
+        MethodHandle $h = Rscript_load$;
+        if ($h == null) Rscript_load$ = $h = find("Rscript_load", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment source$ = source == null ? MemorySegment.NULL : utf8($a, source);
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            int $r = (int) $h.invokeExact(source$, (long) (source$.equals(MemorySegment.NULL) ? 0L : source$.byteSize() - 1), name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_load_file$;
+
+    /**
+     * The same from a file (.rvs).
+     */
+    public static int Rscript_load_file(String path) {
+        MethodHandle $h = Rscript_load_file$;
+        if ($h == null) Rscript_load_file$ = $h = find("Rscript_load_file", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            int $r = (int) $h.invokeExact(path$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_check$;
+
+    /**
+     * Checks a script, or the scripts of an XML document and the
+     * functions its widgets name, without running anything nor building a
+     * widget. The diagnostics are reported as usual.
+     * source A script, or an XML document (text that starts with '&lt;').
+     * Returns: The number of errors.
+     */
+    public static int Rscript_check(String source, String name) {
+        MethodHandle $h = Rscript_check$;
+        if ($h == null) Rscript_check$ = $h = find("Rscript_check", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment source$ = source == null ? MemorySegment.NULL : utf8($a, source);
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            int $r = (int) $h.invokeExact(source$, (long) (source$.equals(MemorySegment.NULL) ? 0L : source$.byteSize() - 1), name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_check_file$;
+
+    /**
+     * Returns: The number of errors in the file (a .rvs or an .xml), -1 when it cannot be read.
+     */
+    public static int Rscript_check_file(String path) {
+        MethodHandle $h = Rscript_check_file$;
+        if ($h == null) Rscript_check_file$ = $h = find("Rscript_check_file", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            int $r = (int) $h.invokeExact(path$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_format$;
+
+    /**
+     * Formats a script: one statement per line, blocks indented,
+     * spaces around operators; comments are kept.
+     * indent One level of indentation; NULL for four spaces.
+     * Returns: The text, valid until the next call; NULL when the script has a
+     * syntax error (it is not changed).
+     */
+    public static String Rscript_format(String source, String indent) {
+        MethodHandle $h = Rscript_format$;
+        if ($h == null) Rscript_format$ = $h = find("Rscript_format", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment source$ = source == null ? MemorySegment.NULL : utf8($a, source);
+            MemorySegment indent$ = indent == null ? MemorySegment.NULL : utf8($a, indent);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(source$, (long) (source$.equals(MemorySegment.NULL) ? 0L : source$.byteSize() - 1), indent$);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_reset$;
+
+    /**
+     * Removes every script function (their actions are unbound) and every global. Not while a script runs.
+     */
+    public static void Rscript_reset() {
+        MethodHandle $h = Rscript_reset$;
+        if ($h == null) Rscript_reset$ = $h = find("Rscript_reset", FunctionDescriptor.ofVoid());
+        try {
+            $h.invokeExact();
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_has_function$;
+
+    /**
+     * Returns: R_TRUE when a script function has that name.
+     */
+    public static int Rscript_has_function(String name) {
+        MethodHandle $h = Rscript_has_function$;
+        if ($h == null) Rscript_has_function$ = $h = find("Rscript_has_function", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            int $r = (int) $h.invokeExact(name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_set_enabled$;
+
+    /**
+     * R_FALSE: the &lt;Script&gt; elements of the documents are read but not
+     * compiled nor run (a design tool that shows interfaces without running
+     * them). On by default.
+     */
+    public static void Rscript_set_enabled(int enabled) {
+        MethodHandle $h = Rscript_set_enabled$;
+        if ($h == null) Rscript_set_enabled$ = $h = find("Rscript_set_enabled", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_is_enabled$;
+
+    public static int Rscript_is_enabled() {
+        MethodHandle $h = Rscript_is_enabled$;
+        if ($h == null) Rscript_is_enabled$ = $h = find("Rscript_is_enabled", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_set_limits$;
+
+    /**
+     * The limits of the scripts. 0 keeps a value.
+     * max_instructions Instructions one invocation (an event) may run (10 000 000).
+     * max_depth Calls nested (200).
+     * max_memory Bytes of strings and arrays alive (64 MB).
+     */
+    public static void Rscript_set_limits(int max_instructions, int max_depth, long max_memory) {
+        MethodHandle $h = Rscript_set_limits$;
+        if ($h == null) Rscript_set_limits$ = $h = find("Rscript_set_limits", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_LONG));
+        try {
+            $h.invokeExact(max_instructions, max_depth, max_memory);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rscript_set_log_callback$;
+
+    public static void Rscript_set_log_callback(RScriptLogCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rscript_set_log_callback$;
+        if ($h == null) Rscript_set_log_callback$ = $h = find("Rscript_set_log_callback", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rscript_set_log_callback(RScriptLogCallback callback) {
+        Rscript_set_log_callback(callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rscript_set_diagnostic_callback$;
+
+    public static void Rscript_set_diagnostic_callback(RScriptDiagnosticCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rscript_set_diagnostic_callback$;
+        if ($h == null) Rscript_set_diagnostic_callback$ = $h = find("Rscript_set_diagnostic_callback", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rscript_set_diagnostic_callback(RScriptDiagnosticCallback callback) {
+        Rscript_set_diagnostic_callback(callback, (MemorySegment) null);
+    }
+
     private static MethodHandle Rlocale_load_csv$;
 
     /**
@@ -24696,6 +27727,41 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rhost_window_set_insets$;
+
+    /**
+     * What covers a host window on a phone or a tablet, in pixels: the
+     * safe area (status bar, notch, home indicator; NULL: none) and the height
+     * of the on-screen keyboard over its bottom (0: hidden). The content is laid
+     * out inside them (Rwindow_get_safe_area, Rwindow_get_keyboard_area).
+     */
+    public static void Rhost_window_set_insets(int window, RInsets safe_area, int keyboard_height) {
+        MethodHandle $h = Rhost_window_set_insets$;
+        if ($h == null) Rhost_window_set_insets$ = $h = find("Rhost_window_set_insets", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_INT));
+        try {
+            $h.invokeExact(window, (MemorySegment) (safe_area == null ? MemorySegment.NULL : safe_area.segment()), keyboard_height);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rhost_set_system_dark$;
+
+    /**
+     * The application's system is in dark (R_TRUE) or light (R_FALSE)
+     * mode, -1 when it does not tell (the default): Rtheme_get_system_dark,
+     * and Rtheme_follow_system follows it.
+     */
+    public static void Rhost_set_system_dark(int dark) {
+        MethodHandle $h = Rhost_set_system_dark$;
+        if ($h == null) Rhost_set_system_dark$ = $h = find("Rhost_set_system_dark", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(dark);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rhost_inject_mouse_move$;
 
     public static void Rhost_inject_mouse_move(int window, int x, int y, int modifiers) {
@@ -24777,6 +27843,26 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rhost_inject_composition$;
+
+    /**
+     * The input method of the application's system composes `text`
+     * (preedit), with its selection in bytes (see Rwindow_inject_composition).
+     * NULL or "" cancels it; the committed text then comes through
+     * Rhost_inject_text. Rwindow_get_text_input_rect tells where to put the
+     * candidate window.
+     */
+    public static void Rhost_inject_composition(int window, String text, int selection_start, int selection_end) {
+        MethodHandle $h = Rhost_inject_composition$;
+        if ($h == null) Rhost_inject_composition$ = $h = find("Rhost_inject_composition", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            $h.invokeExact(window, text$, selection_start, selection_end);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rhost_inject_focus$;
 
     /**
@@ -24802,6 +27888,453 @@ public final class R {
         if ($h == null) Rhost_inject_close$ = $h = find("Rhost_inject_close", FunctionDescriptor.ofVoid(JAVA_INT));
         try {
             $h.invokeExact(window);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_set_deterministic$;
+
+    /**
+     * R_TRUE makes what is drawn depend only on what the test does:
+     * every frame advances the animations by 1/60 s (Rset_animation_time_step),
+     * and the carets of the text fields stay lit instead of blinking. R_FALSE
+     * gives the clock back (time step 0).
+     */
+    public static void Rtest_set_deterministic(int enabled) {
+        MethodHandle $h = Rtest_set_deterministic$;
+        if ($h == null) Rtest_set_deterministic$ = $h = find("Rtest_set_deterministic", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_is_deterministic$;
+
+    public static int Rtest_is_deterministic() {
+        MethodHandle $h = Rtest_is_deterministic$;
+        if ($h == null) Rtest_is_deterministic$ = $h = find("Rtest_is_deterministic", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_get_platform_tag$;
+
+    /**
+     * Returns: What the goldens of this run are made with, "OS-backend":
+     * "macos-metal", "linux-vulkan", "windows-vulkan", "web-webgl"... and
+     * "null" with the null backend.
+     */
+    public static String Rtest_get_platform_tag() {
+        MethodHandle $h = Rtest_get_platform_tag$;
+        if ($h == null) Rtest_get_platform_tag$ = $h = find("Rtest_get_platform_tag", FunctionDescriptor.of(ADDRESS));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact();
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_find$;
+
+    /**
+     * Finds a widget by name (Rwidget_set_name, Name="" in XML). The
+     * path may have several names separated by '/': "settings/ok" is the
+     * widget named "ok" inside the one named "settings". In a window, the
+     * open popups (menus, dialogs) are searched first, top first, then the
+     * content.
+     * scope A window or a widget.
+     * Returns: R_INVALID_ID when nothing has that name (no error is reported).
+     */
+    public static int Rtest_find(int scope, String path) {
+        MethodHandle $h = Rtest_find$;
+        if ($h == null) Rtest_find$ = $h = find("Rtest_find", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            int $r = (int) $h.invokeExact(scope, path$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_click$;
+
+    /**
+     * Moves the mouse to the middle of the widget, presses and releases the left button.
+     */
+    public static int Rtest_click(int widget) {
+        MethodHandle $h = Rtest_click$;
+        if ($h == null) Rtest_click$ = $h = find("Rtest_click", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_double_click$;
+
+    /**
+     * Two clicks in a row on the middle of the widget, seen as a double click.
+     */
+    public static int Rtest_double_click(int widget) {
+        MethodHandle $h = Rtest_double_click$;
+        if ($h == null) Rtest_double_click$ = $h = find("Rtest_double_click", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_right_click$;
+
+    /**
+     * A click of the right button on the middle of the widget (a context menu).
+     */
+    public static int Rtest_right_click(int widget) {
+        MethodHandle $h = Rtest_right_click$;
+        if ($h == null) Rtest_right_click$ = $h = find("Rtest_right_click", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_click_at$;
+
+    /**
+     * Clicks at a position of a widget or a window.
+     * clicks 1 for a click, 2 for a double click, 3 for a triple click.
+     * modifiers RModifier held during the clicks (R_MOD_SHIFT...).
+     */
+    public static int Rtest_click_at(int target, float x, float y, int button, int clicks, int modifiers) {
+        MethodHandle $h = Rtest_click_at$;
+        if ($h == null) Rtest_click_at$ = $h = find("Rtest_click_at", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(target, x, y, button, clicks, modifiers);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_hover$;
+
+    /**
+     * Moves the mouse over the middle of the widget, without clicking.
+     */
+    public static int Rtest_hover(int widget) {
+        MethodHandle $h = Rtest_hover$;
+        if ($h == null) Rtest_hover$ = $h = find("Rtest_hover", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_hover_at$;
+
+    /**
+     * Moves the mouse to a position of a widget or a window.
+     */
+    public static int Rtest_hover_at(int target, float x, float y) {
+        MethodHandle $h = Rtest_hover_at$;
+        if ($h == null) Rtest_hover_at$ = $h = find("Rtest_hover_at", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            int $r = (int) $h.invokeExact(target, x, y);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_drag$;
+
+    /**
+     * Presses the left button on the middle of the widget, moves by
+     * (dx, dy) in several steps, and releases: a slider, a splitter, a
+     * window dragged by a widget.
+     */
+    public static int Rtest_drag(int widget, float dx, float dy) {
+        MethodHandle $h = Rtest_drag$;
+        if ($h == null) Rtest_drag$ = $h = find("Rtest_drag", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            int $r = (int) $h.invokeExact(widget, dx, dy);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_drag_to$;
+
+    /**
+     * Drags from the middle of one widget to the middle of another (drag and drop).
+     */
+    public static int Rtest_drag_to(int from, int to_) {
+        MethodHandle $h = Rtest_drag_to$;
+        if ($h == null) Rtest_drag_to$ = $h = find("Rtest_drag_to", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(from, to_);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_scroll$;
+
+    /**
+     * Turns the mouse wheel over the middle of the widget: `wheel_y`
+     * notches (positive: toward the top, as a wheel turned away from the
+     * user), `wheel_x` notches sideways.
+     */
+    public static int Rtest_scroll(int widget, float wheel_x, float wheel_y) {
+        MethodHandle $h = Rtest_scroll$;
+        if ($h == null) Rtest_scroll$ = $h = find("Rtest_scroll", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            int $r = (int) $h.invokeExact(widget, wheel_x, wheel_y);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_key$;
+
+    /**
+     * Presses and releases a key, with RModifier held. A widget
+     * target gets the keyboard focus first; a window sends the key to what
+     * has the focus.
+     */
+    public static int Rtest_key(int target, int key, int modifiers) {
+        MethodHandle $h = Rtest_key$;
+        if ($h == null) Rtest_key$ = $h = find("Rtest_key", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(target, key, modifiers);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_type_text$;
+
+    /**
+     * Types UTF-8 text as a keyboard would. A widget target gets the
+     * keyboard focus first. '\n', '\t' and '\b' are sent as the keys Enter,
+     * Tab and Backspace.
+     */
+    public static int Rtest_type_text(int target, String text) {
+        MethodHandle $h = Rtest_type_text$;
+        if ($h == null) Rtest_type_text$ = $h = find("Rtest_type_text", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            int $r = (int) $h.invokeExact(target, text$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_tap$;
+
+    /**
+     * A finger touches the middle of the widget and leaves at once.
+     */
+    public static int Rtest_tap(int widget) {
+        MethodHandle $h = Rtest_tap$;
+        if ($h == null) Rtest_tap$ = $h = find("Rtest_tap", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_swipe$;
+
+    /**
+     * A finger put on the middle of the widget moves by (dx, dy) in
+     * `seconds`, and leaves: a fast swipe flicks a list, which then coasts
+     * (Rtest_settle lets it stop).
+     */
+    public static int Rtest_swipe(int widget, float dx, float dy, double seconds) {
+        MethodHandle $h = Rtest_swipe$;
+        if ($h == null) Rtest_swipe$ = $h = find("Rtest_swipe", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_DOUBLE));
+        try {
+            int $r = (int) $h.invokeExact(widget, dx, dy, seconds);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_pump$;
+
+    /**
+     * Produces `frames` frames (Rdraw_frame). Returns: R_FALSE once the application quits.
+     */
+    public static int Rtest_pump(int frames) {
+        MethodHandle $h = Rtest_pump$;
+        if ($h == null) Rtest_pump$ = $h = find("Rtest_pump", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(frames);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_is_idle$;
+
+    /**
+     * Returns: R_TRUE when nothing waits for a frame: no posted task, no layout
+     * to do, nothing to paint, no animation, no layout spring, no inertia.
+     * Windows that redraw all the time (Rwindow_set_continuous_redraw, a
+     * realtime viewport) and the timers are not counted.
+     */
+    public static int Rtest_is_idle() {
+        MethodHandle $h = Rtest_is_idle$;
+        if ($h == null) Rtest_is_idle$ = $h = find("Rtest_is_idle", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_settle$;
+
+    /**
+     * Produces frames until Rtest_is_idle, each advancing the
+     * animations by the time step (1/60 s unless Rset_animation_time_step
+     * gives another), for at most `max_seconds` of that time.
+     * Returns: R_FALSE when it was still moving at the end.
+     */
+    public static int Rtest_settle(double max_seconds) {
+        MethodHandle $h = Rtest_settle$;
+        if ($h == null) Rtest_settle$ = $h = find("Rtest_settle", FunctionDescriptor.of(JAVA_INT, JAVA_DOUBLE));
+        try {
+            int $r = (int) $h.invokeExact(max_seconds);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_get_text$;
+
+    /**
+     * Returns: What the user reads in the widget: the text of a field, else
+     * its label (as screen readers say it: the text of a Label, a Button, a
+     * Checkbox...). "" when it has none. Valid until the next call.
+     */
+    public static String Rtest_get_text(int widget) {
+        MethodHandle $h = Rtest_get_text$;
+        if ($h == null) Rtest_get_text$ = $h = find("Rtest_get_text", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(widget);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_is_shown$;
+
+    /**
+     * Returns: R_TRUE when the widget can be seen: in a window, Visible with
+     * all that holds it, on the page a Switcher or a TabView shows, and laid
+     * out with a size.
+     */
+    public static int Rtest_is_shown(int widget) {
+        MethodHandle $h = Rtest_is_shown$;
+        if ($h == null) Rtest_is_shown$ = $h = find("Rtest_is_shown", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_is_checked$;
+
+    /**
+     * Returns: R_TRUE for a checked Checkbox, Switch, RadioButton, toggle Button or menu item.
+     */
+    public static int Rtest_is_checked(int widget) {
+        MethodHandle $h = Rtest_is_checked$;
+        if ($h == null) Rtest_is_checked$ = $h = find("Rtest_is_checked", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(widget);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_expect_golden$;
+
+    /**
+     * Captures a window, or the rectangle of one widget, and compares
+     * it with the PNG file `golden_path` (see the top of this file).
+     * target A window or a widget.
+     * options NULL for the defaults.
+     * result Receives the details; may be NULL.
+     * Returns: R_TRUE when the capture matches (or the golden was written
+     * because RAVEN_UPDATE_GOLDENS=1).
+     */
+    public static int Rtest_expect_golden(int target, String golden_path, RGoldenOptions options, RGoldenResult result) {
+        MethodHandle $h = Rtest_expect_golden$;
+        if ($h == null) Rtest_expect_golden$ = $h = find("Rtest_expect_golden", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment golden_path$ = golden_path == null ? MemorySegment.NULL : utf8($a, golden_path);
+            int $r = (int) $h.invokeExact(target, golden_path$, (MemorySegment) (options == null ? MemorySegment.NULL : options.segment()), (MemorySegment) (result == null ? MemorySegment.NULL : result.segment()));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtest_compare_pixels$;
+
+    /**
+     * Compares two RGBA8 images of the same size as Rtest_expect_golden
+     * does, without files.
+     * diff_rgba When not NULL, receives width * height * 4 bytes: the
+     * expected image faded, with the different pixels in red.
+     * Returns: The number of pixels farther apart than `channel_tolerance`;
+     * -1 when an image is missing.
+     */
+    public static int Rtest_compare_pixels(byte[] actual, byte[] expected, int width, int height, int channel_tolerance, int[] max_channel_difference, MemorySegment diff_rgba) {
+        MethodHandle $h = Rtest_compare_pixels$;
+        if ($h == null) Rtest_compare_pixels$ = $h = find("Rtest_compare_pixels", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment actual$ = actual == null ? MemorySegment.NULL : bytes($a, actual);
+            MemorySegment expected$ = expected == null ? MemorySegment.NULL : bytes($a, expected);
+            MemorySegment max_channel_difference$ = max_channel_difference == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            int $r = (int) $h.invokeExact(actual$, expected$, width, height, channel_tolerance, max_channel_difference$, (MemorySegment) (diff_rgba == null ? MemorySegment.NULL : diff_rgba));
+            if (max_channel_difference != null && max_channel_difference.length > 0) max_channel_difference[0] = max_channel_difference$.get(JAVA_INT, 0);
+            return $r;
         } catch (Throwable $t) {
             throw fail($t);
         }

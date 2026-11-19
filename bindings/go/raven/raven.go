@@ -1,6 +1,6 @@
 // Package raven is Raven for Go.
 //
-// Generated from the C headers by tools/bindgen (Raven 0.2): do not edit.
+// Generated from the C headers by tools/bindgen (Raven 0.3): do not edit.
 //
 // Each C function whose parameters Go can express directly has a Go function:
 // Rwindow_set_title is WindowSetTitle. The enumerations keep their C names
@@ -14,7 +14,7 @@
 // are bridged, which is what an interface described in XML needs:
 // ActionBind, ErrorSetCallback and TimerStart.
 //
-//	raven.Init(raven.R_BACKEND_VULKAN)
+//	raven.Init(raven.R_BACKEND_DEFAULT)
 //	raven.WindowCreateFromXml(`<Window Title="Hi"><Button Text="Quit" OnClicked="quit"/></Window>`)
 //	raven.ActionBind("quit", func(sender raven.ID, action string) { raven.Quit(0) })
 //	for raven.WaitFrame(-1.0) != 0 {
@@ -116,11 +116,13 @@ func XmlNodeRemoveAttribute(node ID, name string) {
 type RBackend int32
 
 const (
-	R_BACKEND_VULKAN RBackend = 1
-	R_BACKEND_NULL   RBackend = 2
-	R_BACKEND_CUSTOM RBackend = 3
-	R_BACKEND_WEBGL  RBackend = 4
-	R_BACKEND_SOKOL  RBackend = 5
+	R_BACKEND_DEFAULT RBackend = 0
+	R_BACKEND_VULKAN  RBackend = 1
+	R_BACKEND_NULL    RBackend = 2
+	R_BACKEND_CUSTOM  RBackend = 3
+	R_BACKEND_WEBGL   RBackend = 4
+	R_BACKEND_METAL   RBackend = 5
+	R_BACKEND_SOKOL   RBackend = 6
 )
 
 type RError int32
@@ -138,6 +140,7 @@ const (
 	R_ERROR_FILE_NOT_FOUND      RError = 0x0079
 	R_ERROR_XML                 RError = 0x007A
 	R_ERROR_WRONG_THREAD        RError = 0x007B
+	R_ERROR_SCRIPT              RError = 0x007C
 )
 
 type RSeverity int32
@@ -147,6 +150,23 @@ const (
 	R_SEVERITY_WARNING      RSeverity = 0x0081
 	R_SEVERITY_ERROR        RSeverity = 0x0082
 	R_SEVERITY_FATAL        RSeverity = 0x0083
+)
+
+// RAppEvent: What the system does with the application, on iOS and Android (desktop systems send none of
+// these). A pause is not always followed by R_APP_DID_PAUSE: pulling down the notifications (iOS) or a dialog
+// of the system in front (Android) gives R_APP_WILL_PAUSE, then R_APP_DID_RESUME. At the start,
+// R_APP_WILL_RESUME and R_APP_DID_RESUME may come too. leaving the front R_APP_WILL_PAUSE still seen: save
+// what must not be lost in the background R_APP_DID_PAUSE not seen, no GPU work: Raven stops drawing coming
+// back R_APP_WILL_RESUME Raven draws again in front again R_APP_DID_RESUME takes input again
+type RAppEvent int32
+
+const (
+	R_APP_WILL_PAUSE     RAppEvent = 0x0B80
+	R_APP_DID_PAUSE      RAppEvent = 0x0B81
+	R_APP_WILL_RESUME    RAppEvent = 0x0B82
+	R_APP_DID_RESUME     RAppEvent = 0x0B83
+	R_APP_LOW_MEMORY     RAppEvent = 0x0B84
+	R_APP_WILL_TERMINATE RAppEvent = 0x0B85
 )
 
 type RWindowFlags int32
@@ -670,6 +690,9 @@ const (
 	R_WIDGET_PAGINATION      RWidgetType = 0x0231
 	R_WIDGET_PLOT            RWidgetType = 0x0232
 	R_WIDGET_PDF_VIEW        RWidgetType = 0x0233
+	R_WIDGET_CHART           RWidgetType = 0x0234
+	R_WIDGET_MAP_VIEW        RWidgetType = 0x0235
+	R_WIDGET_CAROUSEL        RWidgetType = 0x0236
 )
 
 type RHAlign int32
@@ -857,6 +880,16 @@ const (
 	R_PDF_PRINT_NO_DIALOG RPdfPrintFlags = 1
 )
 
+// RMapTileState: Where a tile of a MapView stands (Rmap_view_get_tile_state).
+type RMapTileState int32
+
+const (
+	R_MAP_TILE_NONE    RMapTileState = 0x0600
+	R_MAP_TILE_PENDING RMapTileState = 0x0601
+	R_MAP_TILE_LOADED  RMapTileState = 0x0602
+	R_MAP_TILE_FAILED  RMapTileState = 0x0603
+)
+
 // RPlotScale: How an axis of a Plot spreads its values.
 type RPlotScale int32
 
@@ -906,6 +939,17 @@ const (
 	R_PLOT_LEGEND_BOTTOM_LEFT  RPlotLegend = 0x0567
 	R_PLOT_LEGEND_LEFT         RPlotLegend = 0x0568
 	R_PLOT_LEGEND_OUTSIDE      RPlotLegend = 0x0569
+)
+
+// RChartKind: What a Chart draws.
+type RChartKind int32
+
+const (
+	R_CHART_PIE       RChartKind = 0x0590
+	R_CHART_DONUT     RChartKind = 0x0591
+	R_CHART_GAUGE     RChartKind = 0x0592
+	R_CHART_HEATMAP   RChartKind = 0x0593
+	R_CHART_SPARKLINE RChartKind = 0x0594
 )
 
 // RSyntax: Shorthands of Rtext_editor_set_language for two languages.
@@ -1188,6 +1232,17 @@ const (
 	R_ROLE_PANE          RAccessibleRole = 0x0783
 )
 
+type RGoldenStatus int32
+
+const (
+	R_GOLDEN_MATCH         RGoldenStatus = 0x0BA0
+	R_GOLDEN_UPDATED       RGoldenStatus = 0x0BA1
+	R_GOLDEN_MISMATCH      RGoldenStatus = 0x0BA2
+	R_GOLDEN_SIZE_MISMATCH RGoldenStatus = 0x0BA3
+	R_GOLDEN_MISSING       RGoldenStatus = 0x0BA4
+	R_GOLDEN_FAILED        RGoldenStatus = 0x0BA5
+)
+
 // Init: Starts the library with default settings on the given backend. The calling thread becomes the UI
 // thread. Returns: R_TRUE on success. On failure, see Rerror_get_last.
 func Init(backend RBackend) int {
@@ -1281,6 +1336,18 @@ func GetDeltaTime() float64 {
 // GetTime: Returns: Seconds elapsed since Rinit, from a monotonic clock. Thread-safe.
 func GetTime() float64 {
 	return float64(C.Rget_time())
+}
+
+// IsAppPaused: Returns: R_TRUE between R_APP_DID_PAUSE and R_APP_WILL_RESUME: the application is in the
+// background.
+func IsAppPaused() int {
+	return int(C.Ris_app_paused())
+}
+
+// InjectAppEvent: Handles an RAppEvent as if the system had sent it: for tests, and for a host application
+// (raven_host.h) that knows the lifecycle. UI thread.
+func InjectAppEvent(event RAppEvent) {
+	C.Rinject_app_event(C.RAppEvent(event))
 }
 
 // SetUiScale: Scale of the whole interface, on top of the one of the monitor (RInitDesc.ui_scale at start):
@@ -1482,6 +1549,19 @@ func WindowGetSize(window ID) (width int, height int) {
 // keyboard goes away.
 func WindowClearFocus(window ID) {
 	C.Rwindow_clear_focus(C.Rid(window))
+}
+
+// WindowSetBackEnabled: R_TRUE while the application has somewhere to go back to (a page under the one
+// shown). Android 13 and later ask for Back only while the window wants it (predictive back): at the root
+// page the system handles Back itself and animates back to the home screen. Default R_FALSE.
+func WindowSetBackEnabled(window ID, enabled int) {
+	C.Rwindow_set_back_enabled(C.Rid(window), C.int(enabled))
+}
+
+// WindowWantsBack: Returns: R_TRUE while Back would be taken: a popup or dialog is open, or
+// Rwindow_set_back_enabled said so.
+func WindowWantsBack(window ID) int {
+	return int(C.Rwindow_wants_back(C.Rid(window)))
 }
 
 func WindowSetMinSize(window ID, width int, height int) {
@@ -1765,10 +1845,29 @@ func WindowInjectText(window ID, text string) {
 	C.Rwindow_inject_text(C.Rid(window), text_)
 }
 
+// WindowInjectComposition: The text an input method is composing (preedit: Chinese, Japanese, Korean, dead
+// keys), as the platforms send it. The focused TextInput, SpinBox or TextEditor shows it at its caret,
+// underlined, in place of its selection, but it is not in its text and no changed callback runs.
+// [selection_start, selection_end) are bytes of `text`: the part the input method works on (underlined
+// thicker), or the caret when they are equal; -1 is the end of `text`. NULL or "" ends the composition
+// without typing anything (cancel). The committed text comes through Rwindow_inject_text, which ends the
+// composition too, and so does a change of focus. Ignored when the focus takes no text.
+func WindowInjectComposition(window ID, text string, selection_start int, selection_end int) {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	C.Rwindow_inject_composition(C.Rid(window), text_, C.int(selection_start), C.int(selection_end))
+}
+
 // WindowInjectDrag: A drag from another application moves over the window (`inside` R_TRUE) or leaves it.
 // Returns: R_TRUE when a drop at this position would be accepted.
 func WindowInjectDrag(window ID, x float32, y float32, inside int) int {
 	return int(C.Rwindow_inject_drag(C.Rid(window), C.float(x), C.float(y), C.int(inside)))
+}
+
+// WindowInjectBack: Back, as the system sends it (Rwindow_set_back_callback). Returns R_TRUE when something
+// took it.
+func WindowInjectBack(window ID) int {
+	return int(C.Rwindow_inject_back(C.Rid(window)))
 }
 
 // WindowIsKeyDown: R_TRUE while the key is held down in the window (cleared when the window loses the
@@ -1825,6 +1924,17 @@ func WindowReplaceTextInput(window ID, start int, end int, text string) int {
 	return int(C.Rwindow_replace_text_input(C.Rid(window), C.int(start), C.int(end), text_))
 }
 
+// WindowGetTextComposition: The composition of the input method in progress (UTF-8, valid until it changes)
+// and its selection in bytes; NULL when there is none. Any output pointer may be NULL.
+func WindowGetTextComposition(window ID) (result string, selection_start int, selection_end int) {
+	var selection_start_ C.int
+	var selection_end_ C.int
+	result = C.GoString(C.Rwindow_get_text_composition(C.Rid(window), &selection_start_, &selection_end_))
+	selection_start = int(selection_start_)
+	selection_end = int(selection_end_)
+	return
+}
+
 // WindowHasPopup: R_TRUE while a menu, list or dialog is open over the window.
 func WindowHasPopup(window ID) int {
 	return int(C.Rwindow_has_popup(C.Rid(window)))
@@ -1833,7 +1943,8 @@ func WindowHasPopup(window ID) int {
 // WindowGetTextInputRect: Last painted caret in window pixels (x, y, width, height), including scrolling and
 // scale. Call after Rdraw_frame. Independent of the blink phase. Returns R_FALSE and zeros the outputs when
 // there is no visible editable caret, the window is inactive, or focus changed since painting. Any output
-// pointer may be NULL.
+// pointer may be NULL. While an input method composes, it is the caret inside the composition: where its
+// candidate window goes.
 func WindowGetTextInputRect(window ID) (result int, x int, y int, width int, height int) {
 	var x_ C.int
 	var y_ C.int
@@ -2028,6 +2139,8 @@ func ThemeGetColor(role RColorRole) (r float32, g float32, b float32, a float32)
 	return
 }
 
+// ThemeSetMetric: Changes a size of the theme in use. It lasts until the look or the theme is chosen again
+// (Rlook_set, Rtheme_use), but not through a switch between light and dark made by Rtheme_follow_system.
 func ThemeSetMetric(metric RMetric, value float32) {
 	C.Rtheme_set_metric(C.RMetric(metric), C.float(value))
 }
@@ -2075,7 +2188,10 @@ func ThemeGetSystemDark() int {
 
 // ThemeFollowSystem: Follows the dark or light mode of the system with the Raven look (R_LOOK_RAVEN_DARK /
 // R_LOOK_RAVEN_LIGHT), now and when it changes. Off by default. Does nothing where the platform does not tell
-// (desktop today).
+// (desktop today). A switch is Rlook_set, except that the sizes given with Rtheme_set_metric stay. Colors and
+// styles set with Rtheme_set_... are those of one mode and are lost; to keep colors, sizes and styles of the
+// application through the switch, put them in a theme that names no look (Rtheme_load_from_memory, then
+// Rtheme_use): it is laid over the new look.
 func ThemeFollowSystem(enabled int) {
 	C.Rtheme_follow_system(C.int(enabled))
 }
@@ -2359,6 +2475,8 @@ func WidgetGetType(widget ID) RWidgetType {
 
 // WidgetAddChild: Appends a child to a panel. The parent takes ownership. A widget that already has a parent
 // is moved. Returns: `child`, so calls can be nested: Rid ok = Rwidget_add_child(row, Rbutton_create("OK"));
+// R_INVALID_ID when the child replaced in a single-child container had a destroy callback that destroyed the
+// container or `child`; `child`, when it is still there, is then not added.
 func WidgetAddChild(parent ID, child ID) ID {
 	return ID(C.Rwidget_add_child(C.Rid(parent), C.Rid(child)))
 }
@@ -2526,7 +2644,8 @@ func WidgetSetClipping(widget ID, clip int) {
 	C.Rwidget_set_clipping(C.Rid(widget), C.int(clip))
 }
 
-// WidgetSetTooltip: Text shown when the cursor rests on the widget. NULL removes it.
+// WidgetSetTooltip: Text shown when the cursor rests on the widget. NULL removes it. A label, which otherwise
+// lets the mouse through, takes the hover while it has a tooltip (events it does not use still bubble).
 func WidgetSetTooltip(widget ID, text string) {
 	text_ := C.CString(text)
 	defer C.free(unsafe.Pointer(text_))
@@ -2587,7 +2706,7 @@ func WidgetSetFocusable(widget ID, focusable int) {
 	C.Rwidget_set_focusable(C.Rid(widget), C.int(focusable))
 }
 
-// WidgetFocus: Gives the keyboard focus to the widget.
+// WidgetFocus: Gives the keyboard focus to the widget, and scrolls it into view (Rwidget_scroll_into_view).
 func WidgetFocus(widget ID) {
 	C.Rwidget_focus(C.Rid(widget))
 }
@@ -2683,7 +2802,8 @@ func WidgetClearMetric(widget ID, metric RMetric) {
 }
 
 // WidgetGetMetric: Returns: The metric the widget uses: its own, else the one of a style, else the one of its
-// theme.
+// theme; grown for larger text (Raccessibility_set_text_scale) and for a finger
+// (RTouchSettings::min_touch_size).
 func WidgetGetMetric(widget ID, metric RMetric) float32 {
 	return float32(C.Rwidget_get_metric(C.Rid(widget), C.RMetric(metric)))
 }
@@ -2846,7 +2966,9 @@ func ScrollBoxScrollToEnd(scroll_box ID) {
 	C.Rscroll_box_scroll_to_end(C.Rid(scroll_box))
 }
 
-// WidgetScrollIntoView: Scrolls every ScrollBox above the widget so that the widget is visible.
+// WidgetScrollIntoView: Scrolls every ScrollBox above the widget so that the widget is visible. The library
+// does it by itself for the focused widget when the focus comes from Tab or Rwidget_focus, and for a text
+// field above the on-screen keyboard (Rwindow_get_keyboard_area).
 func WidgetScrollIntoView(widget ID) {
 	C.Rwidget_scroll_into_view(C.Rid(widget))
 }
@@ -3681,6 +3803,35 @@ func TileViewSetEmptyText(tile_view ID, text string) {
 	C.Rtile_view_set_empty_text(C.Rid(tile_view), text_)
 }
 
+// TileViewSetIconWidth: Layout="Rows": width of the box the icon is drawn in (its height is the icon size),
+// for icons that are not square; 0 = square (default). XML: IconWidth.
+func TileViewSetIconWidth(tile_view ID, width float32) {
+	C.Rtile_view_set_icon_width(C.Rid(tile_view), C.float(width))
+}
+
+func TileViewGetSectionCount(tile_view ID) int {
+	return int(C.Rtile_view_get_section_count(C.Rid(tile_view)))
+}
+
+// TileViewGetSectionOf: The section of a tile, or -1 (before the first section).
+func TileViewGetSectionOf(tile_view ID, index int) int {
+	return int(C.Rtile_view_get_section_of(C.Rid(tile_view), C.int(index)))
+}
+
+// TileViewSetSectionFolded: Folds or unfolds a section (the toggled callback is not called).
+func TileViewSetSectionFolded(tile_view ID, section int, folded int) {
+	C.Rtile_view_set_section_folded(C.Rid(tile_view), C.int(section), C.int(folded))
+}
+
+func TileViewIsSectionFolded(tile_view ID, section int) int {
+	return int(C.Rtile_view_is_section_folded(C.Rid(tile_view), C.int(section)))
+}
+
+// TileViewGetSectionAt: The section whose header is at a point relative to the widget, or -1.
+func TileViewGetSectionAt(tile_view ID, local_x float32, local_y float32) int {
+	return int(C.Rtile_view_get_section_at(C.Rid(tile_view), C.float(local_x), C.float(local_y)))
+}
+
 func TileViewSetSelected(tile_view ID, index int, selected int) {
 	C.Rtile_view_set_selected(C.Rid(tile_view), C.int(index), C.int(selected))
 }
@@ -3814,7 +3965,39 @@ func TableGetRowCount(table ID) int {
 	return int(C.Rtable_get_row_count(C.Rid(table)))
 }
 
-// TableSetSelected: Selects a row. -1 selects nothing.
+// TableSetCellTextColor: Stored rows: a fixed text color; column -1 colors the row; cells override it. Alpha
+// 0 restores the inherited/theme color. A color from the cell color callback wins over it.
+func TableSetCellTextColor(table ID, row int, column int, r float32, g float32, b float32, a float32) {
+	C.Rtable_set_cell_text_color(C.Rid(table), C.int(row), C.int(column), C.float(r), C.float(g), C.float(b), C.float(a))
+}
+
+// TableSetMultiSelect: Opt into Ctrl/Cmd toggles and Shift ranges; single selection is the default.
+func TableSetMultiSelect(table ID, enabled int) {
+	C.Rtable_set_multi_select(C.Rid(table), C.int(enabled))
+}
+
+func TableSetRowSelected(table ID, row int, selected int) {
+	C.Rtable_set_row_selected(C.Rid(table), C.int(row), C.int(selected))
+}
+
+func TableIsRowSelected(table ID, row int) int {
+	return int(C.Rtable_is_row_selected(C.Rid(table), C.int(row)))
+}
+
+func TableClearSelection(table ID) {
+	C.Rtable_clear_selection(C.Rid(table))
+}
+
+func TableGetSelectionCount(table ID) int {
+	return int(C.Rtable_get_selection_count(C.Rid(table)))
+}
+
+// TableGetSelection: Selected row at index, top to bottom; -1 outside the selection.
+func TableGetSelection(table ID, index int) int {
+	return int(C.Rtable_get_selection(C.Rid(table), C.int(index)))
+}
+
+// TableSetSelected: Replaces the selection with one row. -1 selects nothing, including in multi-select mode.
 func TableSetSelected(table ID, row int) {
 	C.Rtable_set_selected(C.Rid(table), C.int(row))
 }
@@ -4379,6 +4562,258 @@ func PlotSetDragLineColor(plot ID, line int, r float32, g float32, b float32, a 
 	C.Rplot_set_drag_line_color(C.Rid(plot), C.int(line), C.float(r), C.float(g), C.float(b), C.float(a))
 }
 
+// ChartCreate: A chart of a kind (Rwidget_create(R_WIDGET_CHART) makes a pie).
+func ChartCreate(kind RChartKind) ID {
+	return ID(C.Rchart_create(C.RChartKind(kind)))
+}
+
+func ChartSetKind(chart ID, kind RChartKind) {
+	C.Rchart_set_kind(C.Rid(chart), C.RChartKind(kind))
+}
+
+func ChartGetKind(chart ID) RChartKind {
+	return RChartKind(C.Rchart_get_kind(C.Rid(chart)))
+}
+
+// ChartSetTitle: The title over a pie, a donut or a heatmap, under the value of a gauge (a sparkline only
+// tells it to screen readers).
+func ChartSetTitle(chart ID, title string) {
+	title_ := C.CString(title)
+	defer C.free(unsafe.Pointer(title_))
+	C.Rchart_set_title(C.Rid(chart), title_)
+}
+
+func ChartGetTitle(chart ID) string {
+	return C.GoString(C.Rchart_get_title(C.Rid(chart)))
+}
+
+// ChartSetFormat: How the values are written (the gauge, the middle of a donut, what the pointer shows): a
+// printf format for one double with its unit, "%.0f%%", "$%.2f". NULL: whole numbers as they are, others with
+// up to two decimals.
+func ChartSetFormat(chart ID, format string) {
+	format_ := C.CString(format)
+	defer C.free(unsafe.Pointer(format_))
+	C.Rchart_set_format(C.Rid(chart), format_)
+}
+
+// ChartSetColor: The color of the arc of a gauge outside any band, and of the line of a sparkline (default:
+// the accent).
+func ChartSetColor(chart ID, r float32, g float32, b float32, a float32) {
+	C.Rchart_set_color(C.Rid(chart), C.float(r), C.float(g), C.float(b), C.float(a))
+}
+
+// ChartSetLegend: The legend: the slices beside a pie or a donut, the scale of colors under a heatmap (shown
+// by default).
+func ChartSetLegend(chart ID, shown int) {
+	C.Rchart_set_legend(C.Rid(chart), C.int(shown))
+}
+
+// ChartClear: Removes the slices, the bands, the grid and the values.
+func ChartClear(chart ID) {
+	C.Rchart_clear(C.Rid(chart))
+}
+
+// ChartGetHovered: What is under the pointer: a slice, a point of a sparkline, or a cell of a heatmap as row
+// * columns + column; -1 for nothing.
+func ChartGetHovered(chart ID) int {
+	return int(C.Rchart_get_hovered(C.Rid(chart)))
+}
+
+// ChartAddSlice: Adds a slice (a value of 0 or more). Returns its index, -1 when the value is not valid.
+func ChartAddSlice(chart ID, label string, value float64) int {
+	label_ := C.CString(label)
+	defer C.free(unsafe.Pointer(label_))
+	return int(C.Rchart_add_slice(C.Rid(chart), label_, C.double(value)))
+}
+
+func ChartRemoveSlice(chart ID, slice int) {
+	C.Rchart_remove_slice(C.Rid(chart), C.int(slice))
+}
+
+func ChartGetSliceCount(chart ID) int {
+	return int(C.Rchart_get_slice_count(C.Rid(chart)))
+}
+
+func ChartSetSliceValue(chart ID, slice int, value float64) {
+	C.Rchart_set_slice_value(C.Rid(chart), C.int(slice), C.double(value))
+}
+
+func ChartGetSliceValue(chart ID, slice int) float64 {
+	return float64(C.Rchart_get_slice_value(C.Rid(chart), C.int(slice)))
+}
+
+func ChartSetSliceLabel(chart ID, slice int, label string) {
+	label_ := C.CString(label)
+	defer C.free(unsafe.Pointer(label_))
+	C.Rchart_set_slice_label(C.Rid(chart), C.int(slice), label_)
+}
+
+func ChartGetSliceLabel(chart ID, slice int) string {
+	return C.GoString(C.Rchart_get_slice_label(C.Rid(chart), C.int(slice)))
+}
+
+// ChartSetSliceColor: The color of a slice; an alpha of 0 gives it back its color of the palette.
+func ChartSetSliceColor(chart ID, slice int, r float32, g float32, b float32, a float32) {
+	C.Rchart_set_slice_color(C.Rid(chart), C.int(slice), C.float(r), C.float(g), C.float(b), C.float(a))
+}
+
+// ChartGetTotal: The sum of the values of the slices.
+func ChartGetTotal(chart ID) float64 {
+	return float64(C.Rchart_get_total(C.Rid(chart)))
+}
+
+// ChartSetSelected: The slice lifted as selected, or -1 for none (the user selects one with a click).
+func ChartSetSelected(chart ID, slice int) {
+	C.Rchart_set_selected(C.Rid(chart), C.int(slice))
+}
+
+func ChartGetSelected(chart ID) int {
+	return int(C.Rchart_get_selected(C.Rid(chart)))
+}
+
+// ChartSetHole: The hole of a donut, as a part of its radius, from 0.2 to 0.9 (default 0.62).
+func ChartSetHole(chart ID, ratio float32) {
+	C.Rchart_set_hole(C.Rid(chart), C.float(ratio))
+}
+
+// ChartSetCenterText: What the middle of a donut shows when the pointer is not over a slice: `text` in large
+// (NULL or "": the total) over `caption` in small (NULL or "": none).
+func ChartSetCenterText(chart ID, text string, caption string) {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	caption_ := C.CString(caption)
+	defer C.free(unsafe.Pointer(caption_))
+	C.Rchart_set_center_text(C.Rid(chart), text_, caption_)
+}
+
+// ChartSetRange: The range of a gauge (default 0 to 100), and a fixed range for the colors of a heatmap and
+// the height of a sparkline, which otherwise follow their values. min == max goes back to these defaults.
+func ChartSetRange(chart ID, min float64, max float64) {
+	C.Rchart_set_range(C.Rid(chart), C.double(min), C.double(max))
+}
+
+// ChartGetRange: The range in use now (a gauge's, or the one of the values of a heatmap or a sparkline).
+func ChartGetRange(chart ID) (min float64, max float64) {
+	var min_ C.double
+	var max_ C.double
+	C.Rchart_get_range(C.Rid(chart), &min_, &max_)
+	min = float64(min_)
+	max = float64(max_)
+	return
+}
+
+// ChartSetValue: The value of a gauge, kept within its range when drawn.
+func ChartSetValue(chart ID, value float64) {
+	C.Rchart_set_value(C.Rid(chart), C.double(value))
+}
+
+func ChartGetValue(chart ID) float64 {
+	return float64(C.Rchart_get_value(C.Rid(chart)))
+}
+
+// ChartAddBand: Colors a part of the range of a gauge (an alpha of 0: the success, warning and danger colors
+// of the theme, one after the other). The arc takes the color of the band its value is in. Returns the index
+// of the band.
+func ChartAddBand(chart ID, from float64, to float64, r float32, g float32, b float32, a float32) int {
+	return int(C.Rchart_add_band(C.Rid(chart), C.double(from), C.double(to), C.float(r), C.float(g), C.float(b), C.float(a)))
+}
+
+func ChartClearBands(chart ID) {
+	C.Rchart_clear_bands(C.Rid(chart))
+}
+
+func ChartGetBandCount(chart ID) int {
+	return int(C.Rchart_get_band_count(C.Rid(chart)))
+}
+
+// ChartSetGrid: The cells of a heatmap: `rows` x `columns` values, row after row, copied (NULL: all 0). NaN
+// leaves a cell empty.
+func ChartSetGrid(chart ID, rows int, columns int, values []float32) {
+	var values_ *C.float
+	if len(values) > 0 {
+		values_ = (*C.float)(unsafe.Pointer(&values[0]))
+	}
+	C.Rchart_set_grid(C.Rid(chart), C.int(rows), C.int(columns), values_)
+}
+
+func ChartGetRowCount(chart ID) int {
+	return int(C.Rchart_get_row_count(C.Rid(chart)))
+}
+
+func ChartGetColumnCount(chart ID) int {
+	return int(C.Rchart_get_column_count(C.Rid(chart)))
+}
+
+func ChartSetCell(chart ID, row int, column int, value float32) {
+	C.Rchart_set_cell(C.Rid(chart), C.int(row), C.int(column), C.float(value))
+}
+
+func ChartGetCell(chart ID, row int, column int) float32 {
+	return float32(C.Rchart_get_cell(C.Rid(chart), C.int(row), C.int(column)))
+}
+
+// ChartSetRowLabels: The names of the rows, separated by '|': "Mon|Tue|Wed" (shown at their left).
+func ChartSetRowLabels(chart ID, labels string) {
+	labels_ := C.CString(labels)
+	defer C.free(unsafe.Pointer(labels_))
+	C.Rchart_set_row_labels(C.Rid(chart), labels_)
+}
+
+// ChartSetColumnLabels: The names of the columns, separated by '|' (shown over them, as many as fit).
+func ChartSetColumnLabels(chart ID, labels string) {
+	labels_ := C.CString(labels)
+	defer C.free(unsafe.Pointer(labels_))
+	C.Rchart_set_column_labels(C.Rid(chart), labels_)
+}
+
+// ChartGetRowLabel: The name of a row or of a column, "" when it has none.
+func ChartGetRowLabel(chart ID, row int) string {
+	return C.GoString(C.Rchart_get_row_label(C.Rid(chart), C.int(row)))
+}
+
+func ChartGetColumnLabel(chart ID, column int) string {
+	return C.GoString(C.Rchart_get_column_label(C.Rid(chart), C.int(column)))
+}
+
+// ChartSetColorScale: The colors of the lowest and of the highest values of a heatmap (default: a tint of the
+// accent, the accent).
+func ChartSetColorScale(chart ID, low_r float32, low_g float32, low_b float32, low_a float32, high_r float32, high_g float32, high_b float32, high_a float32) {
+	C.Rchart_set_color_scale(C.Rid(chart), C.float(low_r), C.float(low_g), C.float(low_b), C.float(low_a), C.float(high_r), C.float(high_g), C.float(high_b), C.float(high_a))
+}
+
+// ChartSetValues: The values of a sparkline, copied. NaN leaves a gap.
+func ChartSetValues(chart ID, values []float32, count int) {
+	var values_ *C.float
+	if len(values) > 0 {
+		values_ = (*C.float)(unsafe.Pointer(&values[0]))
+	}
+	C.Rchart_set_values(C.Rid(chart), values_, C.int(count))
+}
+
+// ChartPushValue: Adds a value after the others, for live data; only the last `max_count` are kept (0: all of
+// them).
+func ChartPushValue(chart ID, value float32, max_count int) {
+	C.Rchart_push_value(C.Rid(chart), C.float(value), C.int(max_count))
+}
+
+func ChartGetValueCount(chart ID) int {
+	return int(C.Rchart_get_value_count(C.Rid(chart)))
+}
+
+func ChartGetValueAt(chart ID, index int) float32 {
+	return float32(C.Rchart_get_value_at(C.Rid(chart), C.int(index)))
+}
+
+// ChartSetFill: Shades the area under the line of a sparkline (on by default).
+func ChartSetFill(chart ID, fill int) {
+	C.Rchart_set_fill(C.Rid(chart), C.int(fill))
+}
+
+// ChartSetMarker: A dot on the last value of a sparkline (on by default).
+func ChartSetMarker(chart ID, shown int) {
+	C.Rchart_set_marker(C.Rid(chart), C.int(shown))
+}
+
 // PdfIsAvailable: R_TRUE when PDFium can be loaded (it is, the first time this is asked).
 func PdfIsAvailable() int {
 	return int(C.Rpdf_is_available())
@@ -4466,6 +4901,261 @@ func PdfViewGetTitle(view ID) string {
 // view.
 func PdfViewGetPageText(view ID, page int) string {
 	return C.GoString(C.Rpdf_view_get_page_text(C.Rid(view), C.int(page)))
+}
+
+func CarouselCreate() ID {
+	return ID(C.Rcarousel_create())
+}
+
+// CarouselSetPage: Shows a page, gliding to it when `animated` (and the animations are on), at once
+// otherwise. The page changed callback is not called.
+func CarouselSetPage(carousel ID, page int, animated int) {
+	C.Rcarousel_set_page(C.Rid(carousel), C.int(page), C.int(animated))
+}
+
+// CarouselGetPage: The page shown, -1 when the carousel has none.
+func CarouselGetPage(carousel ID) int {
+	return int(C.Rcarousel_get_page(C.Rid(carousel)))
+}
+
+// CarouselGetPageCount: Its children.
+func CarouselGetPageCount(carousel ID) int {
+	return int(C.Rcarousel_get_page_count(C.Rid(carousel)))
+}
+
+// CarouselNext: Glides to the next / previous page; nothing at the last / first one unless it loops.
+func CarouselNext(carousel ID) {
+	C.Rcarousel_next(C.Rid(carousel))
+}
+
+func CarouselPrev(carousel ID) {
+	C.Rcarousel_prev(C.Rid(carousel))
+}
+
+// CarouselSetLoop: R_TRUE: after the last page comes the first one, and before the first the last (default
+// R_FALSE).
+func CarouselSetLoop(carousel ID, loop int) {
+	C.Rcarousel_set_loop(C.Rid(carousel), C.int(loop))
+}
+
+func CarouselGetLoop(carousel ID) int {
+	return int(C.Rcarousel_get_loop(C.Rid(carousel)))
+}
+
+// CarouselSetAutoplay: Goes to the next page by itself every `seconds` (0: never, the default); after the
+// last page it comes back to the first. It waits while the pointer is on the carousel, while the pages are
+// dragged and while the keyboard is in it; a page chosen by the user starts the interval again.
+func CarouselSetAutoplay(carousel ID, seconds float64) {
+	C.Rcarousel_set_autoplay(C.Rid(carousel), C.double(seconds))
+}
+
+func CarouselGetAutoplay(carousel ID) float64 {
+	return float64(C.Rcarousel_get_autoplay(C.Rid(carousel)))
+}
+
+// CarouselSetIndicatorsVisible: The dots along the bottom edge (the right edge when vertical), one per page
+// (default R_TRUE).
+func CarouselSetIndicatorsVisible(carousel ID, visible int) {
+	C.Rcarousel_set_indicators_visible(C.Rid(carousel), C.int(visible))
+}
+
+func CarouselGetIndicatorsVisible(carousel ID) int {
+	return int(C.Rcarousel_get_indicators_visible(C.Rid(carousel)))
+}
+
+// CarouselSetArrowsVisible: The previous / next buttons shown while the pointer is on the carousel (default
+// R_TRUE).
+func CarouselSetArrowsVisible(carousel ID, visible int) {
+	C.Rcarousel_set_arrows_visible(C.Rid(carousel), C.int(visible))
+}
+
+func CarouselGetArrowsVisible(carousel ID) int {
+	return int(C.Rcarousel_get_arrows_visible(C.Rid(carousel)))
+}
+
+// CarouselSetOrientation: R_HORIZONTAL: the pages side by side (default); R_VERTICAL: one above the other.
+func CarouselSetOrientation(carousel ID, orientation ROrientation) {
+	C.Rcarousel_set_orientation(C.Rid(carousel), C.ROrientation(orientation))
+}
+
+func CarouselGetOrientation(carousel ID) ROrientation {
+	return ROrientation(C.Rcarousel_get_orientation(C.Rid(carousel)))
+}
+
+func MapViewCreate() ID {
+	return ID(C.Rmap_view_create())
+}
+
+// MapViewSetCenter: Centers the map on a place. The latitude is held within +/-85.0511; the longitude wraps.
+func MapViewSetCenter(map_ ID, latitude float64, longitude float64) {
+	C.Rmap_view_set_center(C.Rid(map_), C.double(latitude), C.double(longitude))
+}
+
+// MapViewGetCenter: The place at the middle of the map (longitude from -180 to 180).
+func MapViewGetCenter(map_ ID) (latitude float64, longitude float64) {
+	var latitude_ C.double
+	var longitude_ C.double
+	C.Rmap_view_get_center(C.Rid(map_), &latitude_, &longitude_)
+	latitude = float64(latitude_)
+	longitude = float64(longitude_)
+	return
+}
+
+// MapViewSetZoom: The zoom: 0 shows the whole world in one tile, each step doubles the scale. Fractions are
+// allowed.
+func MapViewSetZoom(map_ ID, zoom float64) {
+	C.Rmap_view_set_zoom(C.Rid(map_), C.double(zoom))
+}
+
+func MapViewGetZoom(map_ ID) float64 {
+	return float64(C.Rmap_view_get_zoom(C.Rid(map_)))
+}
+
+// MapViewSetZoomRange: The zooms the user can reach (default 0 to 19, at most 0 to 24). Tiles are asked for
+// at whole zooms of this range.
+func MapViewSetZoomRange(map_ ID, min_zoom float64, max_zoom float64) {
+	C.Rmap_view_set_zoom_range(C.Rid(map_), C.double(min_zoom), C.double(max_zoom))
+}
+
+func MapViewGetZoomRange(map_ ID) (min_zoom float64, max_zoom float64) {
+	var min_zoom_ C.double
+	var max_zoom_ C.double
+	C.Rmap_view_get_zoom_range(C.Rid(map_), &min_zoom_, &max_zoom_)
+	min_zoom = float64(min_zoom_)
+	max_zoom = float64(max_zoom_)
+	return
+}
+
+// MapViewAnimateTo: Glides to a place and a zoom (at once when animations are off).
+func MapViewAnimateTo(map_ ID, latitude float64, longitude float64, zoom float64) {
+	C.Rmap_view_animate_to(C.Rid(map_), C.double(latitude), C.double(longitude), C.double(zoom))
+}
+
+// MapViewScreenToLatlon: The place at a point of the widget.
+func MapViewScreenToLatlon(map_ ID, x float32, y float32) (latitude float64, longitude float64) {
+	var latitude_ C.double
+	var longitude_ C.double
+	C.Rmap_view_screen_to_latlon(C.Rid(map_), C.float(x), C.float(y), &latitude_, &longitude_)
+	latitude = float64(latitude_)
+	longitude = float64(longitude_)
+	return
+}
+
+// MapViewLatlonToScreen: Where a place is in the widget (of the copies of the world side by side, the one
+// nearest the middle).
+func MapViewLatlonToScreen(map_ ID, latitude float64, longitude float64) (x float32, y float32) {
+	var x_ C.float
+	var y_ C.float
+	C.Rmap_view_latlon_to_screen(C.Rid(map_), C.double(latitude), C.double(longitude), &x_, &y_)
+	x = float32(x_)
+	y = float32(y_)
+	return
+}
+
+// MapViewSetTileData: A tile as the bytes of an image file (PNG, JPEG...), decoded on the calling thread.
+// Thread-safe.
+func MapViewSetTileData(map_ ID, z int, x int, y int, data []byte) {
+	var data_ unsafe.Pointer
+	if len(data) > 0 {
+		data_ = unsafe.Pointer(&data[0])
+	}
+	C.Rmap_view_set_tile_data(C.Rid(map_), C.int(z), C.int(x), C.int(y), data_, C.size_t(len(data)))
+}
+
+// MapViewSetTileFailed: There is no such tile: the coarser one stays shown in its place. Thread-safe.
+func MapViewSetTileFailed(map_ ID, z int, x int, y int) {
+	C.Rmap_view_set_tile_failed(C.Rid(map_), C.int(z), C.int(x), C.int(y))
+}
+
+// MapViewSetTilePath: Reads the tiles from files instead of asking for them: a path where {z}, {x} and {y}
+// are replaced ({-y}: the row counted from the south, as in TMS and MBTiles). The files are read and decoded
+// on a worker thread; a missing file is a tile that failed. NULL or "": the tile callback again. Local files
+// only.
+func MapViewSetTilePath(map_ ID, path_template string) {
+	path_template_ := C.CString(path_template)
+	defer C.free(unsafe.Pointer(path_template_))
+	C.Rmap_view_set_tile_path(C.Rid(map_), path_template_)
+}
+
+func MapViewGetTilePath(map_ ID) string {
+	return C.GoString(C.Rmap_view_get_tile_path(C.Rid(map_)))
+}
+
+// MapViewSetTileSize: Logical size of a tile at a whole zoom (default 256, from 16 to 1024): larger tiles
+// show the map larger.
+func MapViewSetTileSize(map_ ID, size int) {
+	C.Rmap_view_set_tile_size(C.Rid(map_), C.int(size))
+}
+
+func MapViewGetTileSize(map_ ID) int {
+	return int(C.Rmap_view_get_tile_size(C.Rid(map_)))
+}
+
+// MapViewSetCacheSize: Memory the decoded tiles may take, in bytes (default 64 MiB). The tiles on screen are
+// always kept.
+func MapViewSetCacheSize(map_ ID, bytes int) {
+	C.Rmap_view_set_cache_size(C.Rid(map_), C.size_t(bytes))
+}
+
+// MapViewGetCacheUsage: Memory the decoded tiles take now, in bytes.
+func MapViewGetCacheUsage(map_ ID) int {
+	return int(C.Rmap_view_get_cache_usage(C.Rid(map_)))
+}
+
+// MapViewClearTiles: Forgets every tile (they are asked for again): the tiles of the source changed.
+func MapViewClearTiles(map_ ID) {
+	C.Rmap_view_clear_tiles(C.Rid(map_))
+}
+
+func MapViewGetTileState(map_ ID, z int, x int, y int) RMapTileState {
+	return RMapTileState(C.Rmap_view_get_tile_state(C.Rid(map_), C.int(z), C.int(x), C.int(y)))
+}
+
+// MapViewAddMarker: Adds a pin at a place, with a label written next to it (may be NULL). Returns its id
+// (from 1), or -1.
+func MapViewAddMarker(map_ ID, latitude float64, longitude float64, label string) int {
+	label_ := C.CString(label)
+	defer C.free(unsafe.Pointer(label_))
+	return int(C.Rmap_view_add_marker(C.Rid(map_), C.double(latitude), C.double(longitude), label_))
+}
+
+func MapViewRemoveMarker(map_ ID, marker int) {
+	C.Rmap_view_remove_marker(C.Rid(map_), C.int(marker))
+}
+
+func MapViewClearMarkers(map_ ID) {
+	C.Rmap_view_clear_markers(C.Rid(map_))
+}
+
+func MapViewGetMarkerCount(map_ ID) int {
+	return int(C.Rmap_view_get_marker_count(C.Rid(map_)))
+}
+
+func MapViewSetMarkerPosition(map_ ID, marker int, latitude float64, longitude float64) {
+	C.Rmap_view_set_marker_position(C.Rid(map_), C.int(marker), C.double(latitude), C.double(longitude))
+}
+
+func MapViewSetMarkerLabel(map_ ID, marker int, label string) {
+	label_ := C.CString(label)
+	defer C.free(unsafe.Pointer(label_))
+	C.Rmap_view_set_marker_label(C.Rid(map_), C.int(marker), label_)
+}
+
+// MapViewSetMarkerColor: The color of a pin (by default the accent of the theme).
+func MapViewSetMarkerColor(map_ ID, marker int, r float32, g float32, b float32, a float32) {
+	C.Rmap_view_set_marker_color(C.Rid(map_), C.int(marker), C.float(r), C.float(g), C.float(b), C.float(a))
+}
+
+// MapViewSetAttribution: A line written in the bottom right corner: the credit most tile licences ask for,
+// such as "(c) OpenStreetMap contributors". NULL or "": none.
+func MapViewSetAttribution(map_ ID, text string) {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	C.Rmap_view_set_attribution(C.Rid(map_), text_)
+}
+
+func MapViewGetAttribution(map_ ID) string {
+	return C.GoString(C.Rmap_view_get_attribution(C.Rid(map_)))
 }
 
 func PdfDocumentCreate() ID {
@@ -6911,6 +7601,83 @@ func XmlGetAttributeCount(tag string) int {
 	return int(C.Rxml_get_attribute_count(tag_))
 }
 
+// ScriptLoad: Loads a script given as text (not an XML document): its functions become actions, its globals
+// are initialized. name Names it in the diagnostics (a file name); may be NULL. Returns: R_FALSE when it has
+// an error (nothing of it is installed).
+func ScriptLoad(source string, name string) int {
+	source_ := C.CString(source)
+	defer C.free(unsafe.Pointer(source_))
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	return int(C.Rscript_load(source_, C.size_t(len(source)), name_))
+}
+
+// ScriptLoadFile: The same from a file (.rvs).
+func ScriptLoadFile(path string) int {
+	path_ := C.CString(path)
+	defer C.free(unsafe.Pointer(path_))
+	return int(C.Rscript_load_file(path_))
+}
+
+// ScriptCheck: Checks a script, or the scripts of an XML document and the functions its widgets name, without
+// running anything nor building a widget. The diagnostics are reported as usual. source A script, or an XML
+// document (text that starts with '<'). Returns: The number of errors.
+func ScriptCheck(source string, name string) int {
+	source_ := C.CString(source)
+	defer C.free(unsafe.Pointer(source_))
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	return int(C.Rscript_check(source_, C.size_t(len(source)), name_))
+}
+
+// ScriptCheckFile: Returns: The number of errors in the file (a .rvs or an .xml), -1 when it cannot be read.
+func ScriptCheckFile(path string) int {
+	path_ := C.CString(path)
+	defer C.free(unsafe.Pointer(path_))
+	return int(C.Rscript_check_file(path_))
+}
+
+// ScriptFormat: Formats a script: one statement per line, blocks indented, spaces around operators; comments
+// are kept. indent One level of indentation; NULL for four spaces. Returns: The text, valid until the next
+// call; NULL when the script has a syntax error (it is not changed).
+func ScriptFormat(source string, indent string) string {
+	source_ := C.CString(source)
+	defer C.free(unsafe.Pointer(source_))
+	indent_ := C.CString(indent)
+	defer C.free(unsafe.Pointer(indent_))
+	return C.GoString(C.Rscript_format(source_, C.size_t(len(source)), indent_))
+}
+
+// ScriptReset: Removes every script function (their actions are unbound) and every global. Not while a script
+// runs.
+func ScriptReset() {
+	C.Rscript_reset()
+}
+
+// ScriptHasFunction: Returns: R_TRUE when a script function has that name.
+func ScriptHasFunction(name string) int {
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	return int(C.Rscript_has_function(name_))
+}
+
+// ScriptSetEnabled: R_FALSE: the <Script> elements of the documents are read but not compiled nor run (a
+// design tool that shows interfaces without running them). On by default.
+func ScriptSetEnabled(enabled int) {
+	C.Rscript_set_enabled(C.int(enabled))
+}
+
+func ScriptIsEnabled() int {
+	return int(C.Rscript_is_enabled())
+}
+
+// ScriptSetLimits: The limits of the scripts. 0 keeps a value. max_instructions Instructions one invocation
+// (an event) may run (10 000 000). max_depth Calls nested (200). max_memory Bytes of strings and arrays alive
+// (64 MB).
+func ScriptSetLimits(max_instructions uint32, max_depth int, max_memory int) {
+	C.Rscript_set_limits(C.Ruint(max_instructions), C.int(max_depth), C.size_t(max_memory))
+}
+
 // LocaleLoadCsv: Loads a CSV table of translations from a file. Returns the number of keys read, -1 on an
 // error.
 func LocaleLoadCsv(path string) int {
@@ -7147,6 +7914,12 @@ func HostWindowSetSize(window ID, width int, height int, scale float32) {
 	C.Rhost_window_set_size(C.Rid(window), C.int(width), C.int(height), C.float(scale))
 }
 
+// HostSetSystemDark: The application's system is in dark (R_TRUE) or light (R_FALSE) mode, -1 when it does
+// not tell (the default): Rtheme_get_system_dark, and Rtheme_follow_system follows it.
+func HostSetSystemDark(dark int) {
+	C.Rhost_set_system_dark(C.int(dark))
+}
+
 func HostInjectMouseMove(window ID, x int, y int, modifiers uint32) {
 	C.Rhost_inject_mouse_move(C.Rid(window), C.int(x), C.int(y), C.Ruint(modifiers))
 }
@@ -7174,6 +7947,15 @@ func HostInjectText(window ID, codepoint uint32) {
 	C.Rhost_inject_text(C.Rid(window), C.Ruint(codepoint))
 }
 
+// HostInjectComposition: The input method of the application's system composes `text` (preedit), with its
+// selection in bytes (see Rwindow_inject_composition). NULL or "" cancels it; the committed text then comes
+// through Rhost_inject_text. Rwindow_get_text_input_rect tells where to put the candidate window.
+func HostInjectComposition(window ID, text string, selection_start int, selection_end int) {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	C.Rhost_inject_composition(C.Rid(window), text_, C.int(selection_start), C.int(selection_end))
+}
+
 // HostInjectFocus: The window gained or lost the keyboard. Losing it closes popups and drops captures.
 func HostInjectFocus(window ID, focused int) {
 	C.Rhost_inject_focus(C.Rid(window), C.int(focused))
@@ -7184,48 +7966,191 @@ func HostInjectClose(window ID) {
 	C.Rhost_inject_close(C.Rid(window))
 }
 
+// TestSetDeterministic: R_TRUE makes what is drawn depend only on what the test does: every frame advances
+// the animations by 1/60 s (Rset_animation_time_step), and the carets of the text fields stay lit instead of
+// blinking. R_FALSE gives the clock back (time step 0).
+func TestSetDeterministic(enabled int) {
+	C.Rtest_set_deterministic(C.int(enabled))
+}
+
+func TestIsDeterministic() int {
+	return int(C.Rtest_is_deterministic())
+}
+
+// TestGetPlatformTag: Returns: What the goldens of this run are made with, "OS-backend": "macos-metal",
+// "linux-vulkan", "windows-vulkan", "web-webgl"... and "null" with the null backend.
+func TestGetPlatformTag() string {
+	return C.GoString(C.Rtest_get_platform_tag())
+}
+
+// TestFind: Finds a widget by name (Rwidget_set_name, Name="" in XML). The path may have several names
+// separated by '/': "settings/ok" is the widget named "ok" inside the one named "settings". In a window, the
+// open popups (menus, dialogs) are searched first, top first, then the content. scope A window or a widget.
+// Returns: R_INVALID_ID when nothing has that name (no error is reported).
+func TestFind(scope ID, path string) ID {
+	path_ := C.CString(path)
+	defer C.free(unsafe.Pointer(path_))
+	return ID(C.Rtest_find(C.Rid(scope), path_))
+}
+
+// TestClick: Moves the mouse to the middle of the widget, presses and releases the left button.
+func TestClick(widget ID) int {
+	return int(C.Rtest_click(C.Rid(widget)))
+}
+
+// TestDoubleClick: Two clicks in a row on the middle of the widget, seen as a double click.
+func TestDoubleClick(widget ID) int {
+	return int(C.Rtest_double_click(C.Rid(widget)))
+}
+
+// TestRightClick: A click of the right button on the middle of the widget (a context menu).
+func TestRightClick(widget ID) int {
+	return int(C.Rtest_right_click(C.Rid(widget)))
+}
+
+// TestClickAt: Clicks at a position of a widget or a window. clicks 1 for a click, 2 for a double click, 3
+// for a triple click. modifiers RModifier held during the clicks (R_MOD_SHIFT...).
+func TestClickAt(target ID, x float32, y float32, button RMouseButton, clicks int, modifiers uint32) int {
+	return int(C.Rtest_click_at(C.Rid(target), C.float(x), C.float(y), C.RMouseButton(button), C.int(clicks), C.Ruint(modifiers)))
+}
+
+// TestHover: Moves the mouse over the middle of the widget, without clicking.
+func TestHover(widget ID) int {
+	return int(C.Rtest_hover(C.Rid(widget)))
+}
+
+// TestHoverAt: Moves the mouse to a position of a widget or a window.
+func TestHoverAt(target ID, x float32, y float32) int {
+	return int(C.Rtest_hover_at(C.Rid(target), C.float(x), C.float(y)))
+}
+
+// TestDrag: Presses the left button on the middle of the widget, moves by (dx, dy) in several steps, and
+// releases: a slider, a splitter, a window dragged by a widget.
+func TestDrag(widget ID, dx float32, dy float32) int {
+	return int(C.Rtest_drag(C.Rid(widget), C.float(dx), C.float(dy)))
+}
+
+// TestDragTo: Drags from the middle of one widget to the middle of another (drag and drop).
+func TestDragTo(from ID, to ID) int {
+	return int(C.Rtest_drag_to(C.Rid(from), C.Rid(to)))
+}
+
+// TestScroll: Turns the mouse wheel over the middle of the widget: `wheel_y` notches (positive: toward the
+// top, as a wheel turned away from the user), `wheel_x` notches sideways.
+func TestScroll(widget ID, wheel_x float32, wheel_y float32) int {
+	return int(C.Rtest_scroll(C.Rid(widget), C.float(wheel_x), C.float(wheel_y)))
+}
+
+// TestKey: Presses and releases a key, with RModifier held. A widget target gets the keyboard focus first; a
+// window sends the key to what has the focus.
+func TestKey(target ID, key RKey, modifiers uint32) int {
+	return int(C.Rtest_key(C.Rid(target), C.RKey(key), C.Ruint(modifiers)))
+}
+
+// TestTypeText: Types UTF-8 text as a keyboard would. A widget target gets the keyboard focus first. '\n',
+// '\t' and '\b' are sent as the keys Enter, Tab and Backspace.
+func TestTypeText(target ID, text string) int {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	return int(C.Rtest_type_text(C.Rid(target), text_))
+}
+
+// TestTap: A finger touches the middle of the widget and leaves at once.
+func TestTap(widget ID) int {
+	return int(C.Rtest_tap(C.Rid(widget)))
+}
+
+// TestSwipe: A finger put on the middle of the widget moves by (dx, dy) in `seconds`, and leaves: a fast
+// swipe flicks a list, which then coasts (Rtest_settle lets it stop).
+func TestSwipe(widget ID, dx float32, dy float32, seconds float64) int {
+	return int(C.Rtest_swipe(C.Rid(widget), C.float(dx), C.float(dy), C.double(seconds)))
+}
+
+// TestPump: Produces `frames` frames (Rdraw_frame). Returns: R_FALSE once the application quits.
+func TestPump(frames int) int {
+	return int(C.Rtest_pump(C.int(frames)))
+}
+
+// TestIsIdle: Returns: R_TRUE when nothing waits for a frame: no posted task, no layout to do, nothing to
+// paint, no animation, no layout spring, no inertia. Windows that redraw all the time
+// (Rwindow_set_continuous_redraw, a realtime viewport) and the timers are not counted.
+func TestIsIdle() int {
+	return int(C.Rtest_is_idle())
+}
+
+// TestSettle: Produces frames until Rtest_is_idle, each advancing the animations by the time step (1/60 s
+// unless Rset_animation_time_step gives another), for at most `max_seconds` of that time. Returns: R_FALSE
+// when it was still moving at the end.
+func TestSettle(max_seconds float64) int {
+	return int(C.Rtest_settle(C.double(max_seconds)))
+}
+
+// TestGetText: Returns: What the user reads in the widget: the text of a field, else its label (as screen
+// readers say it: the text of a Label, a Button, a Checkbox...). "" when it has none. Valid until the next
+// call.
+func TestGetText(widget ID) string {
+	return C.GoString(C.Rtest_get_text(C.Rid(widget)))
+}
+
+// TestIsShown: Returns: R_TRUE when the widget can be seen: in a window, Visible with all that holds it, on
+// the page a Switcher or a TabView shows, and laid out with a size.
+func TestIsShown(widget ID) int {
+	return int(C.Rtest_is_shown(C.Rid(widget)))
+}
+
+// TestIsChecked: Returns: R_TRUE for a checked Checkbox, Switch, RadioButton, toggle Button or menu item.
+func TestIsChecked(widget ID) int {
+	return int(C.Rtest_is_checked(C.Rid(widget)))
+}
+
 // Left to cgo (a pointer to a structure, a void* or a C callback among the parameters):
 // Rinit_ex, Rset_allocator, Rallocator_get_system, Rmemory_alloc, Rmemory_realloc, Rmemory_free
-// Rmemory_get_stats, Rrun, Rset_frame_callback, Rtask_post, Rtask_run_async, Rparallel_for, Rtimer_create
-// Raction_bind, Raction_set_default_handler, Rerror_get_last, Rerror_set_callback
-// Rset_device_reset_callback, Rwindow_get_frame_stats, Rwindow_get_safe_area, Rwindow_get_keyboard_area
-// Rwindow_set_keyboard_callback, Rwindow_set_icon, Rwindow_set_close_callback, Rwindow_set_resize_callback
-// Rwindow_set_drop_callback, Rwindow_set_user_handle, Rwindow_get_user_handle, Rwindow_get_native_handle
-// Rwindow_capture, Rwindow_inject_drop, Rwindow_get_text_input_info, Rwindow_set_event_hook
-// Rtouch_get_settings, Rtouch_set_settings, Rtouch_get_default_settings, Rwindow_set_touch_settings
-// Rwindow_get_touch_settings, Rwidget_set_touch_callback, Rwidget_set_pen_callback
-// Rwidget_set_gesture_callback, Rtexture_create_from_pixels, Rtexture_update, Rimage_decode, Rpixels_free
-// Rwidget_set_user_handle, Rwidget_get_user_handle, Rwidget_set_destroy_callback, Rwidget_set_event_callback
-// Rwidget_set_drop_callback, Rtab_view_set_changed_callback, Rtab_view_set_close_callback
-// Rexpander_set_changed_callback, Rlabel_set_link_callback, Rbutton_set_clicked_callback
-// Rcheckbox_set_changed_callback, Rslider_set_changed_callback, Rtext_input_set_changed_callback
-// Rtext_input_set_committed_callback, Rspin_box_set_changed_callback, Rcombo_box_set_changed_callback
-// Rlist_view_set_virtual_items, Rlist_view_set_item_color_callback
+// Rmemory_get_stats, Rrun, Rset_frame_callback, Rset_app_event_callback, Rtask_post, Rtask_run_async
+// Rparallel_for, Rtimer_create, Raction_bind, Raction_set_default_handler, Raction_bind_with_parameters
+// Raction_get_sender, Raction_get_name, Raction_get_argument_count, Raction_get_number, Raction_get_string
+// Raction_get_bool, Raction_return_number, Raction_return_string, Raction_return_bool, Raction_fail
+// Rerror_get_last, Rerror_set_callback, Rset_device_reset_callback, Rwindow_get_frame_stats
+// Rwindow_get_safe_area, Rwindow_get_keyboard_area, Rwindow_set_keyboard_callback, Rwindow_set_back_callback
+// Rwindow_set_icon, Rwindow_set_close_callback, Rwindow_set_resize_callback, Rwindow_set_drop_callback
+// Rwindow_set_user_handle, Rwindow_get_user_handle, Rwindow_get_native_handle, Rwindow_capture
+// Rwindow_inject_drop, Rwindow_get_text_input_info, Rwindow_set_event_hook, Rtouch_get_settings
+// Rtouch_set_settings, Rtouch_get_default_settings, Rwindow_set_touch_settings, Rwindow_get_touch_settings
+// Rwidget_set_touch_callback, Rwidget_set_pen_callback, Rwidget_set_gesture_callback
+// Rtexture_create_from_pixels, Rtexture_update, Rimage_decode, Rpixels_free, Rimage_encode_png
+// Rimage_save_png, Rwidget_set_user_handle, Rwidget_get_user_handle, Rwidget_set_destroy_callback
+// Rwidget_set_event_callback, Rwidget_set_drop_callback, Rtab_view_set_changed_callback
+// Rtab_view_set_close_callback, Rexpander_set_changed_callback, Rlabel_set_link_callback
+// Rbutton_set_clicked_callback, Rcheckbox_set_changed_callback, Rslider_set_changed_callback
+// Rtext_input_set_changed_callback, Rtext_input_set_committed_callback, Rspin_box_set_changed_callback
+// Rcombo_box_set_changed_callback, Rlist_view_set_virtual_items, Rlist_view_set_item_color_callback
 // Rlist_view_set_selection_changed_callback, Rlist_view_set_activated_callback, Rtree_item_set_user_handle
 // Rtree_item_get_user_handle, Rtree_view_set_selection_changed_callback, Rtree_view_set_activated_callback
 // Rtree_view_set_context_callback, Rmenu_item_set_clicked_callback, Rtile_view_set_items
-// Rtile_view_set_drag_data_callback, Rtile_view_set_selection_changed_callback
-// Rtile_view_set_activated_callback, Rtile_view_set_context_callback, Rtable_set_virtual_rows
-// Rtable_set_cell_color_callback, Rtable_set_selection_changed_callback, Rtable_set_activated_callback
-// Rtable_set_sort_callback, Rdate_picker_set_changed_callback, Rtime_picker_set_changed_callback
-// Rtoast_set_action_callback, Rbreadcrumb_set_clicked_callback, Rrating_set_changed_callback
-// Rpagination_set_changed_callback, Rplot_set_view_changed_callback, Rplot_set_drag_line_callback
-// Rplot_set_series_toggled_callback, Rpdf_view_set_page_changed_callback, Rpdf_view_print
-// Rpdf_document_draw_image, Rpdf_document_save_memory, Rpdf_print, Rpdf_print_file, Rpdf_document_print
-// Rtext_editor_set_zoom_callback, Rlanguage_register, Rlanguage_get, Rtext_editor_set_completion_callback
-// Rtext_editor_set_hover_callback, Rtext_editor_set_changed_callback, Rdock_area_set_close_callback
-// Rdock_area_set_changed_callback, Risland_set_changed_callback, Rtaskbar_set_jump_list, Rtray_set_icon
-// Rtray_set_clicked_callback, Rcolor_picker_set_changed_callback, Rtimeline_set_time_callback
-// Rtimeline_set_changed_callback, Rtimeline_set_selection_callback, Rtimeline_set_activated_callback
-// Rtimeline_set_removed_callback, Rnode_graph_set_node_user_data, Rnode_graph_get_node_user_data
-// Rnode_graph_set_connect_callback, Rnode_graph_set_linked_callback, Rnode_graph_set_unlinked_callback
-// Rnode_graph_set_moved_callback, Rnode_graph_set_selection_callback, Rnode_graph_set_removed_callback
-// Rnode_graph_set_activated_callback, Rnode_graph_set_context_callback
-// Rnode_graph_set_canvas_activated_callback, Rnode_graph_set_wire_dropped_callback
-// Rnode_graph_set_pin_clicked_callback, Rblock_editor_set_changed_callback
-// Rblock_editor_set_clicked_callback, Rblock_editor_set_context_callback, Rdialog_open, Rpopup_open
-// Rfile_dialog_open, Rfile_dialog_save, Rfile_dialog_select_folder, Rfile_read, Rfile_browser_set_filters
-// Rfile_browser_set_accepted_callback, Rfile_browser_set_cancelled_callback
+// Rtile_view_set_sections, Rtile_view_set_section_toggled_callback, Rtile_view_set_drag_data_callback
+// Rtile_view_set_selection_changed_callback, Rtile_view_set_activated_callback
+// Rtile_view_set_context_callback, Rtable_set_virtual_rows, Rtable_set_cell_color_callback
+// Rtable_set_selection_changed_callback, Rtable_set_activated_callback, Rtable_set_sort_callback
+// Rdate_picker_set_changed_callback, Rtime_picker_set_changed_callback, Rtoast_set_action_callback
+// Rbreadcrumb_set_clicked_callback, Rrating_set_changed_callback, Rpagination_set_changed_callback
+// Rplot_set_view_changed_callback, Rplot_set_drag_line_callback, Rplot_set_series_toggled_callback
+// Rchart_set_slice_clicked_callback, Rchart_set_cell_clicked_callback, Rpdf_view_set_page_changed_callback
+// Rcarousel_set_page_changed_callback, Rpdf_view_print, Rmap_view_set_tile_callback
+// Rmap_view_set_tile_cancel_callback, Rmap_view_set_tile, Rmap_view_set_marker_clicked_callback
+// Rmap_view_set_view_changed_callback, Rpdf_document_draw_image, Rpdf_document_save_memory, Rpdf_print
+// Rpdf_print_file, Rpdf_document_print, Rtext_editor_set_zoom_callback, Rlanguage_register, Rlanguage_get
+// Rtext_editor_set_completion_callback, Rtext_editor_set_hover_callback, Rtext_editor_set_changed_callback
+// Rdock_area_set_close_callback, Rdock_area_set_float_window, Rdock_area_set_changed_callback
+// Risland_set_changed_callback, Rtaskbar_set_jump_list, Rtray_set_icon, Rtray_set_clicked_callback
+// Rcolor_picker_set_changed_callback, Rtimeline_set_time_callback, Rtimeline_set_changed_callback
+// Rtimeline_set_selection_callback, Rtimeline_set_activated_callback, Rtimeline_set_removed_callback
+// Rnode_graph_set_node_user_data, Rnode_graph_get_node_user_data, Rnode_graph_set_connect_callback
+// Rnode_graph_set_linked_callback, Rnode_graph_set_unlinked_callback, Rnode_graph_set_moved_callback
+// Rnode_graph_set_selection_callback, Rnode_graph_set_removed_callback, Rnode_graph_set_activated_callback
+// Rnode_graph_set_context_callback, Rnode_graph_set_canvas_activated_callback
+// Rnode_graph_set_wire_dropped_callback, Rnode_graph_set_pin_clicked_callback
+// Rblock_editor_set_changed_callback, Rblock_editor_set_clicked_callback, Rblock_editor_set_context_callback
+// Rdialog_open, Rpopup_open, Rfile_dialog_open, Rfile_dialog_save, Rfile_dialog_select_folder, Rfile_read
+// Rfile_browser_set_filters, Rfile_browser_set_accepted_callback, Rfile_browser_set_cancelled_callback
 // Rfile_browser_set_selection_changed_callback, Rnotification_set_fallback
 // Rnotification_set_clicked_callback, Rviewport_set_draw_callback, Rviewport_get_native_handle
 // Rviewport_set_resize_callback, Rcustom_set_paint_callback, Rcustom_set_measure_callback, Rdraw_rect
@@ -7233,5 +8158,7 @@ func HostInjectClose(window ID) {
 // Rdraw_text, Rdraw_glass, Rdraw_spring, Rspring_kick, Rspring_set, Rdraw_push_clip_rect
 // Rdraw_pop_clip_rect, Reffect_get_defaults, Rshader_look_init, Rshader_look_defaults, Rdraw_shader
 // Rborder_set_effect, Rxml_set_reload_callback, Rxml_register_tag, Rxml_document_parse
-// Rxml_get_attribute_info, Rlocale_set_changed_callback, Rtr_format, Raccessibility_get_system_settings
-// Rwidget_set_accessible_action, Rhost_platform_register
+// Rxml_get_attribute_info, Rscript_set_log_callback, Rscript_set_diagnostic_callback
+// Rlocale_set_changed_callback, Rtr_format, Raccessibility_get_system_settings
+// Rwidget_set_accessible_action, Rhost_platform_register, Rhost_window_set_insets, Rtest_expect_golden
+// Rtest_compare_pixels

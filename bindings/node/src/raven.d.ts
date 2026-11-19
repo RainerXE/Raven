@@ -1,7 +1,7 @@
 /**
  * Raven for Node.js and Bun, through Node-API.
  *
- * Generated from the C headers by tools/bindgen (Raven 0.2): do not edit.
+ * Generated from the C headers by tools/bindgen (Raven 0.3): do not edit.
  * Every function of the C API is here under its own name, with the conventions
  * of the Bun binding (bindings/bun), so that a program can use either:
  *
@@ -51,6 +51,8 @@ export const R_TRUE: number;
 export const R_INVALID_ID: number;
 
 export enum RBackend {
+	/** The renderer of the platform: WebGL in browser builds, Metal on macOS and iOS when it is compiled, Vulkan otherwise. */
+	R_BACKEND_DEFAULT = 0,
 	/** Built-in Vulkan renderer. */
 	R_BACKEND_VULKAN = 1,
 	/** Renders nothing. Used for headless runs and unit tests. */
@@ -59,16 +61,20 @@ export enum RBackend {
 	R_BACKEND_CUSTOM = 3,
 	/** Browser renderer (Emscripten, WebGL 2). */
 	R_BACKEND_WEBGL = 4,
+	/** Built-in Metal renderer (macOS, iOS). */
+	R_BACKEND_METAL = 5,
 	/**
 	 * Renderer on sokol_gfx (Metal, GLES3, ...: the API is chosen when Raven is built, RAVEN_SOKOL_API).
 	 * Only in a build with RAVEN_BACKEND_SOKOL; see docs/SOKOL_BACKEND_PLAN.md for what it can do yet.
 	 */
-	R_BACKEND_SOKOL = 5,
+	R_BACKEND_SOKOL = 6,
 }
+export const R_BACKEND_DEFAULT: RBackend.R_BACKEND_DEFAULT;
 export const R_BACKEND_VULKAN: RBackend.R_BACKEND_VULKAN;
 export const R_BACKEND_NULL: RBackend.R_BACKEND_NULL;
 export const R_BACKEND_CUSTOM: RBackend.R_BACKEND_CUSTOM;
 export const R_BACKEND_WEBGL: RBackend.R_BACKEND_WEBGL;
+export const R_BACKEND_METAL: RBackend.R_BACKEND_METAL;
 export const R_BACKEND_SOKOL: RBackend.R_BACKEND_SOKOL;
 
 export enum RError {
@@ -84,6 +90,8 @@ export enum RError {
 	R_ERROR_FILE_NOT_FOUND = 0x0079,
 	R_ERROR_XML = 0x007A,
 	R_ERROR_WRONG_THREAD = 0x007B,
+	/** A diagnostic of Raven Script (raven_script.h): the text is the whole message, "error[RS102]: ...". */
+	R_ERROR_SCRIPT = 0x007C,
 }
 export const R_NO_ERROR: RError.R_NO_ERROR;
 export const R_ERROR_INVALID_ID: RError.R_ERROR_INVALID_ID;
@@ -97,6 +105,7 @@ export const R_ERROR_INVALID_FILE_FORMAT: RError.R_ERROR_INVALID_FILE_FORMAT;
 export const R_ERROR_FILE_NOT_FOUND: RError.R_ERROR_FILE_NOT_FOUND;
 export const R_ERROR_XML: RError.R_ERROR_XML;
 export const R_ERROR_WRONG_THREAD: RError.R_ERROR_WRONG_THREAD;
+export const R_ERROR_SCRIPT: RError.R_ERROR_SCRIPT;
 
 export enum RSeverity {
 	R_SEVERITY_WEAK_WARNING = 0x0080,
@@ -108,6 +117,39 @@ export const R_SEVERITY_WEAK_WARNING: RSeverity.R_SEVERITY_WEAK_WARNING;
 export const R_SEVERITY_WARNING: RSeverity.R_SEVERITY_WARNING;
 export const R_SEVERITY_ERROR: RSeverity.R_SEVERITY_ERROR;
 export const R_SEVERITY_FATAL: RSeverity.R_SEVERITY_FATAL;
+
+/**
+ * What the system does with the application, on iOS and Android (desktop
+ * systems send none of these). A pause is not always followed by
+ * R_APP_DID_PAUSE: pulling down the notifications (iOS) or a dialog of the
+ * system in front (Android) gives R_APP_WILL_PAUSE, then R_APP_DID_RESUME.
+ * At the start, R_APP_WILL_RESUME and R_APP_DID_RESUME may come too.
+ *
+ *   leaving the front   R_APP_WILL_PAUSE    still seen: save what must not be lost
+ *   in the background   R_APP_DID_PAUSE     not seen, no GPU work: Raven stops drawing
+ *   coming back         R_APP_WILL_RESUME   Raven draws again
+ *   in front again      R_APP_DID_RESUME    takes input again
+ */
+export enum RAppEvent {
+	/** The application is about to leave the front (home, app switcher, a call). Save the state now. */
+	R_APP_WILL_PAUSE = 0x0B80,
+	/** The application is in the background: Raven has stopped drawing, and waited until the GPU was idle. */
+	R_APP_DID_PAUSE = 0x0B81,
+	/** The application is coming back to the front: Raven draws again. */
+	R_APP_WILL_RESUME = 0x0B82,
+	/** The application is in front and takes input again. */
+	R_APP_DID_RESUME = 0x0B83,
+	/** The system is low on memory: free what can be made again. Raven then drops its own caches and trims its heap. */
+	R_APP_LOW_MEMORY = 0x0B84,
+	/** The application is about to end (Android: the activity is finishing; its window is closed right after). */
+	R_APP_WILL_TERMINATE = 0x0B85,
+}
+export const R_APP_WILL_PAUSE: RAppEvent.R_APP_WILL_PAUSE;
+export const R_APP_DID_PAUSE: RAppEvent.R_APP_DID_PAUSE;
+export const R_APP_WILL_RESUME: RAppEvent.R_APP_WILL_RESUME;
+export const R_APP_DID_RESUME: RAppEvent.R_APP_DID_RESUME;
+export const R_APP_LOW_MEMORY: RAppEvent.R_APP_LOW_MEMORY;
+export const R_APP_WILL_TERMINATE: RAppEvent.R_APP_WILL_TERMINATE;
 
 export enum RWindowFlags {
 	R_WINDOW_DEFAULT = 0,
@@ -1086,6 +1128,12 @@ export enum RWidgetType {
 	R_WIDGET_PLOT = 0x0232,
 	/** The pages of a PDF document, scrolled and zoomed (drawn by PDFium, loaded at run time). */
 	R_WIDGET_PDF_VIEW = 0x0233,
+	/** The charts of dashboards: pie, donut, gauge, heatmap, sparkline (RChartKind). */
+	R_WIDGET_CHART = 0x0234,
+	/** A map of slippy-map tiles given by the application (or read from files): panned, zoomed, with markers. */
+	R_WIDGET_MAP_VIEW = 0x0235,
+	/** Pages shown one at a time and swiped (a page view), with dots and arrows. */
+	R_WIDGET_CAROUSEL = 0x0236,
 }
 export const R_WIDGET_VBOX: RWidgetType.R_WIDGET_VBOX;
 export const R_WIDGET_HBOX: RWidgetType.R_WIDGET_HBOX;
@@ -1139,6 +1187,9 @@ export const R_WIDGET_RATING: RWidgetType.R_WIDGET_RATING;
 export const R_WIDGET_PAGINATION: RWidgetType.R_WIDGET_PAGINATION;
 export const R_WIDGET_PLOT: RWidgetType.R_WIDGET_PLOT;
 export const R_WIDGET_PDF_VIEW: RWidgetType.R_WIDGET_PDF_VIEW;
+export const R_WIDGET_CHART: RWidgetType.R_WIDGET_CHART;
+export const R_WIDGET_MAP_VIEW: RWidgetType.R_WIDGET_MAP_VIEW;
+export const R_WIDGET_CAROUSEL: RWidgetType.R_WIDGET_CAROUSEL;
 
 export enum RHAlign {
 	R_HALIGN_FILL = 0x0240,
@@ -1419,6 +1470,22 @@ export enum RPdfPrintFlags {
 }
 export const R_PDF_PRINT_NO_DIALOG: RPdfPrintFlags.R_PDF_PRINT_NO_DIALOG;
 
+/** Where a tile of a MapView stands (Rmap_view_get_tile_state). */
+export enum RMapTileState {
+	/** Not in the view's cache: never asked for, no longer wanted, or evicted. */
+	R_MAP_TILE_NONE = 0x0600,
+	/** Asked for (the tile callback was called, or the file is being read): waiting for its pixels. */
+	R_MAP_TILE_PENDING = 0x0601,
+	/** Its pixels are in the cache. */
+	R_MAP_TILE_LOADED = 0x0602,
+	/** The application said it has none (Rmap_view_set_tile_failed), or its file could not be read. */
+	R_MAP_TILE_FAILED = 0x0603,
+}
+export const R_MAP_TILE_NONE: RMapTileState.R_MAP_TILE_NONE;
+export const R_MAP_TILE_PENDING: RMapTileState.R_MAP_TILE_PENDING;
+export const R_MAP_TILE_LOADED: RMapTileState.R_MAP_TILE_LOADED;
+export const R_MAP_TILE_FAILED: RMapTileState.R_MAP_TILE_FAILED;
+
 /** How an axis of a Plot spreads its values. */
 export enum RPlotScale {
 	R_PLOT_SCALE_LINEAR = 0x0530,
@@ -1496,6 +1563,25 @@ export const R_PLOT_LEGEND_BOTTOM: RPlotLegend.R_PLOT_LEGEND_BOTTOM;
 export const R_PLOT_LEGEND_BOTTOM_LEFT: RPlotLegend.R_PLOT_LEGEND_BOTTOM_LEFT;
 export const R_PLOT_LEGEND_LEFT: RPlotLegend.R_PLOT_LEGEND_LEFT;
 export const R_PLOT_LEGEND_OUTSIDE: RPlotLegend.R_PLOT_LEGEND_OUTSIDE;
+
+/** What a Chart draws. */
+export enum RChartKind {
+	/** Slices of a whole, as parts of a disc (the default). */
+	R_CHART_PIE = 0x0590,
+	/** Slices of a whole, as parts of a ring; its middle shows the total, or the slice under the pointer. */
+	R_CHART_DONUT = 0x0591,
+	/** One value within a range, on an arc; bands color parts of the range. */
+	R_CHART_GAUGE = 0x0592,
+	/** A grid of values, each cell colored from the low color to the high one. */
+	R_CHART_HEATMAP = 0x0593,
+	/** A small line of values without axes, to sit in a tile or a cell of a table. */
+	R_CHART_SPARKLINE = 0x0594,
+}
+export const R_CHART_PIE: RChartKind.R_CHART_PIE;
+export const R_CHART_DONUT: RChartKind.R_CHART_DONUT;
+export const R_CHART_GAUGE: RChartKind.R_CHART_GAUGE;
+export const R_CHART_HEATMAP: RChartKind.R_CHART_HEATMAP;
+export const R_CHART_SPARKLINE: RChartKind.R_CHART_SPARKLINE;
 
 /** Shorthands of Rtext_editor_set_language for two languages. */
 export enum RSyntax {
@@ -1951,6 +2037,27 @@ export const R_ROLE_SEPARATOR: RAccessibleRole.R_ROLE_SEPARATOR;
 export const R_ROLE_SCROLL_BAR: RAccessibleRole.R_ROLE_SCROLL_BAR;
 export const R_ROLE_PANE: RAccessibleRole.R_ROLE_PANE;
 
+export enum RGoldenStatus {
+	/** The capture matches the golden. */
+	R_GOLDEN_MATCH = 0x0BA0,
+	/** RAVEN_UPDATE_GOLDENS=1: the capture was written as the golden. */
+	R_GOLDEN_UPDATED = 0x0BA1,
+	/** Too many pixels differ: NAME.actual.png and NAME.diff.png were written. */
+	R_GOLDEN_MISMATCH = 0x0BA2,
+	/** The capture and the golden do not have the same size: NAME.actual.png was written. */
+	R_GOLDEN_SIZE_MISMATCH = 0x0BA3,
+	/** There is no golden yet: NAME.actual.png was written (run with RAVEN_UPDATE_GOLDENS=1 to keep it). */
+	R_GOLDEN_MISSING = 0x0BA4,
+	/** The window could not be captured, or a file could not be read or written. */
+	R_GOLDEN_FAILED = 0x0BA5,
+}
+export const R_GOLDEN_MATCH: RGoldenStatus.R_GOLDEN_MATCH;
+export const R_GOLDEN_UPDATED: RGoldenStatus.R_GOLDEN_UPDATED;
+export const R_GOLDEN_MISMATCH: RGoldenStatus.R_GOLDEN_MISMATCH;
+export const R_GOLDEN_SIZE_MISMATCH: RGoldenStatus.R_GOLDEN_SIZE_MISMATCH;
+export const R_GOLDEN_MISSING: RGoldenStatus.R_GOLDEN_MISSING;
+export const R_GOLDEN_FAILED: RGoldenStatus.R_GOLDEN_FAILED;
+
 /**
  * Optional settings for Rinit_ex. A zero-initialized structure selects the
  * default for every field, so new fields can be added without breaking code.
@@ -1961,8 +2068,9 @@ export class RInitDesc extends RStruct {
 	/** The structure at an address of the library, or null. */
 	static from(pointer: Pointer | null): RInitDesc | null;
 	/**
-	 * Rendering backend. 0 selects the one named by the environment variable RAVEN_BACKEND (vulkan,
-	 * sokol, webgl or null) when it is set, else WebGL in browser builds and Vulkan otherwise.
+	 * Rendering backend. R_BACKEND_DEFAULT (0) selects the one named by the environment variable
+	 * RAVEN_BACKEND (vulkan, metal, sokol, webgl or null) when it is set, else WebGL in browser
+	 * builds, Metal on macOS and iOS when it is compiled, and Vulkan otherwise.
 	 */
 	get backend(): RBackend;
 	set backend(value: RBackend);
@@ -2239,7 +2347,7 @@ export class RDropEvent extends RStruct {
 
 /** How the library treats fingers and pens (Rtouch_set_settings, Rwindow_set_touch_settings). */
 export class RTouchSettings extends RStruct {
-	static readonly SIZE = 52;
+	static readonly SIZE = 56;
 	constructor(pointer?: Pointer);
 	/** The structure at an address of the library, or null. */
 	static from(pointer: Pointer | null): RTouchSettings | null;
@@ -2282,6 +2390,17 @@ export class RTouchSettings extends RStruct {
 	/** How far (logical units) the fingers of a swipe go across before it navigates. Default 120. */
 	get swipe_distance(): number;
 	set swipe_distance(value: number);
+	/**
+	 * Smallest height (logical units) of what a finger presses: buttons,
+	 * fields, combo boxes, tabs and bars are at least this high, rows of
+	 * lists, trees, tables and menus too, and so are check boxes, switches
+	 * and sliders, whose box and handle grow to half of it. Whatever the
+	 * theme or a widget asks for, 0 leaves the sizes as they are.
+	 * Default 44 on iOS (Apple: 44 points), 48 on Android (Material: 48 dp),
+	 * 0 elsewhere.
+	 */
+	get min_touch_size(): number;
+	set min_touch_size(value: number);
 }
 
 export class RTouchEvent extends RStruct {
@@ -2466,7 +2585,7 @@ export class RPdfPrintDesc extends RStruct {
 
 /** What a tile shows, filled by the application when the tile is drawn. */
 export class RTileItem extends RStruct {
-	static readonly SIZE = 80;
+	static readonly SIZE = 104;
 	constructor(pointer?: Pointer);
 	/** The structure at an address of the library, or null. */
 	static from(pointer: Pointer | null): RTileItem | null;
@@ -2491,6 +2610,29 @@ export class RTileItem extends RStruct {
 	/** Color of the name; alpha 0 = the theme. */
 	get text_color(): Float32Array;
 	set text_color(value: ArrayLike<number>);
+	/** Layout="Rows": a third line under the detail, dimmer, or NULL. */
+	get note(): string | null;
+	set note(value: string | null);
+	/** Color of the detail line; alpha 0 = the theme (dimmer than the name). */
+	get detail_color(): Float32Array;
+	set detail_color(value: ArrayLike<number>);
+}
+
+/** A section of a tile view: its first tile, and what its header shows. */
+export class RTileSection extends RStruct {
+	static readonly SIZE = 24;
+	constructor(pointer?: Pointer);
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RTileSection | null;
+	/** Index of the first tile of the section (read when the sections are given). */
+	get first(): number;
+	set first(value: number);
+	/** Title of the header (valid until the callback returns). */
+	get text(): string | null;
+	set text(value: string | null);
+	/** Dimmer text after the title (a count...), or NULL. */
+	get detail(): string | null;
+	set detail(value: string | null);
 }
 
 /**
@@ -2616,7 +2758,7 @@ export class RFileDialogDesc extends RStruct {
 
 /** Passed to the draw callback of a viewport. Sizes are in pixels. */
 export class RViewportDrawInfo extends RStruct {
-	static readonly SIZE = 88;
+	static readonly SIZE = 112;
 	constructor(pointer?: Pointer);
 	/** The structure at an address of the library, or null. */
 	static from(pointer: Pointer | null): RViewportDrawInfo | null;
@@ -2662,9 +2804,18 @@ export class RViewportDrawInfo extends RStruct {
 	/** Vulkan: VkRenderPass in use (one color attachment, no depth). */
 	get render_pass(): Pointer | null;
 	set render_pass(value: Pointer | null);
-	/** Vulkan: VkFormat of the color attachment. */
+	/** Vulkan: VkFormat of the color attachment; Metal: MTLPixelFormat. */
 	get color_format(): number;
 	set color_format(value: number);
+	/** Metal: id<MTLRenderCommandEncoder> of the frame, inside its render pass (do not end it). */
+	get metal_encoder(): Pointer | null;
+	set metal_encoder(value: Pointer | null);
+	/** Metal: id<MTLCommandBuffer> the encoder belongs to. */
+	get metal_command_buffer(): Pointer | null;
+	set metal_command_buffer(value: Pointer | null);
+	/** Metal: id<MTLDevice> of the backend, to make pipeline states that match color_format. */
+	get metal_device(): Pointer | null;
+	set metal_device(value: Pointer | null);
 }
 
 /** State of one animated value. Zero-initialize it and keep it with the widget. */
@@ -2794,6 +2945,54 @@ export class RHostPlatformDesc extends RStruct {
 	set user_data(value: Pointer | null);
 }
 
+/** How Rtest_expect_golden compares. NULL options: a tolerance of 2 per channel and no different pixel. */
+export class RGoldenOptions extends RStruct {
+	static readonly SIZE = 24;
+	constructor(pointer?: Pointer);
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RGoldenOptions | null;
+	/** Largest difference on one channel (0..255) for which two pixels are still the same. */
+	get channel_tolerance(): number;
+	set channel_tolerance(value: number);
+	/** Share of the pixels (0..1) that may differ while the images still match. */
+	get max_diff_ratio(): number;
+	set max_diff_ratio(value: number);
+	/** R_TRUE: the golden of this OS and backend, "button.png" read as "button.macos-metal.png" (Rtest_get_platform_tag). */
+	get per_platform(): number;
+	set per_platform(value: number);
+	/** Folder of the .actual.png and .diff.png written on a mismatch. NULL: beside the golden. */
+	get output_directory(): string | null;
+	set output_directory(value: string | null);
+}
+
+/** What Rtest_expect_golden found. */
+export class RGoldenResult extends RStruct {
+	static readonly SIZE = 40;
+	constructor(pointer?: Pointer);
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RGoldenResult | null;
+	get status(): RGoldenStatus;
+	set status(value: RGoldenStatus);
+	/** Size of the capture, in pixels. */
+	get width(): number;
+	set width(value: number);
+	/** Size of the capture, in pixels. */
+	get height(): number;
+	set height(value: number);
+	/** Pixels farther from the golden than the tolerance. */
+	get differing_pixels(): number;
+	set differing_pixels(value: number);
+	/** Largest difference found on one channel (0..255). */
+	get max_channel_difference(): number;
+	set max_channel_difference(value: number);
+	/** The golden that was read or written (with the platform tag). Valid until the next call. */
+	get golden_path(): string | null;
+	set golden_path(value: string | null);
+	/** One line that says what happened, for the log of the test. Valid until the next call. */
+	get message(): string | null;
+	set message(value: string | null);
+}
+
 /**
  * Runs the application until it quits, on every platform.
  *
@@ -2825,6 +3024,17 @@ export type RRunFinishedCallback = (exit_code: number, user_data: Pointer | null
  */
 export type RFrameCallback = (delta_seconds: number, user_data: Pointer | null) => void;
 
+/**
+ * Registers a function called when the application changes state
+ * (RAppEvent), on the UI thread, while the system waits for it: keep it
+ * short. Between R_APP_DID_PAUSE and R_APP_WILL_RESUME Raven lays out but
+ * draws nothing, animations stand still and Rwait_frame sleeps until an
+ * event, a posted task or a timer: the timers of the application keep
+ * running, so stop those that only drive drawing. Set it after Rinit;
+ * NULL removes it.
+ */
+export type RAppEventCallback = (event: RAppEvent, user_data: Pointer | null) => void;
+
 export type RTaskCallback = (user_data: Pointer | null) => void;
 
 export type RParallelRangeCallback = (begin: number, end: number, user_data: Pointer | null) => void;
@@ -2839,6 +3049,8 @@ export type RTimerCallback = (timer: Rid, user_data: Pointer | null) => void;
  * bound before or after the widgets are created.
  */
 export type RActionCallback = (sender: Rid, action: string | null, user_data: Pointer | null) => void;
+
+export type RActionParametersCallback = (context: Pointer | null, user_data: Pointer | null) => void;
 
 /**
  * Registers a function called whenever an error is raised.
@@ -2876,6 +3088,13 @@ export type RKeyboardCallback = (window: Rid, visible: number, height: number, u
  * R_DROP_DROPPED it tells the source that the data was taken.
  */
 export type RDropCallback = (target: Rid, event: RDropEvent | null, user_data: Pointer | null) => number | boolean;
+
+/**
+ * Called on Back when no popup or dialog of Raven is open. Return
+ * R_TRUE when the application went back, R_FALSE when it had nowhere to
+ * go (the system then does its default). NULL removes it.
+ */
+export type RBackCallback = (window: Rid, user_data: Pointer | null) => number | boolean;
 
 /**
  * Called when the user asks to close the window.
@@ -2978,6 +3197,12 @@ export type RTreeContextCallback = (tree_view: Rid, item: Rid, x: number, y: num
 
 export type RMenuItemClickedCallback = (item: Rid, user_data: Pointer | null) => void;
 
+/**
+ * Describes section `section`: when the sections are given (Rtile_view_set_sections,
+ * `first` is read) and when its header is drawn (`text`, `detail`). UI thread.
+ */
+export type RTileSectionCallback = (tile_view: Rid, section: number, out: RTileSection | null, user_data: Pointer | null) => void;
+
 /** Fills `item` for tile `index`. Called on the UI thread, only for the tiles in view. */
 export type RTileItemCallback = (tile_view: Rid, index: number, item: RTileItem | null, user_data: Pointer | null) => void;
 
@@ -3006,8 +3231,8 @@ export type RTableCellTextCallback = (table: Rid, row: number, column: number, u
  * Colors the text of cells (a verdict, a state): the table asks for the
  * color of each cell it draws, stored or virtual (`row` is the index of the
  * order shown). Set r, g, b, a (0..1) and return R_TRUE; R_FALSE (or alpha 0)
- * keeps the color of the theme. The color is kept on a selected or hovered
- * row. NULL removes the callback.
+ * keeps the color set with Rtable_set_cell_text_color, else the theme's.
+ * The color is kept on a selected or hovered row. NULL removes the callback.
  */
 export type RTableCellColorCallback = (table: Rid, row: number, column: number, r: Float32Array | null, g: Float32Array | null, b: Float32Array | null, a: Float32Array | null, user_data: Pointer | null) => number | boolean;
 
@@ -3043,8 +3268,34 @@ export type RPlotDragLineCallback = (plot: Rid, line: number, value: number, use
 /** Called when the user hides or shows a series from the legend. */
 export type RPlotSeriesCallback = (plot: Rid, series: number, visible: number, user_data: Pointer | null) => void;
 
+/** Called when the user clicks a slice; `selected` tells whether it is now the selected one. */
+export type RChartSliceCallback = (chart: Rid, slice: number, selected: number, user_data: Pointer | null) => void;
+
+/** Called when the user clicks a cell of a heatmap. */
+export type RChartCellCallback = (chart: Rid, row: number, column: number, value: number, user_data: Pointer | null) => void;
+
 /** Called when the current page changes as the user scrolls. This also fires the action of the widget. */
 export type RPdfPageChangedCallback = (view: Rid, page: number, user_data: Pointer | null) => void;
+
+/**
+ * Called when the user goes to another page (a swipe, the keys, a
+ * dot, an arrow) and when the autoplay does. This also fires the action
+ * of the widget.
+ */
+export type RCarouselPageChangedCallback = (carousel: Rid, page: number, user_data: Pointer | null) => void;
+
+/** Asks the application for a tile (z, x, y), or tells it that a tile asked for is no longer wanted. */
+export type RMapTileCallback = (map: Rid, z: number, x: number, y: number, user_data: Pointer | null) => void;
+
+/** Called when the user clicks a marker. */
+export type RMapMarkerCallback = (map: Rid, marker: number, user_data: Pointer | null) => void;
+
+/**
+ * Called when the user moves or zooms the map (during a drag, at the
+ * end of an animated zoom), with its new center and zoom. This also fires
+ * the action of the widget.
+ */
+export type RMapViewCallback = (map: Rid, latitude: number, longitude: number, zoom: number, user_data: Pointer | null) => void;
 
 /** Called when the user zoomed (to zoom other editors the same, or to keep it for the next time). */
 export type RTextEditorZoomCallback = (editor: Rid, zoom: number, user_data: Pointer | null) => void;
@@ -3081,6 +3332,20 @@ export type RTrayClickedCallback = (tray: Rid, button: RMouseButton, user_data: 
  * Return R_FALSE to keep the panel.
  */
 export type RDockCloseCallback = (area: Rid, panel: Rid, user_data: Pointer | null) => number | boolean;
+
+/**
+ * Called when a panel leaves for a window of its own, once the
+ * window and its floating area are made, before the panel goes there and
+ * before anything is drawn.
+ * area          The area the panel belongs to (its home).
+ * panel         The panel that leaves.
+ * window        The new window.
+ * floating_area The dock area of the new window.
+ * Returns: The content of the window: a widget that holds floating_area
+ * (a VBox with a header bar above it, for a window made with
+ * R_WINDOW_CUSTOM_HEADER), or R_INVALID_ID for floating_area itself.
+ */
+export type RDockFloatWindowCallback = (area: Rid, panel: Rid, window: Rid, floating_area: Rid, user_data: Pointer | null) => Rid;
 
 /** Called after the user moved, resized, showed or closed a panel. */
 export type RDockChangedCallback = (area: Rid, user_data: Pointer | null) => void;
@@ -3183,6 +3448,17 @@ export type RXmlReloadCallback = (path: string | null, ok: number, user_data: Po
 export type RXmlTagCreateCallback = (tag: string | null, user_data: Pointer | null) => Rid;
 
 export type RXmlTagAttributeCallback = (widget: Rid, name: string | null, value: string | null, user_data: Pointer | null) => number | boolean;
+
+/** Where app.log writes: the standard output when NULL. */
+export type RScriptLogCallback = (message: string | null, user_data: Pointer | null) => void;
+
+/**
+ * Receives the diagnostics of the scripts instead of the error
+ * callback. `text` is the whole message, as the command line shows it;
+ * `code` is its code ("RS102"); `line` and `column` start at 1 (0 when
+ * the diagnostic has no place). NULL gives them back to the error callback.
+ */
+export type RScriptDiagnosticCallback = (severity: RSeverity, code: string | null, file: string | null, line: number, column: number, text: string | null, user_data: Pointer | null) => void;
 
 export type RLocaleChangedCallback = (language: string | null, user_data: Pointer | null) => void;
 
@@ -3314,6 +3590,18 @@ export function Rget_delta_time(): number;
 /** Returns: Seconds elapsed since Rinit, from a monotonic clock. Thread-safe. */
 export function Rget_time(): number;
 
+export function Rset_app_event_callback(callback: RAppEventCallback | Pointer | null, user_data?: RPointer): void;
+
+/** Returns: R_TRUE between R_APP_DID_PAUSE and R_APP_WILL_RESUME: the application is in the background. */
+export function Ris_app_paused(): number;
+
+/**
+ * Handles an RAppEvent as if the system had sent it: for tests,
+ * and for a host application (raven_host.h) that knows the lifecycle.
+ * UI thread.
+ */
+export function Rinject_app_event(event: RAppEvent): void;
+
 /**
  * Scale of the whole interface, on top of the one of the monitor
  * (RInitDesc.ui_scale at start): every window is laid out again. 0.25 .. 4.
@@ -3404,6 +3692,37 @@ export function Raction_fire(name: string | null, sender: Rid): void;
 
 /** Receives every action that has no bound function and is not one of the built-in actions (e.g. a script bridge). */
 export function Raction_set_default_handler(callback: RActionCallback | Pointer | null, user_data?: RPointer): void;
+
+export function Raction_bind_with_parameters(name: string | null, signature: string | null, callback: RActionParametersCallback | Pointer | null, user_data?: RPointer): number;
+
+/** Returns: The widget whose event fired the action, R_INVALID_ID when a script calls it. */
+export function Raction_get_sender(context: RPointer): Rid;
+
+export function Raction_get_name(context: RPointer): string | null;
+
+/** Returns: The number of arguments given: the parameters of the signature, fewer when an event gives fewer... never more. */
+export function Raction_get_argument_count(context: RPointer): number;
+
+/** The arguments, by position from 0. A wrong index or type reports an error and gives 0, "" or R_FALSE. */
+export function Raction_get_number(context: RPointer, index: number): number;
+
+/** Returns: Valid until the function returns. */
+export function Raction_get_string(context: RPointer, index: number): string | null;
+
+export function Raction_get_bool(context: RPointer, index: number): number;
+
+/** The value returned to the script; of the type of the signature (what is set last counts). */
+export function Raction_return_number(context: RPointer, value: number): void;
+
+export function Raction_return_string(context: RPointer, value: string | null): void;
+
+export function Raction_return_bool(context: RPointer, value: number): void;
+
+/**
+ * The function failed: the script that called it stops with error
+ * RS205 and this message (the application goes on; so does the next event).
+ */
+export function Raction_fail(context: RPointer, message: string | null): void;
 
 /**
  * The actions Raven knows by itself: an interface written in XML
@@ -3516,7 +3835,10 @@ export function Rwindow_get_safe_area(window: Rid, insets: RInsets | null): void
 /**
  * The part of the window the on-screen keyboard covers (only
  * `bottom` is set), in logical units; 0 when it is hidden or there is
- * none (desktop). The content is laid out above it already.
+ * none (desktop). The content is laid out above it already, and the
+ * field that has the focus is scrolled into view above it, by the
+ * ScrollBoxes that hold it, when the keyboard comes or changes height,
+ * when the window turns, and when another field takes the focus.
  */
 export function Rwindow_get_keyboard_area(window: Rid, insets: RInsets | null): void;
 
@@ -3525,6 +3847,19 @@ export function Rwindow_set_keyboard_callback(window: Rid, callback: RKeyboardCa
 
 /** No widget of the window has the keyboard focus any more: on mobile, the on-screen keyboard goes away. */
 export function Rwindow_clear_focus(window: Rid): void;
+
+export function Rwindow_set_back_callback(window: Rid, callback: RBackCallback | Pointer | null, user_data?: RPointer): void;
+
+/**
+ * R_TRUE while the application has somewhere to go back to (a page
+ * under the one shown). Android 13 and later ask for Back only while the
+ * window wants it (predictive back): at the root page the system handles
+ * Back itself and animates back to the home screen. Default R_FALSE.
+ */
+export function Rwindow_set_back_enabled(window: Rid, enabled: number): void;
+
+/** Returns: R_TRUE while Back would be taken: a popup or dialog is open, or Rwindow_set_back_enabled said so. */
+export function Rwindow_wants_back(window: Rid): number;
 
 export function Rwindow_set_min_size(window: Rid, width: number, height: number): void;
 
@@ -3776,6 +4111,20 @@ export function Rwindow_inject_key(window: Rid, key: RKey, pressed: number, modi
 export function Rwindow_inject_text(window: Rid, text: string | null): void;
 
 /**
+ * The text an input method is composing (preedit: Chinese,
+ * Japanese, Korean, dead keys), as the platforms send it. The focused
+ * TextInput, SpinBox or TextEditor shows it at its caret, underlined, in
+ * place of its selection, but it is not in its text and no changed
+ * callback runs. [selection_start, selection_end) are bytes of `text`:
+ * the part the input method works on (underlined thicker), or the caret
+ * when they are equal; -1 is the end of `text`. NULL or "" ends the
+ * composition without typing anything (cancel). The committed text comes
+ * through Rwindow_inject_text, which ends the composition too, and so
+ * does a change of focus. Ignored when the focus takes no text.
+ */
+export function Rwindow_inject_composition(window: Rid, text: string | null, selection_start: number, selection_end: number): void;
+
+/**
  * A drag from another application moves over the window
  * (`inside` R_TRUE) or leaves it.
  * Returns: R_TRUE when a drop at this position would be accepted.
@@ -3784,6 +4133,9 @@ export function Rwindow_inject_drag(window: Rid, x: number, y: number, inside: n
 
 /** Drops files and / or text at a position. Returns R_TRUE when a target took them. */
 export function Rwindow_inject_drop(window: Rid, x: number, y: number, paths: readonly string[] | null, text: string | null): number;
+
+/** Back, as the system sends it (Rwindow_set_back_callback). Returns R_TRUE when something took it. */
+export function Rwindow_inject_back(window: Rid): number;
 
 /** R_TRUE while the key is held down in the window (cleared when the window loses the keyboard). */
 export function Rwindow_is_key_down(window: Rid, key: RKey): number;
@@ -3819,6 +4171,13 @@ export function Rwindow_set_text_input_selection(window: Rid, start: number, end
  */
 export function Rwindow_replace_text_input(window: Rid, start: number, end: number, text: string | null): number;
 
+/**
+ * The composition of the input method in progress (UTF-8, valid
+ * until it changes) and its selection in bytes; NULL when there is none.
+ * Any output pointer may be NULL.
+ */
+export function Rwindow_get_text_composition(window: Rid): [result: string | null, selection_start: number, selection_end: number];
+
 /** R_TRUE while a menu, list or dialog is open over the window. */
 export function Rwindow_has_popup(window: Rid): number;
 
@@ -3826,7 +4185,9 @@ export function Rwindow_has_popup(window: Rid): number;
  * Last painted caret in window pixels (x, y, width, height), including scrolling and scale.
  * Call after Rdraw_frame. Independent of the blink phase. Returns R_FALSE and zeros the
  * outputs when there is no visible editable caret, the window is inactive, or focus changed
- * since painting. Any output pointer may be NULL.
+ * since painting. Any output pointer may be NULL. While an input method
+ * composes, it is the caret inside the composition: where its candidate
+ * window goes.
  */
 export function Rwindow_get_text_input_rect(window: Rid): [result: number, x: number, y: number, width: number, height: number];
 
@@ -3971,6 +4332,11 @@ export function Rtheme_set_color(role: RColorRole, r: number, g: number, b: numb
 
 export function Rtheme_get_color(role: RColorRole): [r: number, g: number, b: number, a: number];
 
+/**
+ * Changes a size of the theme in use. It lasts until the look or
+ * the theme is chosen again (Rlook_set, Rtheme_use), but not through a
+ * switch between light and dark made by Rtheme_follow_system.
+ */
 export function Rtheme_set_metric(metric: RMetric, value: number): void;
 
 export function Rtheme_get_metric(metric: RMetric): number;
@@ -4009,6 +4375,13 @@ export function Rtheme_get_system_dark(): number;
  * Follows the dark or light mode of the system with the Raven look
  * (R_LOOK_RAVEN_DARK / R_LOOK_RAVEN_LIGHT), now and when it changes.
  * Off by default. Does nothing where the platform does not tell (desktop today).
+ *
+ * A switch is Rlook_set, except that the sizes given with
+ * Rtheme_set_metric stay. Colors and styles set with Rtheme_set_... are
+ * those of one mode and are lost; to keep colors, sizes and styles of
+ * the application through the switch, put them in a theme that names no
+ * look (Rtheme_load_from_memory, then Rtheme_use): it is laid over the
+ * new look.
  */
 export function Rtheme_follow_system(enabled: number): void;
 
@@ -4202,6 +4575,22 @@ export function Rimage_decode(data: NodeJS.TypedArray | null): [result: Pointer 
 /** Releases pixels returned by Raven (Rimage_decode, Rwindow_capture). Thread-safe. */
 export function Rpixels_free(pixels: RPointer): void;
 
+/**
+ * Encodes tightly packed RGBA8 pixels (what Rwindow_capture
+ * returns) as a PNG file in memory. Thread-safe.
+ * size Receives the number of bytes.
+ * Returns: The bytes of the file, to release with Rpixels_free; NULL when
+ * there are no pixels.
+ */
+export function Rimage_encode_png(rgba: RPointer, width: number, height: number): [result: Pointer | null, size: number];
+
+/**
+ * Writes tightly packed RGBA8 pixels to a PNG file: a screenshot
+ * of Rwindow_capture, a picture made by the application. Thread-safe.
+ * Returns: R_FALSE when the file cannot be written.
+ */
+export function Rimage_save_png(path: string | null, rgba: RPointer, width: number, height: number): number;
+
 /** Returns: R_TRUE once an asynchronous texture is decoded (or failed). */
 export function Rtexture_is_ready(texture: Rid): number;
 
@@ -4239,6 +4628,9 @@ export function Rwidget_get_type(widget: Rid): RWidgetType;
  * A widget that already has a parent is moved.
  * Returns: `child`, so calls can be nested:
  *         Rid ok = Rwidget_add_child(row, Rbutton_create("OK"));
+ *         R_INVALID_ID when the child replaced in a single-child container
+ *         had a destroy callback that destroyed the container or `child`;
+ *         `child`, when it is still there, is then not added.
  */
 export function Rwidget_add_child(parent: Rid, child: Rid): Rid;
 
@@ -4350,7 +4742,10 @@ export function Rwidget_play_transition(widget: Rid, transition: RTransition, de
 /** R_TRUE clips the descendants to the bounds of the widget. */
 export function Rwidget_set_clipping(widget: Rid, clip: number): void;
 
-/** Text shown when the cursor rests on the widget. NULL removes it. */
+/**
+ * Text shown when the cursor rests on the widget. NULL removes it. A label, which otherwise
+ *  lets the mouse through, takes the hover while it has a tooltip (events it does not use still bubble).
+ */
 export function Rwidget_set_tooltip(widget: Rid, text: string | null): void;
 
 /** Returns: The tooltip text of the widget, "" when it has none. */
@@ -4378,7 +4773,7 @@ export function Rwidget_is_hovered(widget: Rid): number;
 
 export function Rwidget_set_focusable(widget: Rid, focusable: number): void;
 
-/** Gives the keyboard focus to the widget. */
+/** Gives the keyboard focus to the widget, and scrolls it into view (Rwidget_scroll_into_view). */
 export function Rwidget_focus(widget: Rid): void;
 
 export function Rwidget_is_focused(widget: Rid): number;
@@ -4463,7 +4858,11 @@ export function Rwidget_set_metric(widget: Rid, metric: RMetric, value: number):
 
 export function Rwidget_clear_metric(widget: Rid, metric: RMetric): void;
 
-/** Returns: The metric the widget uses: its own, else the one of a style, else the one of its theme. */
+/**
+ * Returns: The metric the widget uses: its own, else the one of a style,
+ * else the one of its theme; grown for larger text
+ * (Raccessibility_set_text_scale) and for a finger (RTouchSettings::min_touch_size).
+ */
 export function Rwidget_get_metric(widget: Rid, metric: RMetric): number;
 
 /**
@@ -4572,7 +4971,12 @@ export function Rscroll_box_get_offset(scroll_box: Rid): [x: number, y: number];
 
 export function Rscroll_box_scroll_to_end(scroll_box: Rid): void;
 
-/** Scrolls every ScrollBox above the widget so that the widget is visible. */
+/**
+ * Scrolls every ScrollBox above the widget so that the widget is
+ * visible. The library does it by itself for the focused widget when the
+ * focus comes from Tab or Rwidget_focus, and for a text field above the
+ * on-screen keyboard (Rwindow_get_keyboard_area).
+ */
 export function Rwidget_scroll_into_view(widget: Rid): void;
 
 /** R_HORIZONTAL puts the panes side by side (default), R_VERTICAL stacks them. */
@@ -5115,6 +5519,31 @@ export function Rtile_view_set_tile_size(tile_view: Rid, width: number, height: 
 
 export function Rtile_view_set_empty_text(tile_view: Rid, text: string | null): void;
 
+/**
+ * Layout="Rows": width of the box the icon is drawn in (its height is the
+ * icon size), for icons that are not square; 0 = square (default). XML: IconWidth.
+ */
+export function Rtile_view_set_icon_width(tile_view: Rid, width: number): void;
+
+/** `count` sections, described by `callback`, all unfolded. Rtile_view_set_items removes them: give them after the tiles. */
+export function Rtile_view_set_sections(tile_view: Rid, count: number, callback: RTileSectionCallback | Pointer | null, user_data?: RPointer): void;
+
+export function Rtile_view_get_section_count(tile_view: Rid): number;
+
+/** The section of a tile, or -1 (before the first section). */
+export function Rtile_view_get_section_of(tile_view: Rid, index: number): number;
+
+/** Folds or unfolds a section (the toggled callback is not called). */
+export function Rtile_view_set_section_folded(tile_view: Rid, section: number, folded: number): void;
+
+export function Rtile_view_is_section_folded(tile_view: Rid, section: number): number;
+
+/** The section whose header is at a point relative to the widget, or -1. */
+export function Rtile_view_get_section_at(tile_view: Rid, local_x: number, local_y: number): number;
+
+/** Called when the user folds or unfolds a section (`index`: the section). */
+export function Rtile_view_set_section_toggled_callback(tile_view: Rid, callback: RTileEventCallback | Pointer | null, user_data?: RPointer): void;
+
 export function Rtile_view_set_selected(tile_view: Rid, index: number, selected: number): void;
 
 export function Rtile_view_is_selected(tile_view: Rid, index: number): number;
@@ -5205,7 +5634,27 @@ export function Rtable_set_virtual_rows(table: Rid, count: number, callback: RTa
 
 export function Rtable_set_cell_color_callback(table: Rid, callback: RTableCellColorCallback | Pointer | null, user_data?: RPointer): void;
 
-/** Selects a row. -1 selects nothing. */
+/**
+ * Stored rows: a fixed text color; column -1 colors the row; cells override it.
+ * Alpha 0 restores the inherited/theme color. A color from the cell color callback wins over it.
+ */
+export function Rtable_set_cell_text_color(table: Rid, row: number, column: number, r: number, g: number, b: number, a: number): void;
+
+/** Opt into Ctrl/Cmd toggles and Shift ranges; single selection is the default. */
+export function Rtable_set_multi_select(table: Rid, enabled: number): void;
+
+export function Rtable_set_row_selected(table: Rid, row: number, selected: number): void;
+
+export function Rtable_is_row_selected(table: Rid, row: number): number;
+
+export function Rtable_clear_selection(table: Rid): void;
+
+export function Rtable_get_selection_count(table: Rid): number;
+
+/** Selected row at index, top to bottom; -1 outside the selection. */
+export function Rtable_get_selection(table: Rid, index: number): number;
+
+/** Replaces the selection with one row. -1 selects nothing, including in multi-select mode. */
 export function Rtable_set_selected(table: Rid, row: number): void;
 
 export function Rtable_get_selected(table: Rid): number;
@@ -5509,6 +5958,150 @@ export function Rplot_set_drag_line_callback(plot: Rid, callback: RPlotDragLineC
 
 export function Rplot_set_series_toggled_callback(plot: Rid, callback: RPlotSeriesCallback | Pointer | null, user_data?: RPointer): void;
 
+/** A chart of a kind (Rwidget_create(R_WIDGET_CHART) makes a pie). */
+export function Rchart_create(kind: RChartKind): Rid;
+
+export function Rchart_set_kind(chart: Rid, kind: RChartKind): void;
+
+export function Rchart_get_kind(chart: Rid): RChartKind;
+
+/** The title over a pie, a donut or a heatmap, under the value of a gauge (a sparkline only tells it to screen readers). */
+export function Rchart_set_title(chart: Rid, title: string | null): void;
+
+export function Rchart_get_title(chart: Rid): string | null;
+
+/**
+ * How the values are written (the gauge, the middle of a donut, what
+ * the pointer shows): a printf format for one double with its unit, "%.0f%%",
+ * "$%.2f". NULL: whole numbers as they are, others with up to two decimals.
+ */
+export function Rchart_set_format(chart: Rid, format: string | null): void;
+
+/** The color of the arc of a gauge outside any band, and of the line of a sparkline (default: the accent). */
+export function Rchart_set_color(chart: Rid, r: number, g: number, b: number, a: number): void;
+
+/** The legend: the slices beside a pie or a donut, the scale of colors under a heatmap (shown by default). */
+export function Rchart_set_legend(chart: Rid, shown: number): void;
+
+/** Removes the slices, the bands, the grid and the values. */
+export function Rchart_clear(chart: Rid): void;
+
+/**
+ * What is under the pointer: a slice, a point of a sparkline, or a
+ * cell of a heatmap as row * columns + column; -1 for nothing.
+ */
+export function Rchart_get_hovered(chart: Rid): number;
+
+/** Adds a slice (a value of 0 or more). Returns its index, -1 when the value is not valid. */
+export function Rchart_add_slice(chart: Rid, label: string | null, value: number): number;
+
+export function Rchart_remove_slice(chart: Rid, slice: number): void;
+
+export function Rchart_get_slice_count(chart: Rid): number;
+
+export function Rchart_set_slice_value(chart: Rid, slice: number, value: number): void;
+
+export function Rchart_get_slice_value(chart: Rid, slice: number): number;
+
+export function Rchart_set_slice_label(chart: Rid, slice: number, label: string | null): void;
+
+export function Rchart_get_slice_label(chart: Rid, slice: number): string | null;
+
+/** The color of a slice; an alpha of 0 gives it back its color of the palette. */
+export function Rchart_set_slice_color(chart: Rid, slice: number, r: number, g: number, b: number, a: number): void;
+
+/** The sum of the values of the slices. */
+export function Rchart_get_total(chart: Rid): number;
+
+/** The slice lifted as selected, or -1 for none (the user selects one with a click). */
+export function Rchart_set_selected(chart: Rid, slice: number): void;
+
+export function Rchart_get_selected(chart: Rid): number;
+
+/** The hole of a donut, as a part of its radius, from 0.2 to 0.9 (default 0.62). */
+export function Rchart_set_hole(chart: Rid, ratio: number): void;
+
+/**
+ * What the middle of a donut shows when the pointer is not over a
+ * slice: `text` in large (NULL or "": the total) over `caption` in small
+ * (NULL or "": none).
+ */
+export function Rchart_set_center_text(chart: Rid, text: string | null, caption: string | null): void;
+
+export function Rchart_set_slice_clicked_callback(chart: Rid, callback: RChartSliceCallback | Pointer | null, user_data?: RPointer): void;
+
+/**
+ * The range of a gauge (default 0 to 100), and a fixed range for the
+ * colors of a heatmap and the height of a sparkline, which otherwise follow
+ * their values. min == max goes back to these defaults.
+ */
+export function Rchart_set_range(chart: Rid, min: number, max: number): void;
+
+/** The range in use now (a gauge's, or the one of the values of a heatmap or a sparkline). */
+export function Rchart_get_range(chart: Rid): [min: number, max: number];
+
+/** The value of a gauge, kept within its range when drawn. */
+export function Rchart_set_value(chart: Rid, value: number): void;
+
+export function Rchart_get_value(chart: Rid): number;
+
+/**
+ * Colors a part of the range of a gauge (an alpha of 0: the success,
+ * warning and danger colors of the theme, one after the other). The arc
+ * takes the color of the band its value is in. Returns the index of the band.
+ */
+export function Rchart_add_band(chart: Rid, from: number, to: number, r: number, g: number, b: number, a: number): number;
+
+export function Rchart_clear_bands(chart: Rid): void;
+
+export function Rchart_get_band_count(chart: Rid): number;
+
+/**
+ * The cells of a heatmap: `rows` x `columns` values, row after row,
+ * copied (NULL: all 0). NaN leaves a cell empty.
+ */
+export function Rchart_set_grid(chart: Rid, rows: number, columns: number, values: Float32Array | readonly number[] | null): void;
+
+export function Rchart_get_row_count(chart: Rid): number;
+
+export function Rchart_get_column_count(chart: Rid): number;
+
+export function Rchart_set_cell(chart: Rid, row: number, column: number, value: number): void;
+
+export function Rchart_get_cell(chart: Rid, row: number, column: number): number;
+
+/** The names of the rows, separated by '|': "Mon|Tue|Wed" (shown at their left). */
+export function Rchart_set_row_labels(chart: Rid, labels: string | null): void;
+
+/** The names of the columns, separated by '|' (shown over them, as many as fit). */
+export function Rchart_set_column_labels(chart: Rid, labels: string | null): void;
+
+/** The name of a row or of a column, "" when it has none. */
+export function Rchart_get_row_label(chart: Rid, row: number): string | null;
+
+export function Rchart_get_column_label(chart: Rid, column: number): string | null;
+
+/** The colors of the lowest and of the highest values of a heatmap (default: a tint of the accent, the accent). */
+export function Rchart_set_color_scale(chart: Rid, low_r: number, low_g: number, low_b: number, low_a: number, high_r: number, high_g: number, high_b: number, high_a: number): void;
+
+export function Rchart_set_cell_clicked_callback(chart: Rid, callback: RChartCellCallback | Pointer | null, user_data?: RPointer): void;
+
+/** The values of a sparkline, copied. NaN leaves a gap. */
+export function Rchart_set_values(chart: Rid, values: Float32Array | readonly number[] | null, count: number): void;
+
+/** Adds a value after the others, for live data; only the last `max_count` are kept (0: all of them). */
+export function Rchart_push_value(chart: Rid, value: number, max_count: number): void;
+
+export function Rchart_get_value_count(chart: Rid): number;
+
+export function Rchart_get_value_at(chart: Rid, index: number): number;
+
+/** Shades the area under the line of a sparkline (on by default). */
+export function Rchart_set_fill(chart: Rid, fill: number): void;
+
+/** A dot on the last value of a sparkline (on by default). */
+export function Rchart_set_marker(chart: Rid, shown: number): void;
+
 /** R_TRUE when PDFium can be loaded (it is, the first time this is asked). */
 export function Rpdf_is_available(): number;
 
@@ -5559,8 +6152,165 @@ export function Rpdf_view_get_page_text(view: Rid, page: number): string | null;
 
 export function Rpdf_view_set_page_changed_callback(view: Rid, callback: RPdfPageChangedCallback | Pointer | null, user_data?: RPointer): void;
 
+export function Rcarousel_create(): Rid;
+
+/**
+ * Shows a page, gliding to it when `animated` (and the animations
+ * are on), at once otherwise. The page changed callback is not called.
+ */
+export function Rcarousel_set_page(carousel: Rid, page: number, animated: number): void;
+
+/** The page shown, -1 when the carousel has none. */
+export function Rcarousel_get_page(carousel: Rid): number;
+
+/** Its children. */
+export function Rcarousel_get_page_count(carousel: Rid): number;
+
+/** Glides to the next / previous page; nothing at the last / first one unless it loops. */
+export function Rcarousel_next(carousel: Rid): void;
+
+export function Rcarousel_prev(carousel: Rid): void;
+
+/** R_TRUE: after the last page comes the first one, and before the first the last (default R_FALSE). */
+export function Rcarousel_set_loop(carousel: Rid, loop: number): void;
+
+export function Rcarousel_get_loop(carousel: Rid): number;
+
+/**
+ * Goes to the next page by itself every `seconds` (0: never, the
+ * default); after the last page it comes back to the first. It waits
+ * while the pointer is on the carousel, while the pages are dragged and
+ * while the keyboard is in it; a page chosen by the user starts the
+ * interval again.
+ */
+export function Rcarousel_set_autoplay(carousel: Rid, seconds: number): void;
+
+export function Rcarousel_get_autoplay(carousel: Rid): number;
+
+/** The dots along the bottom edge (the right edge when vertical), one per page (default R_TRUE). */
+export function Rcarousel_set_indicators_visible(carousel: Rid, visible: number): void;
+
+export function Rcarousel_get_indicators_visible(carousel: Rid): number;
+
+/** The previous / next buttons shown while the pointer is on the carousel (default R_TRUE). */
+export function Rcarousel_set_arrows_visible(carousel: Rid, visible: number): void;
+
+export function Rcarousel_get_arrows_visible(carousel: Rid): number;
+
+/** R_HORIZONTAL: the pages side by side (default); R_VERTICAL: one above the other. */
+export function Rcarousel_set_orientation(carousel: Rid, orientation: ROrientation): void;
+
+export function Rcarousel_get_orientation(carousel: Rid): ROrientation;
+
+export function Rcarousel_set_page_changed_callback(carousel: Rid, callback: RCarouselPageChangedCallback | Pointer | null, user_data?: RPointer): void;
+
 /** Prints the document shown (see Rpdf_print); the job is named after its title. */
 export function Rpdf_view_print(view: Rid, desc: RPdfPrintDesc | null): number;
+
+export function Rmap_view_create(): Rid;
+
+/** Centers the map on a place. The latitude is held within +/-85.0511; the longitude wraps. */
+export function Rmap_view_set_center(map: Rid, latitude: number, longitude: number): void;
+
+/** The place at the middle of the map (longitude from -180 to 180). */
+export function Rmap_view_get_center(map: Rid): [latitude: number, longitude: number];
+
+/** The zoom: 0 shows the whole world in one tile, each step doubles the scale. Fractions are allowed. */
+export function Rmap_view_set_zoom(map: Rid, zoom: number): void;
+
+export function Rmap_view_get_zoom(map: Rid): number;
+
+/** The zooms the user can reach (default 0 to 19, at most 0 to 24). Tiles are asked for at whole zooms of this range. */
+export function Rmap_view_set_zoom_range(map: Rid, min_zoom: number, max_zoom: number): void;
+
+export function Rmap_view_get_zoom_range(map: Rid): [min_zoom: number, max_zoom: number];
+
+/** Glides to a place and a zoom (at once when animations are off). */
+export function Rmap_view_animate_to(map: Rid, latitude: number, longitude: number, zoom: number): void;
+
+/** The place at a point of the widget. */
+export function Rmap_view_screen_to_latlon(map: Rid, x: number, y: number): [latitude: number, longitude: number];
+
+/** Where a place is in the widget (of the copies of the world side by side, the one nearest the middle). */
+export function Rmap_view_latlon_to_screen(map: Rid, latitude: number, longitude: number): [x: number, y: number];
+
+/**
+ * Called once for each tile the map needs. Answer with
+ * Rmap_view_set_tile, Rmap_view_set_tile_data or Rmap_view_set_tile_failed,
+ * at once or later. Setting it forgets the tiles of the previous source.
+ */
+export function Rmap_view_set_tile_callback(map: Rid, callback: RMapTileCallback | Pointer | null, user_data?: RPointer): void;
+
+/** Called when a tile asked for and not answered yet is no longer wanted (the user went elsewhere). Optional. */
+export function Rmap_view_set_tile_cancel_callback(map: Rid, callback: RMapTileCallback | Pointer | null, user_data?: RPointer): void;
+
+/**
+ * The pixels of a tile: `width` x `height` RGBA8, tightly packed
+ * (they are copied; any size, shown at the tile size). Thread-safe: from
+ * another thread it is applied on the UI thread during the next frame.
+ */
+export function Rmap_view_set_tile(map: Rid, z: number, x: number, y: number, rgba: RPointer, width: number, height: number): void;
+
+/** A tile as the bytes of an image file (PNG, JPEG...), decoded on the calling thread. Thread-safe. */
+export function Rmap_view_set_tile_data(map: Rid, z: number, x: number, y: number, data: NodeJS.TypedArray | null): void;
+
+/** There is no such tile: the coarser one stays shown in its place. Thread-safe. */
+export function Rmap_view_set_tile_failed(map: Rid, z: number, x: number, y: number): void;
+
+/**
+ * Reads the tiles from files instead of asking for them: a path
+ * where {z}, {x} and {y} are replaced ({-y}: the row counted from the
+ * south, as in TMS and MBTiles). The files are read and decoded on a
+ * worker thread; a missing file is a tile that failed. NULL or "": the
+ * tile callback again. Local files only.
+ */
+export function Rmap_view_set_tile_path(map: Rid, path_template: string | null): void;
+
+export function Rmap_view_get_tile_path(map: Rid): string | null;
+
+/** Logical size of a tile at a whole zoom (default 256, from 16 to 1024): larger tiles show the map larger. */
+export function Rmap_view_set_tile_size(map: Rid, size: number): void;
+
+export function Rmap_view_get_tile_size(map: Rid): number;
+
+/** Memory the decoded tiles may take, in bytes (default 64 MiB). The tiles on screen are always kept. */
+export function Rmap_view_set_cache_size(map: Rid, bytes: number): void;
+
+/** Memory the decoded tiles take now, in bytes. */
+export function Rmap_view_get_cache_usage(map: Rid): number;
+
+/** Forgets every tile (they are asked for again): the tiles of the source changed. */
+export function Rmap_view_clear_tiles(map: Rid): void;
+
+export function Rmap_view_get_tile_state(map: Rid, z: number, x: number, y: number): RMapTileState;
+
+/** Adds a pin at a place, with a label written next to it (may be NULL). Returns its id (from 1), or -1. */
+export function Rmap_view_add_marker(map: Rid, latitude: number, longitude: number, label: string | null): number;
+
+export function Rmap_view_remove_marker(map: Rid, marker: number): void;
+
+export function Rmap_view_clear_markers(map: Rid): void;
+
+export function Rmap_view_get_marker_count(map: Rid): number;
+
+export function Rmap_view_set_marker_position(map: Rid, marker: number, latitude: number, longitude: number): void;
+
+export function Rmap_view_set_marker_label(map: Rid, marker: number, label: string | null): void;
+
+/** The color of a pin (by default the accent of the theme). */
+export function Rmap_view_set_marker_color(map: Rid, marker: number, r: number, g: number, b: number, a: number): void;
+
+export function Rmap_view_set_marker_clicked_callback(map: Rid, callback: RMapMarkerCallback | Pointer | null, user_data?: RPointer): void;
+
+export function Rmap_view_set_view_changed_callback(map: Rid, callback: RMapViewCallback | Pointer | null, user_data?: RPointer): void;
+
+/**
+ * A line written in the bottom right corner: the credit most tile
+ * licences ask for, such as "(c) OpenStreetMap contributors". NULL or "": none.
+ */
+export function Rmap_view_set_attribution(map: Rid, text: string | null): void;
+
+export function Rmap_view_get_attribution(map: Rid): string | null;
 
 export function Rpdf_document_create(): Rid;
 
@@ -5995,6 +6745,19 @@ export function Rdock_area_is_tearable(area: Rid): number;
 
 /** Default for future floats/tears; existing floating panels keep their mode. */
 export function Rdock_area_set_float_mode(area: Rid, mode: RDockFloatMode): void;
+
+/**
+ * How the windows of torn-off panels are made (native windows,
+ * R_DOCK_FLOAT_WINDOW; in-window cards are not windows).
+ * flags    RWindowFlags they are created with: R_WINDOW_NO_RESIZE,
+ *                 R_WINDOW_BORDERLESS, R_WINDOW_CUSTOM_HEADER and
+ *                 R_WINDOW_TRANSPARENT (the others are ignored).
+ *                 R_WINDOW_DEFAULT by default.
+ * callback May be NULL: the floating area is the whole window.
+ * Dragging the only tab of such a window still moves it, and closing
+ * it (its header bar's close button too) docks its panels back.
+ */
+export function Rdock_area_set_float_window(area: Rid, flags: number, callback: RDockFloatWindowCallback | Pointer | null, user_data?: RPointer): void;
 
 /** Floats a panel. Native mode: screen x/y; in-window mode: window-local logical x/y. Returns its containing window. */
 export function Rdock_area_float_panel(area: Rid, panel: Rid, x: number, y: number): Rid;
@@ -6877,6 +7640,9 @@ export function Rfile_is_memory(path: string | null): number;
 
 /**
  * Whole files, with UTF-8 paths on every platform.
+ * On Android and iOS, a relative path that names no file held in memory
+ * and no file on disk is read from the app's package (the APK's assets/,
+ * the bundle's resources), and so is every file Raven reads by its path.
  * Returns: Rfile_read: the content followed by a '\0', to release with
  * Rmemory_free; NULL when the file cannot be read. `size` may be NULL.
  */
@@ -6949,7 +7715,7 @@ export function Rnotification_set_fallback(callback: RNotificationFallback | Poi
  * (on the UI thread; the application may then bring its window to the
  * front: the system lets it). It is the last one shown that was clicked:
  * the application remembers what it was about. NULL: none.
- * Windows only for now (elsewhere it is never called).
+ * Windows and macOS (elsewhere it is never called).
  */
 export function Rnotification_set_clicked_callback(callback: RNotificationClickedCallback | Pointer | null, user_data?: RPointer): void;
 
@@ -7360,6 +8126,65 @@ export function Rxml_get_attribute_count(tag: string | null): number;
 
 export function Rxml_get_attribute_info(tag: string | null, index: number, info: RXmlAttributeInfo | null): number;
 
+/**
+ * Loads a script given as text (not an XML document): its
+ * functions become actions, its globals are initialized.
+ * name Names it in the diagnostics (a file name); may be NULL.
+ * Returns: R_FALSE when it has an error (nothing of it is installed).
+ */
+export function Rscript_load(source: string | null, name: string | null): number;
+
+/** The same from a file (.rvs). */
+export function Rscript_load_file(path: string | null): number;
+
+/**
+ * Checks a script, or the scripts of an XML document and the
+ * functions its widgets name, without running anything nor building a
+ * widget. The diagnostics are reported as usual.
+ * source A script, or an XML document (text that starts with '<').
+ * Returns: The number of errors.
+ */
+export function Rscript_check(source: string | null, name: string | null): number;
+
+/** Returns: The number of errors in the file (a .rvs or an .xml), -1 when it cannot be read. */
+export function Rscript_check_file(path: string | null): number;
+
+/**
+ * Formats a script: one statement per line, blocks indented,
+ * spaces around operators; comments are kept.
+ * indent One level of indentation; NULL for four spaces.
+ * Returns: The text, valid until the next call; NULL when the script has a
+ * syntax error (it is not changed).
+ */
+export function Rscript_format(source: string | null, indent: string | null): string | null;
+
+/** Removes every script function (their actions are unbound) and every global. Not while a script runs. */
+export function Rscript_reset(): void;
+
+/** Returns: R_TRUE when a script function has that name. */
+export function Rscript_has_function(name: string | null): number;
+
+/**
+ * R_FALSE: the <Script> elements of the documents are read but not
+ * compiled nor run (a design tool that shows interfaces without running
+ * them). On by default.
+ */
+export function Rscript_set_enabled(enabled: number): void;
+
+export function Rscript_is_enabled(): number;
+
+/**
+ * The limits of the scripts. 0 keeps a value.
+ * max_instructions Instructions one invocation (an event) may run (10 000 000).
+ * max_depth Calls nested (200).
+ * max_memory Bytes of strings and arrays alive (64 MB).
+ */
+export function Rscript_set_limits(max_instructions: number, max_depth: number, max_memory: number): void;
+
+export function Rscript_set_log_callback(callback: RScriptLogCallback | Pointer | null, user_data?: RPointer): void;
+
+export function Rscript_set_diagnostic_callback(callback: RScriptDiagnosticCallback | Pointer | null, user_data?: RPointer): void;
+
 /** Loads a CSV table of translations from a file. Returns the number of keys read, -1 on an error. */
 export function Rlocale_load_csv(path: string | null): number;
 
@@ -7520,6 +8345,21 @@ export function Rhost_platform_is_active(): number;
 /** Size of a host window in pixels, and pixels per logical unit. */
 export function Rhost_window_set_size(window: Rid, width: number, height: number, scale: number): void;
 
+/**
+ * What covers a host window on a phone or a tablet, in pixels: the
+ * safe area (status bar, notch, home indicator; NULL: none) and the height
+ * of the on-screen keyboard over its bottom (0: hidden). The content is laid
+ * out inside them (Rwindow_get_safe_area, Rwindow_get_keyboard_area).
+ */
+export function Rhost_window_set_insets(window: Rid, safe_area: RInsets | null, keyboard_height: number): void;
+
+/**
+ * The application's system is in dark (R_TRUE) or light (R_FALSE)
+ * mode, -1 when it does not tell (the default): Rtheme_get_system_dark,
+ * and Rtheme_follow_system follows it.
+ */
+export function Rhost_set_system_dark(dark: number): void;
+
 export function Rhost_inject_mouse_move(window: Rid, x: number, y: number, modifiers: number): void;
 
 export function Rhost_inject_mouse_button(window: Rid, x: number, y: number, button: RMouseButton, pressed: number, modifiers: number): void;
@@ -7535,11 +8375,168 @@ export function Rhost_inject_key(window: Rid, key: RKey, pressed: number, modifi
 /** One typed Unicode code point. */
 export function Rhost_inject_text(window: Rid, codepoint: number): void;
 
+/**
+ * The input method of the application's system composes `text`
+ * (preedit), with its selection in bytes (see Rwindow_inject_composition).
+ * NULL or "" cancels it; the committed text then comes through
+ * Rhost_inject_text. Rwindow_get_text_input_rect tells where to put the
+ * candidate window.
+ */
+export function Rhost_inject_composition(window: Rid, text: string | null, selection_start: number, selection_end: number): void;
+
 /** The window gained or lost the keyboard. Losing it closes popups and drops captures. */
 export function Rhost_inject_focus(window: Rid, focused: number): void;
 
 /** The user asked to close the window (its close callback decides). */
 export function Rhost_inject_close(window: Rid): void;
+
+/**
+ * R_TRUE makes what is drawn depend only on what the test does:
+ * every frame advances the animations by 1/60 s (Rset_animation_time_step),
+ * and the carets of the text fields stay lit instead of blinking. R_FALSE
+ * gives the clock back (time step 0).
+ */
+export function Rtest_set_deterministic(enabled: number): void;
+
+export function Rtest_is_deterministic(): number;
+
+/**
+ * Returns: What the goldens of this run are made with, "OS-backend":
+ * "macos-metal", "linux-vulkan", "windows-vulkan", "web-webgl"... and
+ * "null" with the null backend.
+ */
+export function Rtest_get_platform_tag(): string | null;
+
+/**
+ * Finds a widget by name (Rwidget_set_name, Name="" in XML). The
+ * path may have several names separated by '/': "settings/ok" is the
+ * widget named "ok" inside the one named "settings". In a window, the
+ * open popups (menus, dialogs) are searched first, top first, then the
+ * content.
+ * scope A window or a widget.
+ * Returns: R_INVALID_ID when nothing has that name (no error is reported).
+ */
+export function Rtest_find(scope: Rid, path: string | null): Rid;
+
+/** Moves the mouse to the middle of the widget, presses and releases the left button. */
+export function Rtest_click(widget: Rid): number;
+
+/** Two clicks in a row on the middle of the widget, seen as a double click. */
+export function Rtest_double_click(widget: Rid): number;
+
+/** A click of the right button on the middle of the widget (a context menu). */
+export function Rtest_right_click(widget: Rid): number;
+
+/**
+ * Clicks at a position of a widget or a window.
+ * clicks 1 for a click, 2 for a double click, 3 for a triple click.
+ * modifiers RModifier held during the clicks (R_MOD_SHIFT...).
+ */
+export function Rtest_click_at(target: Rid, x: number, y: number, button: RMouseButton, clicks: number, modifiers: number): number;
+
+/** Moves the mouse over the middle of the widget, without clicking. */
+export function Rtest_hover(widget: Rid): number;
+
+/** Moves the mouse to a position of a widget or a window. */
+export function Rtest_hover_at(target: Rid, x: number, y: number): number;
+
+/**
+ * Presses the left button on the middle of the widget, moves by
+ * (dx, dy) in several steps, and releases: a slider, a splitter, a
+ * window dragged by a widget.
+ */
+export function Rtest_drag(widget: Rid, dx: number, dy: number): number;
+
+/** Drags from the middle of one widget to the middle of another (drag and drop). */
+export function Rtest_drag_to(from: Rid, to: Rid): number;
+
+/**
+ * Turns the mouse wheel over the middle of the widget: `wheel_y`
+ * notches (positive: toward the top, as a wheel turned away from the
+ * user), `wheel_x` notches sideways.
+ */
+export function Rtest_scroll(widget: Rid, wheel_x: number, wheel_y: number): number;
+
+/**
+ * Presses and releases a key, with RModifier held. A widget
+ * target gets the keyboard focus first; a window sends the key to what
+ * has the focus.
+ */
+export function Rtest_key(target: Rid, key: RKey, modifiers: number): number;
+
+/**
+ * Types UTF-8 text as a keyboard would. A widget target gets the
+ * keyboard focus first. '\n', '\t' and '\b' are sent as the keys Enter,
+ * Tab and Backspace.
+ */
+export function Rtest_type_text(target: Rid, text: string | null): number;
+
+/** A finger touches the middle of the widget and leaves at once. */
+export function Rtest_tap(widget: Rid): number;
+
+/**
+ * A finger put on the middle of the widget moves by (dx, dy) in
+ * `seconds`, and leaves: a fast swipe flicks a list, which then coasts
+ * (Rtest_settle lets it stop).
+ */
+export function Rtest_swipe(widget: Rid, dx: number, dy: number, seconds: number): number;
+
+/** Produces `frames` frames (Rdraw_frame). Returns: R_FALSE once the application quits. */
+export function Rtest_pump(frames: number): number;
+
+/**
+ * Returns: R_TRUE when nothing waits for a frame: no posted task, no layout
+ * to do, nothing to paint, no animation, no layout spring, no inertia.
+ * Windows that redraw all the time (Rwindow_set_continuous_redraw, a
+ * realtime viewport) and the timers are not counted.
+ */
+export function Rtest_is_idle(): number;
+
+/**
+ * Produces frames until Rtest_is_idle, each advancing the
+ * animations by the time step (1/60 s unless Rset_animation_time_step
+ * gives another), for at most `max_seconds` of that time.
+ * Returns: R_FALSE when it was still moving at the end.
+ */
+export function Rtest_settle(max_seconds: number): number;
+
+/**
+ * Returns: What the user reads in the widget: the text of a field, else
+ * its label (as screen readers say it: the text of a Label, a Button, a
+ * Checkbox...). "" when it has none. Valid until the next call.
+ */
+export function Rtest_get_text(widget: Rid): string | null;
+
+/**
+ * Returns: R_TRUE when the widget can be seen: in a window, Visible with
+ * all that holds it, on the page a Switcher or a TabView shows, and laid
+ * out with a size.
+ */
+export function Rtest_is_shown(widget: Rid): number;
+
+/** Returns: R_TRUE for a checked Checkbox, Switch, RadioButton, toggle Button or menu item. */
+export function Rtest_is_checked(widget: Rid): number;
+
+/**
+ * Captures a window, or the rectangle of one widget, and compares
+ * it with the PNG file `golden_path` (see the top of this file).
+ * target A window or a widget.
+ * options NULL for the defaults.
+ * result Receives the details; may be NULL.
+ * Returns: R_TRUE when the capture matches (or the golden was written
+ * because RAVEN_UPDATE_GOLDENS=1).
+ */
+export function Rtest_expect_golden(target: Rid, golden_path: string | null, options: RGoldenOptions | null, result: RGoldenResult | null): number;
+
+/**
+ * Compares two RGBA8 images of the same size as Rtest_expect_golden
+ * does, without files.
+ * diff_rgba When not NULL, receives width * height * 4 bytes: the
+ * expected image faded, with the different pixels in red.
+ * Returns: The number of pixels farther apart than `channel_tolerance`;
+ * -1 when an image is missing.
+ */
+export function Rtest_compare_pixels(actual: RPointer, expected: RPointer, width: number, height: number, channel_tolerance: number, diff_rgba: RPointer): [result: number, max_channel_difference: number];
 
 /**
  * Runs the interface until the last window closes or Rquit is called, leaving

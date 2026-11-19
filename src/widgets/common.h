@@ -66,6 +66,9 @@ extern const rvn_widget_class_t rvn_class_rating;
 extern const rvn_widget_class_t rvn_class_pagination;
 extern const rvn_widget_class_t rvn_class_plot;
 extern const rvn_widget_class_t rvn_class_pdf_view;
+extern const rvn_widget_class_t rvn_class_chart;
+extern const rvn_widget_class_t rvn_class_map_view;
+extern const rvn_widget_class_t rvn_class_carousel;
 
 /** Internal class types, outside of the public enum. */
 #define RVN_WIDGET_INTERNAL_COMBO_LIST ((RWidgetType)((int)R_WIDGET_LAST_ + 1))
@@ -275,6 +278,11 @@ rvn_vec2_t rvn_island_extent(const rvn_widget_t* island);
 /** An island of the window asked for the housing, or does not any more: widget/window.c looks again. */
 void rvn_window_notch_changed(rvn_window_t* window);
 void rvn_islands_shutdown(void);
+/* ---- widgets/map_view.c: the markers of a MapView as the children a screen reader sees ---- */
+/** The marker at `index` (in the order they were added): its label and the rectangle of its pin. R_FALSE past the last. */
+int  rvn_map_view_marker_info(const rvn_widget_t* widget, int index, const char** label, rvn_rect_t* rect);
+/** What a click on the marker at `index` does (its callback). */
+void rvn_map_view_press_marker(rvn_widget_t* widget, int index);
 /** Closes PDFium when a PdfView opened it (widgets/pdf_view.c). */
 void rvn_pdf_shutdown(void);
 /** Releases what the file dialogs remember (widgets/dialogs.c). */
@@ -499,6 +507,11 @@ void rvn_textedit_mouse_down(rvn_textedit_t* edit, const rvn_widget_t* widget, R
 void rvn_textedit_mouse_drag(rvn_textedit_t* edit, const rvn_widget_t* widget, Rid font, float size, float x);
 /** Draws selection, text and caret inside `area` (widget coordinates). */
 void rvn_text_input_rect(const rvn_widget_t* widget, const RPainter* painter, rvn_rect_t caret);
+/** The composition of an input method when the widget has the focus (Rwindow_inject_composition), else NULL. */
+const char* rvn_widget_composition(const rvn_widget_t* widget, int* start, int* end);
+/** Underlines a composition from x0 to x1, thicker from target_x0 to target_x1, at `baseline`. */
+void rvn_paint_composition_underline(RPainter* painter, float x0, float x1, float target_x0, float target_x1,
+	float baseline, rvn_color_t color);
 void rvn_textedit_paint(rvn_textedit_t* edit, const rvn_widget_t* widget, RPainter* painter,
 	rvn_rect_t area, Rid font, float size, rvn_color_t color, int focused);
 

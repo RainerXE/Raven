@@ -190,7 +190,7 @@ footer{padding:44px 0 60px; color:var(--muted); font-size:16px; border-top:2px d
     <div class="langs" style="margin-top:22px">
       <span>C</span><span>C++</span><span>Rust</span><span>Python</span>
       <span>Go</span><span>C#</span><span>Zig</span><span>Lua</span>
-      <span>Java</span><span>Odin</span>
+      <span>Java</span><span>Odin</span><span>Bun</span><span>Node.js</span>
     </div>
     <p style="margin:14px 0 0;font-size:15px" class="muted">Bindings for all of them. For example: <code>pip install raven-gui</code></p>
     <div class="badges">
@@ -229,7 +229,7 @@ static void on_quit(Rid button, void* user_data) {
 }
 
 int main(void) {
-    if (!Rinit(R_BACKEND_VULKAN)) return 1;
+    if (!Rinit(R_BACKEND_DEFAULT)) return 1;
 
     Rid window = Rwindow_create("Hello", 420, 220, R_WINDOW_DEFAULT);
     Rid box = Rwidget_create(R_WIDGET_VBOX);
@@ -250,7 +250,7 @@ int main(void) {
 #include &lt;string&gt;
 
 int main() {
-    if (!raven::init(R_BACKEND_VULKAN)) return 1;
+    if (!raven::init(R_BACKEND_DEFAULT)) return 1;
 
     auto window = raven::Window::create("Hello", 360, 200, R_WINDOW_DEFAULT);
     auto box    = raven::Panel(raven::Widget::create(R_WIDGET_VBOX));
@@ -295,7 +295,7 @@ const XML: &amp;str = r#"
 
 fn main() {
     unsafe {
-        if Rinit(R_BACKEND_VULKAN) == 0 {
+        if Rinit(R_BACKEND_DEFAULT) == 0 {
             eprintln!("cannot start Raven");
             return;
         }
@@ -328,7 +328,7 @@ XML = """
     &lt;/VBox&gt;
 &lt;/Window&gt;"""
 
-if not r.Rinit(r.R_BACKEND_VULKAN):
+if not r.Rinit(r.R_BACKEND_DEFAULT):
     raise SystemExit("cannot start Raven")
 r.Rerror_set_callback(lambda code, severity, detail: print("raven:", detail))
 
@@ -364,7 +364,7 @@ const xml = `
 
 func main() {
     runtime.LockOSThread() // Raven belongs to the thread that starts it
-    if raven.Init(raven.R_BACKEND_VULKAN) == 0 {
+    if raven.Init(raven.R_BACKEND_DEFAULT) == 0 {
         fmt.Println("cannot start Raven")
         return
     }
@@ -399,7 +399,7 @@ static class Program
 
     static void Main()
     {
-        if (R.Rinit(RBackend.R_BACKEND_VULKAN) == 0) { Console.WriteLine("cannot start Raven"); return; }
+        if (R.Rinit(RBackend.R_BACKEND_DEFAULT) == 0) { Console.WriteLine("cannot start Raven"); return; }
         R.Rerror_set_callback(R.Keep&lt;RErrorCallback&gt;((code, severity, detail) =&gt;
             Console.WriteLine("raven: " + R.Text(detail))));
 
@@ -421,7 +421,7 @@ var title: r.Rid = r.R_INVALID_ID;
 var name: r.Rid = r.R_INVALID_ID;
 
 pub fn main() void {
-    if (r.Rinit(r.R_BACKEND_VULKAN) == 0) return;
+    if (r.Rinit(r.R_BACKEND_DEFAULT) == 0) return;
     const xml =
         \\&lt;Window Title="Hello" Width="360" Height="200"&gt;
         \\    &lt;VBox Spacing="10" Slot.Padding="16"&gt;
@@ -449,7 +449,7 @@ fn greet(sender: r.Rid, action: ?[*:0]const u8, user_data: ?*anyopaque) callconv
 <div class="codebox" data-lang="lua" data-name="Lua" data-href="bindings.html#lua-hello"><pre>local r = require("raven")
 local ffi = r.ffi
 
-assert(r.Rinit(r.R_BACKEND_VULKAN) ~= 0, "cannot start Raven")
+assert(r.Rinit(r.R_BACKEND_DEFAULT) ~= 0, "cannot start Raven")
 
 local xml = [[
 &lt;Window Title="Hello" Width="360" Height="200"&gt;
@@ -520,10 +520,10 @@ choice of scope, not a defect, and the rows are not meant to rank them.
 <tbody>
 <tr class="grp"><th colspan="5">How they work</th></tr>
 <tr><th scope="row">Nature</th><td class="rv">Complete GUI toolkit</td><td>Complete application framework</td><td>Layout only</td><td>Immediate-mode UI for tools</td></tr>
-<tr><th scope="row">API language</th><td class="rv">C11; bindings for C++, Python, Rust, Go, C#, Zig, LuaJIT, Java, Odin</td><td>C++ and QML; Python via PySide6</td><td>C, a single header</td><td>C++; C through cimgui</td></tr>
+<tr><th scope="row">API language</th><td class="rv">C11; bindings for C++, Python, Rust, Go, C#, Zig, LuaJIT, Java, Odin, Bun, Node.js, D, Nim, C3</td><td>C++ and QML; Python via PySide6</td><td>C, a single header</td><td>C++; C through cimgui</td></tr>
 <tr><th scope="row">Model</th><td class="rv">Retained tree; only changes are redrawn</td><td>Retained; event-driven</td><td>Tree declared every frame</td><td>Code runs and draws every frame</td></tr>
-<tr><th scope="row">Rendering</th><td class="rv">Vulkan (MoltenVK on macOS)</td><td>RHI: Vulkan, Metal, Direct3D, OpenGL</td><td>None: outputs draw commands</td><td>None: about 20 backends</td></tr>
-<tr><th scope="row">Platforms</th><td class="rv">Windows, Linux (X11 or Wayland), macOS. No mobile, no web</td><td>Desktop, mobile, embedded, web</td><td>Anywhere C compiles, WebAssembly included</td><td>Desktop, consoles, embedded, web</td></tr>
+<tr><th scope="row">Rendering</th><td class="rv">Vulkan (MoltenVK on macOS and iOS); WebGL 2 in the browser</td><td>RHI: Vulkan, Metal, Direct3D, OpenGL</td><td>None: outputs draw commands</td><td>None: about 20 backends</td></tr>
+<tr><th scope="row">Platforms</th><td class="rv">Windows, Linux (X11 or Wayland), macOS, the web (WebAssembly). iOS and Android, experimental</td><td>Desktop, mobile, embedded, web</td><td>Anywhere C compiles, WebAssembly included</td><td>Desktop, consoles, embedded, web</td></tr>
 <tr><th scope="row">Dependencies</th><td class="rv">None linked</td><td>Modules and platform plugins</td><td>None</td><td>A backend</td></tr>
 <tr><th scope="row">Build</th><td class="rv">CMake 3.16+, C11 compiler</td><td>CMake, moc, rcc, uic</td><td>One header</td><td>Add the .cpp files</td></tr>
 <tr class="grp"><th colspan="5">What it has</th></tr>

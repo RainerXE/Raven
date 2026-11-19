@@ -398,13 +398,41 @@ extern "C" {
 	/**
 	 * @brief The part of the window the on-screen keyboard covers (only
 	 * `bottom` is set), in logical units; 0 when it is hidden or there is
-	 * none (desktop). The content is laid out above it already.
+	 * none (desktop). The content is laid out above it already, and the
+	 * field that has the focus is scrolled into view above it, by the
+	 * ScrollBoxes that hold it, when the keyboard comes or changes height,
+	 * when the window turns, and when another field takes the focus.
 	 */
 	RAVEN_API void Rwindow_get_keyboard_area(Rid window, RInsets* insets);
 	/** @brief Called when the on-screen keyboard appears, changes height or goes away (mobile). NULL removes it. */
 	RAVEN_API void Rwindow_set_keyboard_callback(Rid window, RKeyboardCallback callback, void* user_data);
 	/** @brief No widget of the window has the keyboard focus any more: on mobile, the on-screen keyboard goes away. */
 	RAVEN_API void Rwindow_clear_focus(Rid window);
+
+	/**
+	 * Back: the back button and the back gesture of Android (not a key: it is
+	 * never sent as R_KEY_ESCAPE). Raven takes it first to close the top
+	 * popup or dialog, as Escape does; then the back callback of the window
+	 * goes back a page. When neither takes it the system does its default
+	 * (Android: it leaves the application).
+	 */
+
+	/**
+	 * @brief Called on Back when no popup or dialog of Raven is open. Return
+	 * R_TRUE when the application went back, R_FALSE when it had nowhere to
+	 * go (the system then does its default). NULL removes it.
+	 */
+	typedef int (*RBackCallback)(Rid window, void* user_data);
+	RAVEN_API void Rwindow_set_back_callback(Rid window, RBackCallback callback, void* user_data);
+	/**
+	 * @brief R_TRUE while the application has somewhere to go back to (a page
+	 * under the one shown). Android 13 and later ask for Back only while the
+	 * window wants it (predictive back): at the root page the system handles
+	 * Back itself and animates back to the home screen. Default R_FALSE.
+	 */
+	RAVEN_API void Rwindow_set_back_enabled(Rid window, int enabled);
+	/** @return R_TRUE while Back would be taken: a popup or dialog is open, or Rwindow_set_back_enabled said so. */
+	RAVEN_API int Rwindow_wants_back(Rid window);
 	RAVEN_API void Rwindow_set_min_size(Rid window, int width, int height);
 	RAVEN_API void Rwindow_set_position(Rid window, int x, int y);
 	RAVEN_API void Rwindow_get_position(Rid window, int* x, int* y);
@@ -636,6 +664,19 @@ extern "C" {
 	RAVEN_API void Rwindow_inject_key(Rid window, RKey key, int pressed, Ruint modifiers);
 	RAVEN_API void Rwindow_inject_text(Rid window, const char* text);
 	/**
+	 * @brief The text an input method is composing (preedit: Chinese,
+	 * Japanese, Korean, dead keys), as the platforms send it. The focused
+	 * TextInput, SpinBox or TextEditor shows it at its caret, underlined, in
+	 * place of its selection, but it is not in its text and no changed
+	 * callback runs. [selection_start, selection_end) are bytes of `text`:
+	 * the part the input method works on (underlined thicker), or the caret
+	 * when they are equal; -1 is the end of `text`. NULL or "" ends the
+	 * composition without typing anything (cancel). The committed text comes
+	 * through Rwindow_inject_text, which ends the composition too, and so
+	 * does a change of focus. Ignored when the focus takes no text.
+	 */
+	RAVEN_API void Rwindow_inject_composition(Rid window, const char* text, int selection_start, int selection_end);
+	/**
 	 * @brief A drag from another application moves over the window
 	 * (`inside` R_TRUE) or leaves it.
 	 * @return R_TRUE when a drop at this position would be accepted.
@@ -643,6 +684,8 @@ extern "C" {
 	RAVEN_API int Rwindow_inject_drag(Rid window, float x, float y, int inside);
 	/** @brief Drops files and / or text at a position. Returns R_TRUE when a target took them. */
 	RAVEN_API int Rwindow_inject_drop(Rid window, float x, float y, const char* const* paths, int path_count, const char* text);
+	/** @brief Back, as the system sends it (Rwindow_set_back_callback). Returns R_TRUE when something took it. */
+	RAVEN_API int Rwindow_inject_back(Rid window);
 
 	/**
 	 * @brief Registers a keyboard shortcut active while the window has focus and
@@ -683,13 +726,21 @@ extern "C" {
 	 * applies). R_FALSE when there is none or it is read-only.
 	 */
 	RAVEN_API int Rwindow_replace_text_input(Rid window, int start, int end, const char* text);
+	/**
+	 * @brief The composition of the input method in progress (UTF-8, valid
+	 * until it changes) and its selection in bytes; NULL when there is none.
+	 * Any output pointer may be NULL.
+	 */
+	RAVEN_API const char* Rwindow_get_text_composition(Rid window, int* selection_start, int* selection_end);
 	/** @brief R_TRUE while a menu, list or dialog is open over the window. */
 	RAVEN_API int Rwindow_has_popup(Rid window);
 	/**
 	 * Last painted caret in window pixels (x, y, width, height), including scrolling and scale.
 	 * Call after Rdraw_frame. Independent of the blink phase. Returns R_FALSE and zeros the
 	 * outputs when there is no visible editable caret, the window is inactive, or focus changed
-	 * since painting. Any output pointer may be NULL.
+	 * since painting. Any output pointer may be NULL. While an input method
+	 * composes, it is the caret inside the composition: where its candidate
+	 * window goes.
 	 */
 	RAVEN_API int Rwindow_get_text_input_rect(Rid window, int* x, int* y, int* width, int* height);
 	/** @return Number of open in-window popups (menus, combo lists, pickers), bottom to top. */
